@@ -60,6 +60,12 @@ const cases = [
     words: ['WORD_LAST_SECTION'],
   },
   {
+    filename: 'resume-two-pages.doc',
+    status: 200,
+    pages: 2,
+    words: ['WORD_LAST_SECTION'],
+  },
+  {
     filename: 'long-resume.html',
     status: 200,
     multiple: true,

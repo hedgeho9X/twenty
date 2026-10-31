@@ -23,3 +23,7 @@ Docling 2.145.0、RapidOCR及固定渲染器均在隔离本地容器运行。新
 ## 4. 评测版本边界
 
 独立8人RSI第一轮冻结的原件文字来自preview-v1，未因本次修正重写。其报告不证明preview-v2、多模态或所有文字层准确；后续比较需要明确新输入/解析版本，并把已看过的8人称为回归集。
+
+## 5. 旧DOC在当前版本的补充验证
+
+额外将同一合成两页DOCX经LibreOffice导出为真实Word97二进制DOC，先验证OLE文件头，再在preview-v2执行真实HTTP解析：200、complete、all_pages、两页两张完整PNG，尾页WORD_LAST_SECTION文字保留。结果为私有doc-v2-evidence.json；不是重命名DOCX冒充旧DOC。生成器和smoke-parser已纳入该场景，后续完整回归为10项；当前证据是原9项加这一项独立运行。

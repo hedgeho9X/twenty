@@ -2,6 +2,7 @@
 from pathlib import Path
 from zipfile import ZipFile
 from xml.sax.saxutils import escape
+import subprocess
 from PIL import Image, ImageDraw, ImageFont
 
 root = Path('/tmp/recruiting-regression-v2')
@@ -36,4 +37,10 @@ with ZipFile(root / 'resume-two-pages.docx', 'w') as archive:
     archive.writestr('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')
     archive.writestr('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')
     archive.writestr('word/document.xml', document)
+subprocess.run([
+    'libreoffice', '-env:UserInstallation=file:///tmp/recruiting-fixture-doc-profile',
+    '--headless', '--convert-to', 'doc:MS Word 97', '--outdir', str(root),
+    str(root / 'resume-two-pages.docx'),
+], check=True, capture_output=True, timeout=60)
+assert (root / 'resume-two-pages.doc').read_bytes().startswith(bytes.fromhex('d0cf11e0a1b11ae1'))
 print({'directory': str(root), 'syntheticFiles': len(list(root.iterdir()))})
