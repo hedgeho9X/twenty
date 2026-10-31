@@ -16,6 +16,7 @@ import { McpModule } from 'src/engine/api/mcp/mcp.module';
 import { RestApiModule } from 'src/engine/api/rest/rest-api.module';
 import { WorkspaceAuthContextMiddleware } from 'src/engine/core-modules/auth/middlewares/workspace-auth-context.middleware';
 import { FrontendModule } from 'src/engine/core-modules/frontend/frontend.module';
+import { ChatgptSubscriptionManagementModule } from 'src/engine/core-modules/chatgpt-subscription/chatgpt-subscription-management.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { DataloaderModule } from 'src/engine/dataloaders/dataloader.module';
 import { WorkspaceMetadataVersionModule } from 'src/engine/metadata-modules/workspace-metadata-version/workspace-metadata-version.module';
@@ -57,6 +58,7 @@ const MIGRATED_REST_METHODS = [
     TwentyOrmModule,
     ClickHouseModule,
     CoreEngineModule,
+    ChatgptSubscriptionManagementModule,
     ModulesModule,
     // Needed for the user workspace middleware
     WorkspaceCacheStorageModule,
