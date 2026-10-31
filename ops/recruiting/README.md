@@ -14,4 +14,12 @@
 
 `down` 保留数据库和缓存卷。脚本没有删除卷、全局停止 Docker、数据库重置等命令。
 
+## 导入既有本地副本
+
+`node ops/recruiting/import-snapshot.mjs <旧环境的private目录>` 只读 `fanhan-local-db-1`，将新 dump 单事务恢复到 `twenty-recruiting-db-1` 的空 `recruiting` 库。脚本固定目标并验证 OrbStack、Compose 项目和空库，已有数据时拒绝执行，不含强制覆盖选项。
+
+恢复后停用旧工作流、邮箱/日历同步、逻辑函数触发器和 Webhook；只复制认证加密所需的服务器密钥到私有配置，不启用旧部署连接。原始自动化定义仍保存在只读 dump 和未改动的 A 环境中。
+
+附件复制到独立本地存储，业务数量及隔离状态写入私有 `import-report.json`。旧记录内容和新版 schema 的兼容性、文件可下载性还需后续验证，不能仅凭导入退出码判断。
+
 以上是运行方式；真实启动、数据迁移与页面验收状态以 `docs/recruiting/PROGRESS.md` 为准。
