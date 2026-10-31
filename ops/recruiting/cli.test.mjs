@@ -85,3 +85,11 @@ test('JD preview is a terminal intake phase requiring explicit confirmation', as
     value,
   );
 });
+
+test('mail waiting includes MIME expansion and stops at explicit material selection', async () => {
+  const states = [{ status: 'UPLOADING' }, { status: 'QUEUED' }, { status: 'EXPANDING' }, { status: 'NEEDS_SELECTION' }];
+  let calls = 0;
+  const value = await waitForRecruitingTask({ request: async (path) => { assert.equal(path, '/recruiting/mail-archives/mail'); return states[calls++]; } }, 'mail', 'mail', { sleep: async () => {} });
+  assert.equal(value.status, 'NEEDS_SELECTION');
+  assert.equal(calls, 4);
+});

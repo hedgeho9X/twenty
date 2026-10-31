@@ -89,6 +89,16 @@ export class RecruitingController {
       { transport: 'EML_UPLOAD' },
     );
   }
+
+  /** Uses an authorized native upload reference for remote Agent EML imports. */
+  @Post('mail-archives')
+  @HttpCode(202)
+  importMail(@Req() request: Request, @Body() body: unknown) {
+    return this.mail.importUploaded(
+      buildWorkspaceAuthContextFromRequest(request),
+      body,
+    );
+  }
   /** Lists compact complete-mail receipts independently of candidate parsing. */
   @Get('mail-archives')
   mails(@Req() request: Request, @Query('offset') offset = '0') {

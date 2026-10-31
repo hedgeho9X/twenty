@@ -5,6 +5,19 @@ import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
+/** Keeps task paths explicit and rejects unsupported kinds rather than silently selecting a different resource. */
+const taskResource = (kind) => {
+  const resource = {
+    intake: 'resume-intakes',
+    match: 'match-runs',
+    draft: 'drafts',
+    mail: 'mail-archives',
+  }[kind];
+  if (!resource)
+    throw new Error('Task kind must be intake, match, draft or mail');
+  return resource;
+};
+
 /** Sends one request without following redirects or logging authentication headers. */
 export const createRecruitingClient = ({ baseUrl, token, fetcher = fetch }) => {
   const base = new URL(baseUrl);
@@ -14,6 +27,7 @@ export const createRecruitingClient = ({ baseUrl, token, fetcher = fetch }) => {
     base.password ||
     base.search ||
     base.hash ||
+    base.pathname !== '/' ||
     (base.protocol === 'http:' &&
       !['localhost', '127.0.0.1', '[::1]'].includes(base.hostname))
   )
@@ -70,12 +84,14 @@ export const waitForRecruitingTask = async (
   const started = Date.now();
   while (Date.now() - started <= timeoutMs) {
     const value = await client.request(
-      `/recruiting/${kind === 'intake' ? 'resume-intakes' : kind === 'draft' ? 'drafts' : 'match-runs'}/${encodeURIComponent(id)}`,
+      `/recruiting/${taskResource(kind)}/${encodeURIComponent(id)}`,
     );
     if (
       kind === 'intake'
         ? ['COMPLETED', 'NEEDS_REVIEW'].includes(value.state)
-        : !['QUEUED', 'PROCESSING'].includes(value.status)
+        : !['UPLOADING', 'QUEUED', 'PROCESSING', 'EXPANDING'].includes(
+            value.status,
+          )
     )
       return value;
     await sleep(intervalMs);
@@ -118,7 +134,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   });
   if (values.help || !positionals.length) {
     console.log(
-      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; match candidate|job|pair; draft greeting|publication|edit; task get|retry; queue list. Task kind: intake|match|draft. Draft generation never sends or publishes. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
+      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; mail import|select; match candidate|job|pair; draft greeting|publication|edit; task get|retry; queue list. Task kind: intake|match|draft|mail. Draft generation never sends or publishes. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
     );
     return;
   }
@@ -157,7 +173,33 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     result = await client.request(
       `/recruiting/${action}?search=${encodeURIComponent(values.query ?? '')}${values['company-id'] ? `&companyId=${encodeURIComponent(values['company-id'])}` : ''}`,
     );
-  else if (group === 'draft' && ['greeting', 'publication'].includes(action)) {
+  else if (group === 'mail' && action === 'import') {
+    if (values.file?.length !== 1)
+      throw new Error('mail import takes one complete EML file');
+    const filename = resolve(values.file[0]);
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob([await readFile(filename)]),
+      basename(filename),
+    );
+    result = await client.request('/recruiting/mail-archives/upload', {
+      method: 'POST',
+      body: form,
+    });
+    taskKind = 'mail';
+    taskId = result.archiveId;
+  } else if (group === 'mail' && action === 'select') {
+    result = await client.post(
+      `mail-archives/${encodeURIComponent(required('id'))}/intakes`,
+      JSON.parse(await readFile(resolve(required('items-file')), 'utf8')),
+    );
+    taskKind = 'intake';
+    taskId = result.intakeId;
+  } else if (
+    group === 'draft' &&
+    ['greeting', 'publication'].includes(action)
+  ) {
     result = await client.post('drafts', {
       kind: action === 'greeting' ? 'GREETING' : 'JOB_PUBLICATION',
       candidateId: action === 'greeting' ? required('candidate-id') : undefined,
@@ -255,9 +297,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     taskId = result.runId;
   } else if (group === 'task' && ['get', 'retry'].includes(action)) {
     const kind = values.kind;
-    if (!['intake', 'match', 'draft'].includes(kind))
-      throw new Error('--kind must be intake, match or draft');
-    const path = `${kind === 'intake' ? 'resume-intakes' : kind === 'draft' ? 'drafts' : 'match-runs'}/${encodeURIComponent(required('id'))}`;
+    const path = `${taskResource(kind)}/${encodeURIComponent(required('id'))}`;
     result =
       action === 'retry'
         ? await client.post(`${path}/retry`, {})
@@ -266,7 +306,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     taskId = values.id;
   } else if (group === 'queue' && action === 'list')
     result = await client.request(
-      `/recruiting/${values.kind === 'match' ? 'match-runs' : values.kind === 'draft' ? 'drafts' : 'resume-intakes'}?offset=${Number(values.offset) || 0}`,
+      `/recruiting/${taskResource(values.kind)}?offset=${Number(values.offset) || 0}`,
     );
   else throw new Error('Unknown command; run with --help');
   if (values.wait && taskId)

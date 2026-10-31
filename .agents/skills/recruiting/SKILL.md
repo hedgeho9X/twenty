@@ -25,6 +25,8 @@ description: 操作本项目的招聘业务：公司与JD录入、候选人材�
 
 ## 恢复与边界
 
+- `mail import --file 完整邮件.eml --wait` 归档完整原文与全部MIME资源；`task get --kind mail --id ID`查看artifactKeys。`mail select --id ID --items-file 选择.json --wait`按artifactKeys、可选candidateId和note交给统一候选人入库。MCP先用上传授权/完成取得文件凭据，再mail_import；mail_select选择材料。NEEDS_SELECTION是待选择，不是入库完成。内嵌图保留，默认不当简历；正文自动作为补充。父邮件权限与上传凭据仍必须满足，不能用其他记录的fileId。原生邮箱连接与自动收取以当前设置和真实验收为准，EML导入不是实收。
+
 - `draft greeting --candidate-id ID --job-id ID --note-file 说明.txt --key 唯一标识 --wait` 生成问候，岗位可省略；`draft publication --job-id ID --key 唯一标识 --wait` 生成岗位发布稿。用 `task get --kind draft --id ID`、`queue list --kind draft` 查询，`draft edit --id ID --items-file 文案.json` 保存 title/body。原生MCP对应draft_submit/draft_edit。API Key只能生成与编辑；直接用户会话可核对草稿，核对不代表已发送或发布。来源变更时需重新生成，重试不会覆盖已核对的人工正文。
 
 - 保留 intakeId/runId 继续 `task get` 或 `queue list`。队列丢失或失败可通过 `task retry`，不得直接编辑内部 result/payload；内部状态和评分缓存有完整性校验。

@@ -30,6 +30,7 @@ import {
   type RecruitingMailArtifact,
 } from './domain/mail-material';
 import { contentVersion } from './domain/match-context';
+import { intakeFileSchema } from './recruiting-schemas';
 
 /** Transport identifiers are produced by the trusted receiver, never interpreted as authorization. */
 export type RecruitingMailSource =
@@ -88,18 +89,41 @@ export class RecruitingMailService {
     private readonly queue: MessageQueueService,
   ) {}
 
+  /** Accepts an Agent-owned completed upload, preserving the same parent archive and file authorization boundary. */
+  async importUploaded(context: WorkspaceAuthContext, value: unknown) {
+    const parsed = intakeFileSchema
+      .required({ uploadReceipt: true })
+      .safeParse(value);
+    if (!parsed.success)
+      throw new BadRequestException('请先上传完整EML并取得提交凭据');
+    this.uploads.authorize(context, parsed.data);
+    const raw = await this.parser.original(
+      this.actors.capture(context),
+      parsed.data.fileId,
+    );
+    return this.receive(
+      context,
+      raw,
+      { transport: 'EML_UPLOAD' },
+      false,
+      parsed.data,
+    );
+  }
+
   /** Deduplicates exact original bytes before file allocation; Message-ID alone never merges distinct mail. */
   async receive(
     context: WorkspaceAuthContext,
     raw: Buffer,
     source: RecruitingMailSource,
     autoSubmit = false,
+    uploaded?: z.infer<typeof intakeFileSchema>,
   ) {
     if (!raw.length || raw.length > 50 * 1024 * 1024)
       throw new BadRequestException('邮件原文必须在50MB以内');
     const sourceHash = createHash('sha256').update(raw).digest('hex');
     const id = v5(`${context.workspace.id}:mail:${sourceHash}`, v5.URL);
     const actor = this.actors.capture(context);
+    if (uploaded) this.uploads.authorize(context, uploaded);
     if (source.transport === 'IMAP')
       await this.registerImapEvent(context, source, sourceHash, id);
     const accepted = await this.optional(context, id);
@@ -156,10 +180,12 @@ export class RecruitingMailService {
           );
         }
         if (!payload.rawFile) {
-          const file = await this.uploads.buffer(context, {
-            buffer: raw,
-            originalname: 'original.eml',
-          });
+          const file =
+            uploaded ??
+            (await this.uploads.buffer(context, {
+              buffer: raw,
+              originalname: 'original.eml',
+            }));
           payload = {
             ...payload,
             rawFile: { fileId: file.fileId, label: file.label },
@@ -184,7 +210,19 @@ export class RecruitingMailService {
   /** Exposes raw metadata and owned artifact identities only after native parent-record access. */
   async one(context: WorkspaceAuthContext, id: string) {
     const record = await this.records.one(context, 'recruitingMailArchive', id);
-    return { ...this.receipt(record), detail: this.payload(record) };
+    const payload = this.payload(record);
+    return {
+      ...this.receipt(record),
+      detail: {
+        sources: payload.sources,
+        metadata: payload.metadata,
+        parserVersion: payload.parserVersion,
+        artifacts: payload.artifacts.map((file) => ({
+          ...file,
+          downloadPath: `/recruiting/mail-archives/${record.id}/artifacts/${encodeURIComponent(file.key)}`,
+        })),
+      },
+    };
   }
 
   /** Serves only a manifest-listed artifact after the signed parent and current native permissions were checked. */
