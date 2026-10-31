@@ -202,6 +202,10 @@ export class RecruitingMatchingService {
     for (const result of payload.results) {
       try {
         const candidate = await read('person', result.candidateId);
+        if (!this.isCandidate(candidate)) {
+          stale++;
+          continue;
+        }
         const job = await read('recruitmentJob', result.jobId);
         const company =
           typeof job.companyId === 'string'
@@ -257,16 +261,43 @@ export class RecruitingMatchingService {
         return true;
       })
       .slice(0, 5);
+    const wholePool =
+      payload.input.direction !== 'PAIR' && !payload.input.targetIds;
+    const currentPool = wholePool
+      ? await this.records.list(
+          context,
+          payload.input.direction === 'JOB_TO_CANDIDATES'
+            ? 'person'
+            : 'recruitmentJob',
+          {
+            filter:
+              payload.input.direction === 'JOB_TO_CANDIDATES'
+                ? { contactRoles: { containsAny: ['CANDIDATE'] } }
+                : { jobStatus: { eq: 'RECRUITING' } },
+            limit: 1,
+            select: ['id'],
+          },
+        )
+      : undefined;
+    const poolChanged = Boolean(
+      currentPool &&
+      payload.targetIds &&
+      currentPool.count !== payload.targetIds.length,
+    );
     return {
       ...this.receipt(run),
       results,
       top,
       stale,
       inaccessible,
+      poolChanged,
+      poolCapturedAt: payload.startedAt,
+      currentPoolCount: currentPool?.count,
       complete:
         ['COMPLETED', 'NO_RESULTS'].includes(String(run.status)) &&
         !stale &&
-        !inaccessible,
+        !inaccessible &&
+        !poolChanged,
       protocol: RECRUITING_MATCH_PROTOCOL.version,
       notice:
         '相对前五仅表示能力排序；意向和未知条件需人工确认，不能直接作为录用或推荐决定。',

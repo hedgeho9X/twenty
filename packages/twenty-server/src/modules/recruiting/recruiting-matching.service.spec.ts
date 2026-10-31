@@ -46,6 +46,7 @@ const setup = () => {
     ...jobs.map((job) => [job.id, job] as [string, Record<string, unknown>]),
   ]);
   const records = {
+    list: jest.fn(async () => ({ count: jobs.length })),
     one: jest.fn(async (_context, _object, id: string) => {
       if (!rows.has(id)) throw new NotFoundException();
       return rows.get(id)!;
@@ -175,5 +176,15 @@ describe('recruiting matching runs', () => {
     await service.retry(context, 'run');
     expect(queue.add).toHaveBeenCalledTimes(1);
     expect(rows.get('run')!.status).toBe('QUEUED');
+  });
+
+  it('does not claim current full coverage when new targets entered the pool after the snapshot', async () => {
+    const { service, records } = setup();
+    await service.process({ runId: 'run', actor });
+    records.list.mockResolvedValue({ count: 8 });
+    const result = await service.one(context, 'run');
+    expect(result.poolChanged).toBe(true);
+    expect(result.complete).toBe(false);
+    expect(result.currentPoolCount).toBe(8);
   });
 });

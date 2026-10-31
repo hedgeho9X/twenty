@@ -204,7 +204,12 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
         ? '缺少可评分的职业材料'
         : undefined,
     supplementOnly,
-    version: contentVersion({ context: clean, eligibility, conflict }),
+    version: contentVersion({
+      context: clean,
+      eligibility,
+      conflict,
+      ...(supplementOnly ? { supplementOnly: true } : {}),
+    }),
   };
 };
 

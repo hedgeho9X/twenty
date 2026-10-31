@@ -166,3 +166,8 @@
 - 实测 Vite 默认 workspace fs allow-list 会将仓库里的 .local/recruiting 暴露给 /@fs 请求；检查仅请求 HEAD 状态，没有输出配置正文。
 - 已在 Vite fs.deny 保留原生 .env/证书/.git 规则并加入 **/.local/**。只重启本仓库前端后，environment/session/schema-report 三种私有文件均返回403，raw import及编码路径也返回403，应用首页仍200。
 - 本地运行数据继续保存在私有忽略目录，前端不打包或直接访问这些文件；用户数据通过有权限的业务接口读取。
+
+## 匹配结果的快照范围
+
+- 匹配详情会核对当前候选人角色，并比较当前全池数量与任务快照。池里新增目标时返回 poolChanged/currentPoolCount，不能把旧快照标为当前全量完成。
+- 新增目标需要新任务；失败重试仍固定原任务范围。6项 orchestration 测试通过，包含新目标进入后 complete=false；当前服务端全包类型检查通过。
