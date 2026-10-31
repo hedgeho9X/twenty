@@ -10,6 +10,7 @@ export const aiProviderConfigSchema = z.object({
   name: z.string().optional(),
   label: z.string().optional(),
   authType: aiProviderAuthTypeSchema.optional(),
+  subscriptionAccountId: z.string().optional(),
   apiKey: z.string().optional(),
   baseUrl: z.string().optional(),
   region: z.string().optional(),

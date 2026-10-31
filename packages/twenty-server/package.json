@@ -21,6 +21,7 @@
     "@ai-sdk/amazon-bedrock": "^5.0.104",
     "@ai-sdk/anthropic": "^4.0.71",
     "@ai-sdk/azure": "^4.0.89",
+    "@ai-sdk/gateway": "4.0.102",
     "@ai-sdk/google": "^4.0.87",
     "@ai-sdk/mistral": "^4.0.56",
     "@ai-sdk/openai": "^4.0.83",
@@ -162,6 +163,7 @@
     "sanitize-html": "2.18.1",
     "semver": "7.6.3",
     "sns-payload-validator": "^2.1.0",
+    "socks": "2.8.10",
     "stripe": "20.4.1",
     "tar": "^7.5.9",
     "temporal-polyfill": "^0.3.0",
@@ -170,6 +172,7 @@
     "type-fest": "4.10.1",
     "typeorm": "patch:typeorm@0.3.31#./patches/typeorm+0.3.31.patch",
     "typescript": "^5.9.3",
+    "undici": "7.30.1",
     "unzipper": "^0.12.3",
     "uuid": "^11.1.1",
     "zod": "^4.6.6"

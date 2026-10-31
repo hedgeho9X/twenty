@@ -20,6 +20,12 @@ import {
 import { type AiSdkPackage } from 'twenty-shared/ai';
 import { isDefined } from 'twenty-shared/utils';
 
+import { loadLocalCodexCredential } from 'src/engine/core-modules/chatgpt-subscription/local-codex-credential';
+import {
+  createSubscriptionFetch,
+  createSubscriptionTransport,
+} from 'src/engine/core-modules/chatgpt-subscription/subscription-fetch';
+
 import {
   AI_SDK_ANTHROPIC,
   AI_SDK_AZURE,
@@ -119,6 +125,22 @@ export class SdkProviderFactoryService {
   private buildProviderInstance(
     config: AiProviderConfig,
   ): AiSdkProviderInstance {
+    if (config.authType === 'chatgpt') {
+      const provider = createOpenAI({
+        apiKey: 'subscription-managed',
+        fetch: createSubscriptionFetch({
+          loadCredential: () =>
+            loadLocalCodexCredential(config.subscriptionAccountId),
+          upstreamFetch: createSubscriptionTransport(
+            process.env.RECRUITING_MODEL_PROXY_URL,
+          ),
+        }),
+      });
+
+      return this.toProviderInstance(provider, AI_SDK_OPENAI, (modelId) =>
+        provider.responses(modelId),
+      );
+    }
     switch (config.npm) {
       case AI_SDK_OPENAI:
         return this.buildStandardProvider(config, createOpenAI);
