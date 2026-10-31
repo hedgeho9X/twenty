@@ -122,6 +122,9 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       'job-id': { type: 'string' },
       id: { type: 'string' },
       kind: { type: 'string', default: 'intake' },
+      audience: { type: 'string', default: 'CANDIDATE' },
+      days: { type: 'string', default: '7' },
+      channel: { type: 'string' },
       key: { type: 'string' },
       'batch-id': { type: 'string' },
       'items-file': { type: 'string' },
@@ -172,6 +175,44 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   else if (group === 'subjects' && ['candidates', 'jobs'].includes(action))
     result = await client.request(
       `/recruiting/${action}?search=${encodeURIComponent(values.query ?? '')}${values['company-id'] ? `&companyId=${encodeURIComponent(values['company-id'])}` : ''}`,
+    );
+  else if (group === 'activity' && action === 'note')
+    result = await client.post('activities', {
+      action: 'NOTE',
+      candidateId: required('candidate-id'),
+      jobId: values['job-id'],
+      note: note ?? required('note'),
+      channel: values.channel,
+      idempotencyKey: key,
+    });
+  else if (group === 'activity' && action === 'list')
+    result = await client.request(
+      `/recruiting/activities?offset=${Number(values.offset) || 0}${values['candidate-id'] ? `&candidateId=${encodeURIComponent(values['candidate-id'])}` : ''}`,
+    );
+  else if (group === 'portal' && action === 'create')
+    result = await client.post('portal-invites', {
+      kind: values.audience,
+      candidateId: required('candidate-id'),
+      jobIds: values.targets
+        ? values.targets.split(',').filter(Boolean)
+        : values['job-id']
+          ? [values['job-id']]
+          : [],
+      expiresInDays: Number(values.days),
+      idempotencyKey: key,
+    });
+  else if (group === 'portal' && action === 'list')
+    result = await client.request(
+      `/recruiting/portal-invites?offset=${Number(values.offset) || 0}`,
+    );
+  else if (group === 'portal' && ['link', 'revoke'].includes(action))
+    result = await client.post(
+      `portal-invites/${encodeURIComponent(required('id'))}/${action}`,
+      {},
+    );
+  else if (group === 'portal' && action === 'status')
+    result = await client.request(
+      `/recruiting/sharing-status?candidateId=${encodeURIComponent(required('candidate-id'))}&jobId=${encodeURIComponent(required('job-id'))}`,
     );
   else if (group === 'mail' && action === 'import') {
     if (values.file?.length !== 1)

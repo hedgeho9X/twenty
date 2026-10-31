@@ -45,6 +45,11 @@ import { RecruitingMailboxService } from './recruiting-mailbox.service';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import { MessagingIMAPDriverModule } from 'src/modules/messaging/message-import-manager/drivers/imap/messaging-imap-driver.module';
 import { RecruitingLockModule } from './recruiting-lock.module';
+import { RecruitingPortalService } from './recruiting-portal.service';
+import { RecruitingActivityService } from './recruiting-activity.service';
+import { RecruitingPortalActionsService } from './recruiting-portal-actions.service';
+import { RecruitingShareConsentService } from './recruiting-share-consent.service';
+import { RecruitingPortalController } from './recruiting-portal.controller';
 
 @Module({
   imports: [
@@ -69,7 +74,7 @@ import { RecruitingLockModule } from './recruiting-lock.module';
       ConnectedAccountEntity,
     ]),
   ],
-  controllers: [RecruitingController],
+  controllers: [RecruitingController, RecruitingPortalController],
   providers: [
     RecruitingActorService,
     RecruitingRecordsService,
@@ -89,6 +94,10 @@ import { RecruitingLockModule } from './recruiting-lock.module';
     RecruitingMailService,
     RecruitingMailJob,
     RecruitingMailboxService,
+    RecruitingPortalService,
+    RecruitingActivityService,
+    RecruitingPortalActionsService,
+    RecruitingShareConsentService,
     ResumeIngestJob,
     RecruitingMatchingService,
     RecruitingPairEvaluatorService,

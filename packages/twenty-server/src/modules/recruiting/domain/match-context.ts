@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 
 import { type CandidateEligibility, type JobEligibility } from './match-policy';
+import { readPortalSelfProfile } from './portal-schemas';
 
 /** Legacy and new native records share an extensible, permission-filtered boundary. */
 export type MatchSource = Record<string, unknown> & { id: string };
@@ -104,9 +105,20 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
   const legacy = objectValue(record.candidateSearchJson);
   const legacyPreferences = objectValue(legacy.preferences);
   const name = objectValue(record.name);
-  const names = [name.firstName, name.lastName, profile.name].filter(
-    (entry): entry is string => typeof entry === 'string',
-  );
+  const self = readPortalSelfProfile(record.candidatePortalProfile);
+  const nativeName = [name.firstName, name.lastName]
+    .filter(
+      (entry): entry is string =>
+        typeof entry === 'string' && Boolean(entry.trim()),
+    )
+    .join(' ');
+  const names = [
+    nativeName,
+    name.firstName,
+    name.lastName,
+    profile.name,
+    self?.fullName,
+  ].filter((entry): entry is string => typeof entry === 'string');
   const note = recruitingText(record.candidatePreferences);
   const sourceText = recruitingText(profile.sourceText);
   const nativePreferences =
@@ -125,9 +137,9 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
     experience: factTexts(compact ? profile.experience : legacy.experience),
     projects: factTexts(legacy.projects),
     education: factTexts(compact ? profile.education : legacy.education),
-    expectedRoles: factTexts(
-      compact ? profile.expectedRoles : legacyPreferences.roles,
-    ),
+    expectedRoles: self
+      ? self.expectedRoles
+      : factTexts(compact ? profile.expectedRoles : legacyPreferences.roles),
     jobTitle: recruitingText(record.jobTitle),
     sourceText,
     note: [recruitingText(profile.note), note].filter(Boolean).join('\n'),
@@ -142,6 +154,19 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
         }
       : legacyPreferences,
     unknowns: factTexts(legacy.unknowns),
+    ...(self
+      ? {
+          selfReported: {
+            summary: self.summary,
+            skills: self.skills,
+            note: self.note,
+            employmentTypes: self.employmentTypes,
+            workModes: self.workModes,
+            locations: self.locations,
+            source: 'candidate_portal',
+          },
+        }
+      : {}),
   };
   const clean = minimizeContext(context, names);
   const eligibility: CandidateEligibility = {};
@@ -190,6 +215,36 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
   const locations = cityValues(profile.locations);
   if (locations.length)
     eligibility.locationIds = { values: locations, certainty: 'unconfirmed' };
+  if (self?.employmentTypes.length) {
+    eligibility.employmentTypes = {
+      values: self.employmentTypes,
+      certainty: self.strictEmployment ? 'confirmed' : 'unconfirmed',
+    };
+    if (eligibility.excludedEmploymentTypes) {
+      const remaining = eligibility.excludedEmploymentTypes.values.filter(
+        (value) =>
+          !self.employmentTypes.includes(
+            value as (typeof self.employmentTypes)[number],
+          ),
+      );
+      if (remaining.length)
+        eligibility.excludedEmploymentTypes = {
+          ...eligibility.excludedEmploymentTypes,
+          values: remaining,
+        };
+      else delete eligibility.excludedEmploymentTypes;
+    }
+  }
+  if (self?.workModes.length)
+    eligibility.workModes = {
+      values: self.workModes,
+      certainty: self.strictWorkMode ? 'confirmed' : 'unconfirmed',
+    };
+  if (self?.locations.length)
+    eligibility.locationIds = {
+      values: cityValues(self.locations),
+      certainty: 'unconfirmed',
+    };
   const occupationalContent = [
     clean.summary,
     ...clean.skills,
@@ -200,15 +255,17 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
   ].join('');
   const supplementOnly =
     !occupationalContent.trim() &&
-    clean.note.length >= 80 &&
-    /经验|经历|负责|项目|工作|技能|毕业|学历|擅长|开发|设计|运营|管理|投资/.test(
-      clean.note,
-    );
+    (Boolean(self?.skills.length) ||
+      ((clean.note + (self?.summary ?? '')).length >= 80 &&
+        /经验|经历|负责|项目|工作|技能|毕业|学历|擅长|开发|设计|运营|管理|投资/.test(
+          clean.note + (self?.summary ?? ''),
+        )));
   const conflict =
     profile.identityConflict === true || Boolean(legacy['数据一致性提示']);
   return {
     id: record.id,
-    label: names.filter(Boolean).join(' ') || '候选人',
+    label:
+      nativeName || recruitingText(profile.name) || self?.fullName || '候选人',
     context: clean,
     eligibility,
     issue: conflict

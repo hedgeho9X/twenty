@@ -33,3 +33,9 @@ JD 预览返回稳定 itemId。jobs_confirm 的 items 包含 itemId 与编辑后
 模型输出先持久化checkpoint，再更新可读文案。写回失败可恢复，复用已保存的完整生成结果；来源职业内容/岗位/公司变化会标过期，核对时再次检查。人工编辑的已核对正文不会被普通retry覆盖。review默认只保存；approve要求直接用户会话，API Key、应用和带Agent委托的身份均不能确认。核对、实际发送、实际发布是独立行为，当前草稿接口没有消息或发布传输能力。
 
 本地已实测两种草稿均由真实订阅模型生成，重复提交同ID，Key核对403，直接会话核对成功，retry保留原文。来源变化、checkpoint恢复、权限丢失及正文完整性有9项测试。页面仍需浏览器验收。
+
+## 5. 门户与跟进
+
+MCP增加portal_create、portal_list、portal_link、portal_revoke、sharing_status，CLI对应portal create/list/link/revoke/status。候选人链接可绑定最多5岗，公司预览仅一个岗位且要求当前有效确认。复制链接需要原创建主体，链接中含限定用途凭据，不能打印到公开报告或发送给未经确认的对象。
+
+MCP activity_note/activity_list和CLI activity note/list共用人工记录服务。Agent只能记录NOTE，不代替人确认已联系/已推荐/已发布。后者仅本人会话可用HTTP/UI操作，公司推荐额外检查候选人分享同意。MCP真实备注success=true且verified=true、门户列表成功、CLI状态与备注成功，API Key实际联系403。界面仍未浏览器验收。

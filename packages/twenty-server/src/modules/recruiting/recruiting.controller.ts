@@ -33,6 +33,9 @@ import { RecruitingRequestLimitGuard } from './recruiting-request-limit.guard';
 import { RecruitingDraftsService } from './recruiting-drafts.service';
 import { RecruitingMailService } from './recruiting-mail.service';
 import { RecruitingMailboxService } from './recruiting-mailbox.service';
+import { RecruitingPortalService } from './recruiting-portal.service';
+import { RecruitingActivityService } from './recruiting-activity.service';
+import { RecruitingShareConsentService } from './recruiting-share-consent.service';
 import { RecruitingRecordsService } from './recruiting-records.service';
 import { RecruitingIntakeService } from './recruiting-intake.service';
 import { RecruitingMatchingService } from './recruiting-matching.service';
@@ -70,7 +73,82 @@ export class RecruitingController {
     private readonly drafts: RecruitingDraftsService,
     private readonly mail: RecruitingMailService,
     private readonly mailboxes: RecruitingMailboxService,
+    private readonly portals: RecruitingPortalService,
+    private readonly consents: RecruitingShareConsentService,
+    private readonly activities: RecruitingActivityService,
   ) {}
+  /** Records external actions only after explicit human confirmation; notes remain Agent-callable. */
+  @Post('activities')
+  activityCreate(@Req() request: Request, @Body() body: unknown) {
+    if (
+      isPlainObject(body) &&
+      body.action !== 'NOTE' &&
+      isImpersonating(request.impersonationContext)
+    )
+      throw new ForbiddenException('实际操作回执需要运营人员本人会话');
+    return this.activities.record(
+      buildWorkspaceAuthContextFromRequest(request),
+      body,
+    );
+  }
+  /** Reads current permitted contact history without upgrading legacy status claims. */
+  @Get('activities')
+  activityList(
+    @Req() request: Request,
+    @Query('candidateId') candidateId?: string,
+    @Query('offset') offset = '0',
+  ) {
+    return this.activities.list(
+      buildWorkspaceAuthContextFromRequest(request),
+      candidateId,
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+    );
+  }
+  /** Prepares a scoped candidate or company link without sending it to anyone. */
+  @Post('portal-invites')
+  portalCreate(@Req() request: Request, @Body() body: unknown) {
+    return this.portals.create(
+      buildWorkspaceAuthContextFromRequest(request),
+      body,
+    );
+  }
+  /** Lists portal metadata without returning stored capabilities or native upload receipts. */
+  @Get('portal-invites')
+  portalList(@Req() request: Request, @Query('offset') offset = '0') {
+    return this.portals.list(
+      buildWorkspaceAuthContextFromRequest(request),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+    );
+  }
+  /** Copies only the current principal's own delegated capability. */
+  @Post('portal-invites/:id/link')
+  portalLink(@Req() request: Request, @Param('id') id: string) {
+    return this.portals.copyLink(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
+  /** Revokes a portal entry independently of contact history. */
+  @Post('portal-invites/:id/revoke')
+  portalRevoke(@Req() request: Request, @Param('id') id: string) {
+    return this.portals.revoke(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
+  /** Reads current sharing status, never a forged projection on the person record. */
+  @Get('sharing-status')
+  sharingStatus(
+    @Req() request: Request,
+    @Query('candidateId') candidateId: string,
+    @Query('jobId') jobId: string,
+  ) {
+    return this.consents.status(
+      buildWorkspaceAuthContextFromRequest(request),
+      candidateId,
+      jobId,
+    );
+  }
   /** Exposes only the current mailbox owner's native connections and capture choices. */
   @Get('mailboxes')
   mailboxList(@Req() request: Request) {

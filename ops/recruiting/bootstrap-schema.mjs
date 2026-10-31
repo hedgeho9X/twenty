@@ -49,6 +49,20 @@ let metadata = inspect();
 const created = [];
 for (const object of [
   {
+    nameSingular: 'recruitingPortalInvite',
+    namePlural: 'recruitingPortalInvites',
+    labelSingular: '候选人门户链接',
+    labelPlural: '候选人门户链接',
+    icon: 'IconLink',
+  },
+  {
+    nameSingular: 'recruitingShareConsent',
+    namePlural: 'recruitingShareConsents',
+    labelSingular: '候选人分享确认',
+    labelPlural: '候选人分享确认',
+    icon: 'IconShieldCheck',
+  },
+  {
     nameSingular: 'recruitingMailbox',
     namePlural: 'recruitingMailboxes',
     labelSingular: '招聘收信设置',
@@ -109,6 +123,15 @@ for (const object of [
 }
 
 const fields = [
+  ['recruitingPortalInvite', 'kind', 'TEXT', '访问对象'],
+  ['recruitingPortalInvite', 'candidateId', 'UUID', '候选人记录'],
+  ['recruitingPortalInvite', 'status', 'TEXT', '链接状态'],
+  ['recruitingPortalInvite', 'expiresAt', 'TEXT', '到期时间'],
+  ['recruitingPortalInvite', 'payload', 'RAW_JSON', '访问范围'],
+  ['recruitingShareConsent', 'candidateId', 'UUID', '候选人记录'],
+  ['recruitingShareConsent', 'jobId', 'UUID', '岗位记录'],
+  ['recruitingShareConsent', 'status', 'TEXT', '分享状态'],
+  ['recruitingShareConsent', 'payload', 'RAW_JSON', '本人确认记录'],
   ['recruitingMailbox', 'connectedAccountId', 'UUID', '原生邮箱连接'],
   ['recruitingMailbox', 'enabled', 'BOOLEAN', '接入招聘材料'],
   ['recruitingMailbox', 'payload', 'RAW_JSON', '连接授权引用'],

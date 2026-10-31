@@ -83,6 +83,46 @@ export class RecruitingUploadService {
     });
   }
 
+  /** Renews only completed uploads bound to a readable signed portal invitation, never caller-supplied foreign file IDs. */
+  async fromPortalInvitation(
+    context: WorkspaceAuthContext,
+    inviteId: string,
+    fileIds: string[],
+  ) {
+    const invite = await this.records.one(
+      context,
+      'recruitingPortalInvite',
+      inviteId,
+    );
+    const payload = invite.payload as {
+      uploads: { fileId: string; label: string; completed?: boolean }[];
+    };
+    const principal = await this.assertUploadPermission(context);
+    return fileIds.map((id) => {
+      const file = payload.uploads.find(
+        (entry) => entry.fileId === id && entry.completed,
+      );
+      if (!file)
+        throw new BadRequestException('文件不属于此候选人入口或尚未完成上传');
+      return {
+        fileId: file.fileId,
+        label: file.label,
+        role: 'primary' as const,
+        uploadReceipt: signRecruitingUploadReceipt(
+          {
+            version: 1,
+            workspaceId: context.workspace.id,
+            principalHash: contentVersion(principal),
+            fileId: file.fileId,
+            label: file.label,
+            expiresAt: Date.now() + 24 * 60 * 60_000,
+          },
+          this.config.get('APP_SECRET'),
+        ),
+      };
+    });
+  }
+
   /** Keeps single-request uploads on native quarantine, MIME detection and immutable completion. */
   async buffer(
     context: WorkspaceAuthContext,

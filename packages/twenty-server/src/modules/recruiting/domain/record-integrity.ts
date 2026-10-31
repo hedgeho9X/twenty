@@ -11,6 +11,9 @@ const envelopeKeys: Record<string, string> = {
   recruitingMailArchive: 'payload',
   recruitingMailEvent: 'payload',
   recruitingMailbox: 'payload',
+  recruitingPortalInvite: 'payload',
+  recruitingShareConsent: 'payload',
+  recruitingActivityReceipt: 'recruitingReceipt',
 };
 
 /** Finds only the feature's internal state fields, never ordinary editable CRM records. */
@@ -36,56 +39,79 @@ const canonicalRecord = (
     unknown
   >;
   const critical =
-    object === 'recruitingIntake'
+    object === 'recruitingActivityReceipt'
       ? {
-          kind: record.kind,
-          state: record.state,
-          targetId: record.targetId || '',
-          error: record.error || '',
-          files: (Array.isArray(record.files) ? record.files : [])
-            .map((file) => ({ fileId: file?.fileId, label: file?.label }))
-            .sort((a, b) =>
-              String(a.fileId).localeCompare(String(b.fileId), 'en'),
-            ),
+          personId: record.personId || '',
+          vacancyId: record.vacancyId || '',
+          companyId: record.companyId || '',
+          sent: Boolean(record.sent),
+          followUpAction: record.followUpAction || '',
+          followUpNote: record.followUpNote || '',
+          followedAt: record.followedAt,
         }
-      : object === 'recruitingMatchRun'
+      : object === 'recruitingIntake'
         ? {
-            direction: record.direction,
-            subjectId: record.subjectId,
-            status: record.status,
+            kind: record.kind,
+            state: record.state,
+            targetId: record.targetId || '',
+            error: record.error || '',
+            files: (Array.isArray(record.files) ? record.files : [])
+              .map((file) => ({ fileId: file?.fileId, label: file?.label }))
+              .sort((a, b) =>
+                String(a.fileId).localeCompare(String(b.fileId), 'en'),
+              ),
           }
-        : object === 'recruitingMailbox'
+        : object === 'recruitingMatchRun'
           ? {
-              connectedAccountId: record.connectedAccountId,
-              enabled: Boolean(record.enabled),
+              direction: record.direction,
+              subjectId: record.subjectId,
+              status: record.status,
             }
-          : object === 'recruitingMailEvent'
+          : object === 'recruitingPortalInvite'
             ? {
-                sourceKey: record.sourceKey,
-                sourceHash: record.sourceHash,
-                archiveId: record.archiveId,
+                kind: record.kind,
+                candidateId: record.candidateId,
+                status: record.status,
+                expiresAt: record.expiresAt,
               }
-            : object === 'recruitingMailArchive'
+            : object === 'recruitingShareConsent'
               ? {
+                  candidateId: record.candidateId,
+                  jobId: record.jobId,
                   status: record.status,
-                  sourceHash: record.sourceHash,
-                  error: record.error || '',
                 }
-              : object === 'recruitingDraft'
+              : object === 'recruitingMailbox'
                 ? {
-                    kind: record.kind,
-                    candidateId: record.candidateId || '',
-                    jobId: record.jobId || '',
-                    status: record.status,
-                    title: record.title || '',
-                    body: record.body || '',
-                    error: record.error || '',
+                    connectedAccountId: record.connectedAccountId,
+                    enabled: Boolean(record.enabled),
                   }
-                : {
-                    candidateId: record.candidateId,
-                    jobId: record.jobId,
-                    status: record.status,
-                  };
+                : object === 'recruitingMailEvent'
+                  ? {
+                      sourceKey: record.sourceKey,
+                      sourceHash: record.sourceHash,
+                      archiveId: record.archiveId,
+                    }
+                  : object === 'recruitingMailArchive'
+                    ? {
+                        status: record.status,
+                        sourceHash: record.sourceHash,
+                        error: record.error || '',
+                      }
+                    : object === 'recruitingDraft'
+                      ? {
+                          kind: record.kind,
+                          candidateId: record.candidateId || '',
+                          jobId: record.jobId || '',
+                          status: record.status,
+                          title: record.title || '',
+                          body: record.body || '',
+                          error: record.error || '',
+                        }
+                      : {
+                          candidateId: record.candidateId,
+                          jobId: record.jobId,
+                          status: record.status,
+                        };
   return JSON.parse(
     JSON.stringify({ workspaceId, object, id: record.id, critical, envelope }),
   ) as Record<string, unknown>;

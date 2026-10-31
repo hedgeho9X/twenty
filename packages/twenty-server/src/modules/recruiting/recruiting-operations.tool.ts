@@ -24,6 +24,13 @@ import {
   recruitingDraftInputSchema,
 } from './recruiting-drafts.service';
 import { RecruitingMailService } from './recruiting-mail.service';
+import { RecruitingPortalService } from './recruiting-portal.service';
+import { RecruitingShareConsentService } from './recruiting-share-consent.service';
+import { portalInviteInputSchema } from './domain/portal-schemas';
+import {
+  RecruitingActivityService,
+  recruitingActivitySchema,
+} from './recruiting-activity.service';
 
 const offset = z.number().int().nonnegative().default(0);
 const task = {
@@ -31,6 +38,33 @@ const task = {
   kind: z.enum(['intake', 'match', 'draft', 'mail']),
 };
 const operationsSchema = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('activity_note'),
+    request: recruitingActivitySchema.safeExtend({ action: z.literal('NOTE') }),
+  }),
+  z.object({
+    operation: z.literal('activity_list'),
+    candidateId: z.string().uuid().optional(),
+    offset,
+  }),
+  z.object({
+    operation: z.literal('portal_create'),
+    request: portalInviteInputSchema,
+  }),
+  z.object({ operation: z.literal('portal_list'), offset }),
+  z.object({
+    operation: z.literal('portal_link'),
+    inviteId: z.string().uuid(),
+  }),
+  z.object({
+    operation: z.literal('portal_revoke'),
+    inviteId: z.string().uuid(),
+  }),
+  z.object({
+    operation: z.literal('sharing_status'),
+    candidateId: z.string().uuid(),
+    jobId: z.string().uuid(),
+  }),
   z.object({
     operation: z.literal('mail_import'),
     file: intakeFileSchema.required({ uploadReceipt: true }),
@@ -156,6 +190,9 @@ export class RecruitingOperationsTool extends BaseTool<
     private readonly matching: RecruitingMatchingService,
     private readonly drafts: RecruitingDraftsService,
     private readonly mail: RecruitingMailService,
+    private readonly portals: RecruitingPortalService,
+    private readonly consents: RecruitingShareConsentService,
+    private readonly activities: RecruitingActivityService,
   ) {
     super();
   }
@@ -175,6 +212,35 @@ export class RecruitingOperationsTool extends BaseTool<
       };
       let result: object;
       switch (input.operation) {
+        case 'activity_note':
+          result = await this.activities.record(auth, input.request);
+          break;
+        case 'activity_list':
+          result = await this.activities.list(
+            auth,
+            input.candidateId,
+            input.offset,
+          );
+          break;
+        case 'portal_create':
+          result = await this.portals.create(auth, input.request);
+          break;
+        case 'portal_list':
+          result = await this.portals.list(auth, input.offset);
+          break;
+        case 'portal_link':
+          result = await this.portals.copyLink(auth, input.inviteId);
+          break;
+        case 'portal_revoke':
+          result = await this.portals.revoke(auth, input.inviteId);
+          break;
+        case 'sharing_status':
+          result = await this.consents.status(
+            auth,
+            input.candidateId,
+            input.jobId,
+          );
+          break;
         case 'mail_import':
           result = await this.mail.importUploaded(auth, input.file);
           break;

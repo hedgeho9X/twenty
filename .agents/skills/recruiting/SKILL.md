@@ -33,3 +33,9 @@ description: 操作本项目的招聘业务：公司与JD录入、候选人材�
 - 原始文件、说明与邮件来源应完整保留。下载提示不等于已取得简历，不能声称模型理解了未获得的附件。
 - 匹配、问候、发布文案属于辅助结果。实际联系、推荐、发送、发布及候选人分享同意由相应的人确认；本技能不提供自动对外行动授权。
 - 更详细的本地启动、数据边界和验收状态见 `docs/recruiting/DELIVERY_GOAL.md`、`PROGRESS.md` 与 `NEXT_ACTIONS.md`。使用部署实例时以其当前API返回为准，不把本地合成样例当生产验收。
+
+## 资料确认与跟进
+
+- `portal create --candidate-id ID --job-id ID --audience CANDIDATE --days 7 --key 标识`准备本人核对入口；`portal status --candidate-id ID --job-id ID`查看当前分享确认。公司入口使用audience COMPANY，仅可一个岗位，必须先获得候选人对当前资料的有效确认。
+- `portal list`、`portal link --id ID`、`portal revoke --id ID`管理自己权限范围内的链接。MCP对应portal_create/list/link/revoke和sharing_status。链接内含限定用途凭据，只交给指定接收者，不写入公开日志。准备链接不代表已经推荐或发送。
+- `activity note --candidate-id ID --job-id ID --note-file 跟进说明.txt --key 标识`记录备注，`activity list --candidate-id ID`读取历史；MCP对应activity_note/activity_list。Agent不能确认实际已联系、已推荐或已发布，这些需要运营人员本人操作。撤回分享不会删除已经发生的历史跟进记录。
