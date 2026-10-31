@@ -269,5 +269,19 @@ export const formatTwentyOrmEventToDatabaseBatchEvent = <
     events,
     objectMetadata: objectMetadataItem,
     workspaceId,
+    ...(authContext &&
+    (authContext.userWorkspaceId ||
+      authContext.apiKey?.id ||
+      authContext.application?.id)
+      ? {
+          actor: {
+            userWorkspaceId: authContext.userWorkspaceId,
+            apiKeyId: authContext.apiKey?.id,
+            applicationId: authContext.application?.id,
+            viaApplicationId: authContext.viaApplication?.id,
+            agentId: authContext.agentId,
+          },
+        }
+      : {}),
   };
 };

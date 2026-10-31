@@ -145,3 +145,8 @@
 - 新前端已在 localhost:23000 启动；通过 ego-browser 专用任务空间 14 的 p1 实际使用原账号完成登录，原生公司表显示 54 条（53 原数据 + 1 fixture）。不能把已迁入的旧“运营工作台”链接当成新 UI 完成。
 - 原生 renderer 使用 twenty-ui/shared individual bundles、remote DOM 生成、sandbox prebuild 后成功构建；未引入第二套 UI 组件库。安装/构建日志与 session 均在私有目录。
 - 最新全包服务端 TypeScript 检查通过；当前重点 4 个测试套件 23 项通过，招聘与事件相关 lint 0 warnings / 0 errors。
+
+## 原生记录事件的权限身份
+
+- 原生数据库事件新增仅含 userWorkspaceId/apiKeyId/applicationId/viaApplicationId/agentId 的 actor 引用，绝不附带 Token 或完整认证对象；系统写入没有具体发起人时不自动升级成管理员。
+- ORM 事件格式测试验证发起人引用和令牌不进入 payload；原有格式用例继续通过。该扩展用于后台重新校验权限，不改变原生 CRUD 的权限判断。

@@ -85,6 +85,35 @@ describe('formatTwentyOrmEventToDatabaseBatchEvent', () => {
   } as any;
 
   describe('UPDATED action', () => {
+    it('carries principal references without serializing auth credentials into event payloads', () => {
+      const result = formatTwentyOrmEventToDatabaseBatchEvent({
+        action: DatabaseEventAction.CREATED,
+        objectMetadataItem: flatObjectMetadata,
+        flatFieldMetadataMaps,
+        workspaceId,
+        recordsAfter: [{ id: 'record', name: 'Test' }],
+        authContext: {
+          userWorkspaceId: 'user-workspace',
+          apiKey: { id: 'key', token: 'private-token' },
+          application: { id: 'application' },
+          viaApplication: { id: 'via-app' },
+          agentId: 'agent',
+        } as unknown as NonNullable<
+          Parameters<
+            typeof formatTwentyOrmEventToDatabaseBatchEvent
+          >[0]['authContext']
+        >,
+      });
+      expect(result?.actor).toEqual({
+        userWorkspaceId: 'user-workspace',
+        apiKeyId: 'key',
+        applicationId: 'application',
+        viaApplicationId: 'via-app',
+        agentId: 'agent',
+      });
+      expect(JSON.stringify(result)).not.toContain('private-token');
+    });
+
     it('should throw TwentyOrmException when no matching before entity is found in array of beforeEntities', () => {
       const afterEntities = [
         {

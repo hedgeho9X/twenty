@@ -17,6 +17,7 @@ import { type CustomEventName } from 'src/engine/workspace-event-emitter/types/c
 import { CustomWorkspaceEventBatch } from 'src/engine/workspace-event-emitter/types/custom-workspace-batch-event.type';
 import { WorkspaceEventBatch } from 'src/engine/workspace-event-emitter/types/workspace-event-batch.type';
 import { computeEventName } from 'src/engine/workspace-event-emitter/utils/compute-event-name';
+import { type WorkspaceEventActor } from './types/workspace-event-actor.type';
 
 type ActionEventMap<T> = {
   [DatabaseEventAction.CREATED]: ObjectRecordCreateEvent<T>;
@@ -33,6 +34,7 @@ export type DatabaseBatchEventInput<T, A extends keyof ActionEventMap<T>> = {
   events: ActionEventMap<T>[A][];
   objectMetadata: FlatObjectMetadata;
   workspaceId: string;
+  actor?: WorkspaceEventActor;
 };
 
 @Injectable()
@@ -52,6 +54,7 @@ export class WorkspaceEventEmitter {
       events,
       objectMetadata,
       workspaceId,
+      actor,
     } = databaseBatchEventInput;
 
     if (!events.length) {
@@ -65,6 +68,7 @@ export class WorkspaceEventEmitter {
       workspaceId,
       objectMetadata,
       events,
+      ...(actor ? { actor } : {}),
     };
 
     this.eventEmitter.emit(eventName, workspaceEventBatch);
