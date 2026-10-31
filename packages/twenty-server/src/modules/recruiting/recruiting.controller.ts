@@ -25,6 +25,7 @@ import { JwtAuthGuard } from 'src/engine/guards/jwt-auth.guard';
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
 import { RecruitingRecordsService } from './recruiting-records.service';
 import { RecruitingIntakeService } from './recruiting-intake.service';
+import { RecruitingMatchingService } from './recruiting-matching.service';
 
 const companySchema = z
   .object({
@@ -56,7 +57,52 @@ export class RecruitingController {
   constructor(
     private readonly records: RecruitingRecordsService,
     private readonly intakes: RecruitingIntakeService,
+    private readonly matching: RecruitingMatchingService,
   ) {}
+
+  /** Starts either direction or a specified pair without holding an HTTP request open. */
+  @Post('match-runs')
+  @HttpCode(202)
+  match(@Req() request: Request, @Body() body: unknown) {
+    return this.matching.submit(
+      buildWorkspaceAuthContextFromRequest(request),
+      body,
+    );
+  }
+
+  /** Lists persistent matching progress independently of ingestion. */
+  @Get('match-runs')
+  matchQueue(@Req() request: Request, @Query('offset') offset = '0') {
+    return this.matching.list(
+      buildWorkspaceAuthContextFromRequest(request),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+    );
+  }
+
+  /** Returns current, authorized results with coverage and source links. */
+  @Get('match-runs/:id')
+  matchResult(@Req() request: Request, @Param('id') id: string) {
+    return this.matching.one(buildWorkspaceAuthContextFromRequest(request), id);
+  }
+
+  /** Reuses valid pair caches and retries only the necessary scoring work. */
+  @Post('match-runs/:id/retry')
+  @HttpCode(202)
+  retryMatch(@Req() request: Request, @Param('id') id: string) {
+    return this.matching.retry(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
+
+  /** Keeps viewed state separate from real communication and recommendations. */
+  @Post('match-runs/:id/reviewed')
+  reviewMatch(@Req() request: Request, @Param('id') id: string) {
+    return this.matching.reviewed(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
 
   /** Submits native file references through the same boundary used by upload UI and mail. */
   @Post('resume-intakes')

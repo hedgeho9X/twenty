@@ -20,10 +20,15 @@ import { RecruitingParserService } from './recruiting-parser.service';
 import { RecruitingExtractorService } from './recruiting-extractor.service';
 import { RecruitingIntakeService } from './recruiting-intake.service';
 import { ResumeIngestJob } from './resume-ingest.job';
+import { RecruitingMatchingService } from './recruiting-matching.service';
+import { RecruitingPairEvaluatorService } from './recruiting-pair-evaluator.service';
+import { RecruitingMatchJob } from './recruiting-match.job';
+import { TypeORMModule } from 'src/database/typeorm/typeorm.module';
 import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
 
 @Module({
   imports: [
+    TypeORMModule,
     RecordCrudModule,
     ApiKeyModule,
     TokenModule,
@@ -43,6 +48,9 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
     RecruitingExtractorService,
     RecruitingIntakeService,
     ResumeIngestJob,
+    RecruitingMatchingService,
+    RecruitingPairEvaluatorService,
+    RecruitingMatchJob,
     provideWorkspaceScopedRepository(ApiKeyEntity),
     provideWorkspaceScopedRepository(FileEntity),
   ],

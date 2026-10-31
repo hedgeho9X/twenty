@@ -7,6 +7,7 @@ import {
 
 import { isPlainObject } from 'twenty-shared/utils';
 import { FieldActorSource } from 'twenty-shared/types';
+import { type ObjectRecordOrderBy } from 'src/engine/api/graphql/workspace-query-builder/interfaces/object-record.interface';
 
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { CreateRecordService } from 'src/engine/core-modules/record-crud/services/create-record.service';
@@ -34,6 +35,7 @@ export class RecruitingRecordsService {
       offset?: number;
       limit?: number;
       select?: string[];
+      orderBy?: ObjectRecordOrderBy;
     } = {},
   ) {
     const response = await this.findRecordsService.execute({
@@ -43,6 +45,7 @@ export class RecruitingRecordsService {
       offset: options.offset ?? 0,
       limit: options.limit ?? 100,
       select: options.select,
+      orderBy: options.orderBy,
       shouldBuildEffectiveSelectFields: Boolean(options.select?.length),
     });
     if (!response.success || !response.result)

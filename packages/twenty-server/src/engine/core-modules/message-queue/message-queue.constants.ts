@@ -32,4 +32,5 @@ export enum MessageQueue {
   aiQueue = 'ai-queue',
   aiStreamQueue = 'ai-stream-queue',
   recruitingQueue = 'recruiting-queue',
+  recruitingMatchQueue = 'recruiting-match-queue',
 }

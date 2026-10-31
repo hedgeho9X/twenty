@@ -41,6 +41,11 @@ export type RecruitingPairResult = {
   companyId?: string;
   status: 'SCORED' | 'EXCLUDED' | 'NEEDS_REVIEW' | 'FAILED';
   eligibility: EligibilityResult;
+  intent?: {
+    expectedRoles: string[];
+    status: 'declared' | 'unspecified';
+    requiresConfirmation: boolean;
+  };
   score?: number;
   probabilities?: Record<string, number>;
   confidence?: number;
@@ -123,6 +128,13 @@ export class RecruitingPairEvaluatorService {
       companyId: job.companyId,
       status: 'NEEDS_REVIEW',
       eligibility,
+      intent: {
+        expectedRoles: candidate.context.expectedRoles,
+        status: candidate.context.expectedRoles.length
+          ? 'declared'
+          : 'unspecified',
+        requiresConfirmation: true,
+      },
       cacheId,
       cacheKey,
       cached: false,
@@ -275,7 +287,12 @@ export class RecruitingPairEvaluatorService {
         abortSignal: AbortSignal.timeout(30_000),
       });
       const answer = result.answers.match;
-      if (answer.type !== 'score' || !Number.isFinite(answer.score) || answer.score < 0 || answer.score > 4)
+      if (
+        answer.type !== 'score' ||
+        !Number.isFinite(answer.score) ||
+        answer.score < 0 ||
+        answer.score > 4
+      )
         throw new BadRequestException('评分模型返回的能力分无效');
       return result;
     } catch (error) {
