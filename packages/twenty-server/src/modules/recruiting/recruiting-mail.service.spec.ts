@@ -244,6 +244,10 @@ it('hands owned resume, complete body and source archives into the existing inta
   );
   expect(request.note).toContain('Optional instruction');
   const previous = request.idempotencyKey;
+  await service.receive(context, raw, source);
+  expect(
+    (await service.one(context, archive.archiveId)).detail.sources,
+  ).toHaveLength(2);
   await service.submitIntake(context, archive.archiveId, {
     artifactKeys: [selected.key],
     note: 'Optional instruction',
@@ -252,6 +256,9 @@ it('hands owned resume, complete body and source archives into the existing inta
     (intakes.submit.mock.calls[1][1] as unknown as { idempotencyKey: string })
       .idempotencyKey,
   ).toBe(previous);
+  expect((intakes.submit.mock.calls[1][1] as { mail: unknown }).mail).toEqual(
+    request.mail,
+  );
   await expect(
     service.submitIntake(context, archive.archiveId, {
       artifactKeys: ['foreign-file'],

@@ -357,7 +357,8 @@ export class RecruitingMailService {
       mail: {
         archiveId: id,
         sourceHash: record.sourceHash,
-        sources: payload.sources,
+        // Source aliases remain on the archive; submitted intake provenance stays stable for idempotency.
+        sources: payload.sources.slice(0, 1),
         metadata: payload.metadata,
       },
     });
