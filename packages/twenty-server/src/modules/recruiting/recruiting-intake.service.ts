@@ -28,7 +28,10 @@ import {
   RecruitingParserService,
   type ParsedRecruitingMaterial,
 } from './recruiting-parser.service';
-import { RecruitingExtractorService } from './recruiting-extractor.service';
+import {
+  RecruitingExtractorService,
+  type RecruitingExtractionPart,
+} from './recruiting-extractor.service';
 import { RecruitingMatchingService } from './recruiting-matching.service';
 import { RecruitingUploadService } from './recruiting-upload.service';
 import { RecruitingJobConfirmationService } from './recruiting-job-confirmation.service';
@@ -54,6 +57,7 @@ export type IntakeEnvelope = {
   materials?: ParsedRecruitingMaterial[];
   candidateFiles?: { sourceFileId: string; fileId: string; label: string }[];
   extraction?: Record<string, unknown>;
+  extractionParts?: RecruitingExtractionPart[];
   candidateId?: string;
   jobIds?: string[];
   recordUrl?: string;
@@ -298,10 +302,19 @@ export class RecruitingIntakeService {
       await update('EXTRACTING');
       let extraction = envelope.extraction;
       if (!extraction) {
+        const parts = envelope.extractionParts ?? [];
+        const progress = {
+          parts,
+          save: async (part: RecruitingExtractionPart) => {
+            parts.push(part);
+            await update('EXTRACTING', { extractionParts: parts });
+          },
+        };
         if (envelope.input.kind === 'CANDIDATE')
           extraction = await this.extractor.candidate(
             materials,
             envelope.input.note ?? '',
+            progress,
           );
         else {
           const company = await this.records.one(
@@ -318,6 +331,7 @@ export class RecruitingIntakeService {
               description: company.recruitingDescription,
               preferences: company.recruitmentPreferences,
             }),
+            progress,
           );
         }
         await update('EXTRACTED', { extraction });
