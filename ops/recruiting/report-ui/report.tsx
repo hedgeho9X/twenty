@@ -61,12 +61,11 @@ declare global {
 }
 
 /** Escapes spreadsheet formula prefixes and quotes when users explicitly export the current view. */
-const csvCell = (value: unknown) =>
-  '"' +
-  String(value ?? '')
-    .replace(/^[=+@\-\t\r]/, "'$&")
-    .replaceAll('"', '""') +
-  '"';
+const csvCell = (value: unknown) => {
+  const text = String(value ?? '');
+  const safe = /^[\s]*[=+@-]|^[\t\r\n]/.test(text) ? "'" + text : text;
+  return '"' + safe.replaceAll('"', '""') + '"';
+};
 /** Writes only the visible anonymous table, never source documents, mail or authorization data. */
 const download = (rows: EvidenceRow[]) => {
   const values = [
@@ -95,7 +94,12 @@ const download = (rows: EvidenceRow[]) => {
   ];
   const url = URL.createObjectURL(
     new Blob(
-      ['\uFEFF' + values.map((row) => row.map(csvCell).join(',')).join('\r\n')],
+      [
+        String.fromCharCode(0xfeff),
+        values
+          .map((row) => row.map(csvCell).join(','))
+          .join(String.fromCharCode(13, 10)),
+      ],
       { type: 'text/csv;charset=utf-8' },
     ),
   );
