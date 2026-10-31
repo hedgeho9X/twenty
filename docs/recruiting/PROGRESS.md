@@ -7,9 +7,12 @@
 - 用户已明确授权开始自主执行全部本地外包工作。
 - 权威目标：同目录 `DELIVERY_GOAL.md`；后续恢复必须先读取，不能只依赖对话摘要。
 - 分支：`codex/fanhan-local-rebuild`，基于官方 `c0ad263b35a734dbd2528bf82c5dd38d3b18dc1b`。
-- 官方应用尚未启动；独立数据库/缓存已启动并迁入完整本地副本，旧 A 环境保留。
+- 官方源码B已运行：http://localhost:23000/recruiting-workspace，API23001、parser23003；招聘worker与AI-only worker均已启动，旧A13000保留。
+- 已实现统一公司/JD/简历/完整邮件、持久队列、双向匹配、草稿、门户/分享撤回/人工回执、合同兼容及进程内订阅连接；实现、真实接口与页面视觉验收分开。
+- 最新重点回归29套162项招聘/订阅测试、15项CLI/上传恢复/缓存回放通过；两包TS及相关lint通过。全格式解析另有9项+当前版本旧DOC独立真实回归。
+- 新SIWC本人授权、浏览器任务空间恢复后的页面QA、自然新邮件实收及业务方质量核对仍待完成；目标active，不能标全完成。完整使用说明见RUNBOOK.md，最新检查点见NEXT_ACTIONS.md末尾。
 
-## 已核实
+## 初始核实（历史记录，后续结果见下文）
 
 - 当前官方源码版本 2.55.0，已有 REST、GraphQL、原生 `/mcp`、角色鉴权和新的 CLI。
 - MCP 通过 `ToolRegistryService` 暴露原生及应用逻辑函数工具；需要进一步核对业务工具注册和文件传输边界。
@@ -20,7 +23,7 @@
 - 实验：30 人 × 46 岗真实 Jev 全量评分已完成；当前选择逐对评分，明确约束先由程序处理。旧向量召回不是当前默认 Pipeline。
 - OpenAI 官方 SIWC 文档明确公共 Responses 路径和账户模型目录；CLIProxyAPI 的 Go SDK/协议实现仍在核对。无新本人授权，未发真实订阅推理。
 
-## 下一步
+## 初始推进顺序（历史记录）
 
 1. 完成 API/SDK/UI/订阅代码调查及技术决策记录。
 2. 安装本地开发依赖，建立独立 OrbStack 数据库/缓存与源码运行环境。
@@ -332,3 +335,17 @@
 
 - 已盘点11份五字段资料、10SIGNED/2PENDING、0外部草稿/准备状态、0既有内部签约任务。保留原始公司数据，停用缺配置的旧外部入口；新公司与岗位页支持资料、内部任务及负责人手工确认，不调用签约平台。
 - 真HTTP重复任务ID一致、关联1条、版本冲突409、同版本并发201/409、Key声明签署403、任务完成。仅合成公司模拟并恢复，其余原有合同摘要不变。官方ORM raw/entity同次读保留微秒版本，避免JS Date误冲突并保持原生权限/事件，未改通用CRUD语义。详见CONTRACTS.md。
+
+
+## 07:45交付检查
+
+- 邮箱新增持久每分钟poll，初次只读UID基线、不重放历史，当前owner与权限每次重建，归档后才推进招聘自己的UID。真实开启autoSubmit=false→worker定时空轮询→关闭→恢复原autoSubmit通过，原生同步/旧工作流仍0，未观察自然新邮件到达。13项邮箱回归通过，详见MAIL_SOURCES.md。
+- RSI离线Shadcn HTML已生成：私有evaluations/rsi-v1/report.html，56行、按人筛选7行、数值排序、恢复全部及CSV真实BOM/换行/公式防护均有DOM检查。数据链路docs/recruiting/data-flow.html有9个可点击节点。没有绕过Ego阻塞做浏览器QA，详见EVALUATION.md。
+- 原生agentTurn回读机器盲评8次用量95,457输入/36,691输出tokens，订阅用量不等于美元费用。原冻结preview-v1输入和silver标签不回写。
+- 新增当前preview-v2真实旧DOC验证：OLE头、两页两张PNG、all_pages、complete和尾段文字全部通过；生成器及smoke脚本已纳入，旧9项与单独DOC证据保留。
+- CLI JD多文件在明确--key时保存700/600本地checkpoint，按实例/凭据/提交标识隔离，原子不可变slot保证并发引用一致；重跑查询当前授权任务，不存API Key或原件。15项客户端/恢复/回放测试通过；真实重复提交同intake、相同文件引用，到AWAITING_CONFIRMATION、1预览，未建新岗位。
+- 合同MCP status/reminder真实success=true，CLI查询成功，复用原合成公司与内部提醒。官方Agent另有受限ai-worker启动入口，启动前全部任务状态0，无scheduler；现保留该worker供本地普通Agent使用，未启其他旧队列。
+- 个人飞书文档已用personal用户身份创建、更新并回读验证：https://my.feishu.cn/docx/H0sld6jFuosjIMxd1TWc4PcanPb 。包含背景、确定需求、实施进展与待验收，标题不重复，不含个人简历/凭据。使用lark-doc技能，未发IM/邮件。
+- API34/PID41435、招聘worker28/PID41446、AI-only worker4/PID42530、Vite/PID11915正在运行；只供当前核对，停止前重新核对cwd。最后API代码构建包含461803bd的邮箱poll，后续变动为CLI、报告、测试和文档。新运行说明为RUNBOOK.md。
+- 健康：前端/API/parser200，Vite绝对私有文件路径403，相对路径200是SPA HTML而不是私有JSON。原生收信0、日历0、旧ACTIVEworkflow0、招聘收信最终0。1历史匹配队列权限失败已审计：03:04失败、03:08业务run已COMPLETED，46score/4excluded/0fail；当前50对因新资料/池变化正确陈旧，未删记录或为了清零重跑。
+- 仍有本人/浏览器依赖：Ego专用space14丢失且恢复许可未答，不能创建新空间或换浏览器绕过；新SIWC本人授权/真实刷新；自然新邮件观测；业务方质量确认。其他独立事项已形成代码、文档、接口及数据证据。整体目标不能标为complete。
