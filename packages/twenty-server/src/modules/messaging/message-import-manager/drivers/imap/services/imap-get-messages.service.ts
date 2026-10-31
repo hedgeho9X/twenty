@@ -1,4 +1,6 @@
+/** Fetches native IMAP messages and awaits opt-in source acceptance before projecting CRM fields. */
 import { Injectable, Logger } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 import { type ImapFlow } from 'imapflow';
 import { type Email as ParsedMail } from 'postal-mime';
@@ -16,10 +18,13 @@ import { extractMessageTextWithoutQuotedHistory } from 'src/modules/messaging/me
 import { extractParticipantsFromParsedEmail } from 'src/modules/messaging/message-import-manager/utils/extract-participants-from-parsed-email.util';
 import { extractThreadIdFromParsedEmail } from 'src/modules/messaging/message-import-manager/utils/extract-thread-id-from-parsed-email.util';
 import { sanitizeString } from 'src/modules/messaging/message-import-manager/utils/sanitize-string.util';
+import { MessageDirection } from 'src/modules/messaging/common/enums/message-direction.enum';
+import { IMAP_RAW_MESSAGE_RECEIVED_EVENT } from 'src/modules/messaging/message-import-manager/drivers/imap/constants/imap-raw-message-received-event.constant';
+import { type ImapRawMessageEvent } from 'src/modules/messaging/message-import-manager/drivers/imap/types/imap-raw-message-event.type';
 
 type ConnectedAccount = Pick<
   ConnectedAccountEntity,
-  'id' | 'handle' | 'handleAliases'
+  'id' | 'handle' | 'handleAliases' | 'workspaceId' | 'userWorkspaceId'
 >;
 
 @Injectable()
@@ -30,6 +35,7 @@ export class ImapGetMessagesService {
     private readonly imapClientProvider: ImapClientProvider,
     private readonly messageParser: ImapMessageParserService,
     private readonly errorHandler: ImapMessagesImportErrorHandler,
+    private readonly events: EventEmitter2,
   ) {}
 
   async getMessages(
@@ -139,17 +145,34 @@ export class ImapGetMessagesService {
         continue;
       }
 
-      messages.push(
-        this.buildMessage(
-          result.parsed,
-          result.uid,
-          folderPath,
-          folderExternalId,
-          connectedAccount,
-          result.flags,
-          result.internalDate,
-        ),
+      const message = this.buildMessage(
+        result.parsed,
+        result.uid,
+        folderPath,
+        folderExternalId,
+        connectedAccount,
+        result.flags,
+        result.internalDate,
       );
+      if (
+        message.direction === MessageDirection.INCOMING &&
+        !message.isDraft &&
+        result.rawSource
+      ) {
+        const event: ImapRawMessageEvent = {
+          workspaceId: connectedAccount.workspaceId,
+          userWorkspaceId: connectedAccount.userWorkspaceId,
+          connectedAccountId: connectedAccount.id,
+          folder: folderPath,
+          uidValidity: uidValidity?.toString() ?? null,
+          uid: result.uid,
+          flags: [...(result.flags ?? [])],
+          internalDate: result.internalDate,
+          source: result.rawSource,
+        };
+        await this.events.emitAsync(IMAP_RAW_MESSAGE_RECEIVED_EVENT, event);
+      }
+      messages.push(message);
     }
 
     this.logger.debug(

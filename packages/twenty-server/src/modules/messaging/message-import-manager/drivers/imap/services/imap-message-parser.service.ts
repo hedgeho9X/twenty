@@ -1,3 +1,4 @@
+/** Parses native IMAP bytes while retaining originals for opt-in durable source consumers. */
 import { Injectable, Logger } from '@nestjs/common';
 
 import { type FetchMessageObject, type ImapFlow } from 'imapflow';
@@ -9,6 +10,7 @@ export type MessageParseResult = {
   flags?: Set<string>;
   internalDate?: Date | string;
   error?: Error;
+  rawSource?: Buffer;
 };
 
 export type FolderParseResult = {
@@ -93,7 +95,7 @@ export class ImapMessageParserService {
     try {
       const parsed = await PostalMime.parse(source);
 
-      return { uid, parsed, flags, internalDate };
+      return { uid, parsed, flags, internalDate, rawSource: source };
     } catch (error) {
       this.logger.error(`Failed to parse message UID ${uid}: ${error.message}`);
 
