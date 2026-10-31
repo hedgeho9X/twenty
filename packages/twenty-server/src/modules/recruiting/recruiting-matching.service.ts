@@ -163,14 +163,20 @@ export class RecruitingMatchingService {
     for (const record of page.records as RecruitingRecord[]) {
       const payload = this.payload(record);
       try {
-        await this.records.one(
+        const subject = await this.records.one(
           context,
           payload.input.direction === 'JOB_TO_CANDIDATES'
             ? 'recruitmentJob'
             : 'person',
           payload.input.subjectId,
         );
-        visible.push(this.receipt(record));
+        visible.push({
+          ...this.receipt(record),
+          subjectLabel:
+            payload.input.direction === 'JOB_TO_CANDIDATES'
+              ? buildJobMatchContext(subject).label
+              : buildCandidateMatchContext(subject).label,
+        });
       } catch (error) {
         if (!(error instanceof NotFoundException)) throw error;
       }
@@ -182,7 +188,7 @@ export class RecruitingMatchingService {
   async one(context: WorkspaceAuthContext, id: string) {
     const run = await this.records.one(context, 'recruitingMatchRun', id);
     const payload = this.payload(run);
-    await this.records.one(
+    const subject = await this.records.one(
       context,
       payload.input.direction === 'JOB_TO_CANDIDATES'
         ? 'recruitmentJob'
@@ -286,6 +292,10 @@ export class RecruitingMatchingService {
     );
     return {
       ...this.receipt(run),
+      subjectLabel:
+        payload.input.direction === 'JOB_TO_CANDIDATES'
+          ? buildJobMatchContext(subject).label
+          : buildCandidateMatchContext(subject).label,
       results,
       top,
       stale,
@@ -399,6 +409,14 @@ export class RecruitingMatchingService {
         ]),
       );
       const poolMap = new Map(pool.map((entry) => [entry.id, entry]));
+      const sourceVersion = jobFirst
+        ? contentVersion(
+            buildJobMatchContext(
+              subject,
+              companies.get(String(subject.companyId)),
+            ),
+          )
+        : buildCandidateMatchContext(subject).version;
       const results: RecruitingPairResult[] = [];
       let providerAuthorizationFailed = false;
       await save('PROCESSING', {
@@ -409,16 +427,54 @@ export class RecruitingMatchingService {
       });
       for (let offset = 0; offset < selected.length; offset += 3) {
         context = await this.actors.resolve(data.actor);
+        const currentSource = await this.records.one(
+          context,
+          jobFirst ? 'recruitmentJob' : 'person',
+          input.subjectId,
+        );
+        const currentCompany =
+          jobFirst && typeof currentSource.companyId === 'string'
+            ? await this.records.one(
+                context,
+                'company',
+                currentSource.companyId,
+              )
+            : undefined;
+        const currentVersion = jobFirst
+          ? contentVersion(buildJobMatchContext(currentSource, currentCompany))
+          : buildCandidateMatchContext(currentSource).version;
+        if (
+          currentVersion !== sourceVersion ||
+          (!jobFirst && !this.isCandidate(currentSource))
+        ) {
+          await save('SUPERSEDED', {
+            error: '来源资料已更新，旧任务停止评分；请查看新任务',
+            completedAt: new Date().toISOString(),
+          });
+          return;
+        }
         const chunk = await Promise.all(
           selected.slice(offset, offset + 3).map(async (targetId) => {
-            const target = poolMap.get(targetId);
+            if (!poolMap.has(targetId)) return undefined;
+            let target;
+            try {
+              target = await this.records.one(
+                context,
+                jobFirst ? 'person' : 'recruitmentJob',
+                targetId,
+              );
+            } catch (error) {
+              if (error instanceof NotFoundException) return undefined;
+              throw error;
+            }
             const candidate = jobFirst ? target : subject;
             const job = jobFirst ? subject : target;
             if (!candidate || !job || !this.isCandidate(candidate))
               return undefined;
-            const company =
-              typeof job.companyId === 'string'
-                ? companies.get(job.companyId)
+            const company = jobFirst
+              ? currentCompany
+              : typeof job.companyId === 'string'
+                ? await this.records.one(context, 'company', job.companyId)
                 : undefined;
             try {
               if (providerAuthorizationFailed)

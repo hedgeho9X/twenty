@@ -13,6 +13,12 @@ import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/wo
 import { CreateRecordService } from 'src/engine/core-modules/record-crud/services/create-record.service';
 import { FindRecordsService } from 'src/engine/core-modules/record-crud/services/find-records.service';
 import { UpdateRecordService } from 'src/engine/core-modules/record-crud/services/update-record.service';
+import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+import {
+  recruitingEnvelopeKey,
+  sealRecruitingRecord,
+  verifyRecruitingRecord,
+} from './domain/record-integrity';
 
 /** A native record remains extensible without weakening individual field values to any. */
 export type RecruitingRecord = Record<string, unknown> & { id: string };
@@ -24,6 +30,7 @@ export class RecruitingRecordsService {
     private readonly findRecordsService: FindRecordsService,
     private readonly createRecordService: CreateRecordService,
     private readonly updateRecordService: UpdateRecordService,
+    private readonly config: TwentyConfigService,
   ) {}
 
   /** Reads one bounded page; the native service applies record and field permissions. */
@@ -50,7 +57,21 @@ export class RecruitingRecordsService {
     });
     if (!response.success || !response.result)
       throw new BadRequestException('当前权限下无法读取这些招聘记录');
-    return { ...response.result, count: Number(response.result.count) };
+    const verified = recruitingEnvelopeKey(objectName)
+      ? response.result.records.filter((record) =>
+          this.trusted(
+            context.workspace.id,
+            objectName,
+            record as RecruitingRecord,
+          ),
+        )
+      : response.result.records;
+    return {
+      ...response.result,
+      records: verified,
+      integrityRejected: response.result.records.length - verified.length,
+      count: Number(response.result.count),
+    };
   }
 
   /** Reads all permitted pages when the business operation explicitly needs the complete pool. */
@@ -92,10 +113,16 @@ export class RecruitingRecordsService {
     objectName: string,
     data: Record<string, unknown>,
   ): Promise<RecruitingRecord> {
+    const objectRecord = sealRecruitingRecord(
+      context.workspace.id,
+      objectName,
+      data,
+      this.signingKey(),
+    );
     const response = await this.createRecordService.execute({
       authContext: context,
       objectName,
-      objectRecord: data,
+      objectRecord,
       createdBy: {
         source:
           context.type === 'application'
@@ -124,11 +151,23 @@ export class RecruitingRecordsService {
     id: string,
     data: Record<string, unknown>,
   ): Promise<RecruitingRecord> {
+    let objectRecord = data;
+    const key = recruitingEnvelopeKey(objectName);
+    if (key) {
+      const current = await this.one(context, objectName, id);
+      const sealed = sealRecruitingRecord(
+        context.workspace.id,
+        objectName,
+        { ...current, ...data },
+        this.signingKey(),
+      );
+      objectRecord = { ...data, [key]: sealed[key] };
+    }
     const response = await this.updateRecordService.execute({
       authContext: context,
       objectName,
       objectRecordId: id,
-      objectRecord: data,
+      objectRecord,
     });
     if (
       !response.success ||
@@ -138,5 +177,75 @@ export class RecruitingRecordsService {
       throw new BadRequestException('无法更新招聘记录，请检查字段和编辑权限');
     }
     return response.result as RecruitingRecord;
+  }
+
+  /** Makes invalid task data indistinguishable from inaccessible records to ordinary callers. */
+  private trusted(
+    workspaceId: string,
+    object: string,
+    record: RecruitingRecord,
+  ) {
+    return verifyRecruitingRecord(
+      workspaceId,
+      object,
+      record,
+      this.signingKey(),
+    );
+  }
+
+  /** Uses a stable local state key; deployed instances may provide the same independent environment key. */
+  private signingKey() {
+    return (
+      process.env.RECRUITING_STATE_SIGNING_KEY || this.config.get('APP_SECRET')
+    );
+  }
+
+  /** One-time local upgrade, gated by the controller's admin guard and an explicit server-side switch. */
+  async sealLegacyState(context: WorkspaceAuthContext) {
+    if (process.env.RECRUITING_ALLOW_LEGACY_STATE_SEALING !== 'true')
+      throw new BadRequestException('当前未开放历史任务升级');
+    const report: Record<string, number> = {};
+    for (const object of [
+      'recruitingIntake',
+      'recruitingMatchRun',
+      'recruitingPairEvaluation',
+    ]) {
+      report[object] = 0;
+      for (let offset = 0; ; offset += 100) {
+        const page = await this.findRecordsService.execute({
+          authContext: context,
+          objectName: object,
+          offset,
+          limit: 100,
+          shouldBuildEffectiveSelectFields: false,
+        });
+        if (!page.success || !page.result)
+          throw new BadRequestException('无法读取待升级的任务');
+        for (const item of page.result.records as RecruitingRecord[]) {
+          const key = recruitingEnvelopeKey(object);
+          const value = item[key];
+          if (!isPlainObject(value) || value.integrity) continue;
+          if (object === 'recruitingIntake' && value.schemaVersion !== 2)
+            continue;
+          if (object === 'recruitingMatchRun' && value.version !== 1) continue;
+          const sealed = sealRecruitingRecord(
+            context.workspace.id,
+            object,
+            item,
+            this.signingKey(),
+          );
+          const response = await this.updateRecordService.execute({
+            authContext: context,
+            objectName: object,
+            objectRecordId: item.id,
+            objectRecord: { [key]: sealed[key] },
+          });
+          if (!response.success) throw new BadRequestException('任务升级失败');
+          report[object]++;
+        }
+        if (!page.result.hasNextPage) break;
+      }
+    }
+    return report;
   }
 }

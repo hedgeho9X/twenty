@@ -170,9 +170,10 @@ export class RecruitingIntakeService {
     context: WorkspaceAuthContext,
     key: string | undefined,
     digest: string,
+    source: 'api' | 'manual' = 'api',
   ) {
     if (!key) return undefined;
-    const id = v5(`${context.workspace.id}:CANDIDATE:api:${key}`, v5.URL);
+    const id = v5(`${context.workspace.id}:CANDIDATE:${source}:${key}`, v5.URL);
     const record = await this.optional(context, 'recruitingIntake', id);
     if (!record) return undefined;
     if (this.envelope(record).transportDigest !== digest)

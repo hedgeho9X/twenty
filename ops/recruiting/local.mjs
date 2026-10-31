@@ -92,6 +92,7 @@ const initialize = async () => {
     { mode: 0o600 },
   );
   const parserDefaults = {
+    RECRUITING_STATE_SIGNING_KEY: randomBytes(32).toString('hex'),
     RECRUITING_PARSER_TOKEN: randomBytes(32).toString('hex'),
     RECRUITING_PARSER_URL: 'http://127.0.0.1:23003',
     RECRUITING_UID: String(process.getuid()),

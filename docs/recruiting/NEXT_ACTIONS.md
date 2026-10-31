@@ -82,3 +82,21 @@
 - Vite默认/@fs会读到仓库.local，已增加fs.deny并实测私有配置/session/报告、raw import和编码路径均403，首页200。commit b4484dd9。不要撤销此规则。
 - 目前新上传代码与前端基础文件仍需核对提交状态。上传相关全包typecheck3通过、6项授权/凭据测试通过、lint2无错误；模型未因重试重复执行。
 - 单请求intake d5091942-1afd-5671-9d27-66b8fe3a0332 已 COMPLETED/STORED，candidate为原fixture，matchingRunIds仅一项。上传凭据不在持久化input中。
+
+## 进行中的任务签名切片（必须先接续）
+
+- 又完成了 UI 页面/路由：RecruitingWorkspacePage、CandidateIntake、QueueDialog、MatchResults、导航；只实现候选人和匹配两个入口，其他完整目标仍待做。首轮前端全包TS通过；Styled前缀/CSS排序/类型文件名问题已修正，lint2为0。Source file refs via useRef 是取消资源，带明确局部lint说明，不是渲染状态。
+- Ego空间14已消失，inventory确认不存在；已向用户异步请求允许重建，尚未收到回复。禁止另建空间或绕到其他浏览器。其他代码/API工作继续。不得把未渲染的UI称页面验收完成。
+- 新发现内部任务RAW_JSON经通用CRUD可编辑，必须签名保护，避免伪造队列指令/评分缓存。已写 domain/record-integrity.ts 及单测；RecruitingRecordsService对3个内部对象自动签名写入、校验读取；native普通公司/候选人/JD仍可正常编辑。
+- IMPORTANT：新签名代码尚未在API/worker重启生效，老开发记录还没签名。不要直接重启worker跑任务。先查看 integrity-* 检查日志，修好，运行 local.mjs init 生成稳定的RECRUITING_STATE_SIGNING_KEY，然后把私有env的 RECRUITING_ALLOW_LEGACY_STATE_SEALING 临时设 true；停止本仓库API/worker，构建并只启API，POST /recruiting/admin/seal-legacy-state（AdminPanelGuard）升级本地开发记录，仅输出计数；关私有开关并重启API/worker，再跑真实任务/缓存回读。原始schema1历史intake不会升级。此维护入口以后必须关闭。
+- 当前类签名保护immutable输入和checkpoint、状态/目标/文件引用；FILES只取fileId/label做规范化，忽略只读url/extension。签名使用独立环境key，默认fallback APP_SECRET；本地init会持久化独立key，不能打印或丢失。新代码需要完整真实native往返验证，尤其默认targetId/error空值。
+- 匹配新增每3对重查来源及读取目标权限，来源版本改变时SUPERSEDED停止旧任务；尚未重启验证。6项旧orchestration测试通过，需补来源变更/目标权限丢失测试。
+- 正在准备批量JD确认重做：当前confirmJobs按index建ID且部分失败不checkpoint，不应拿它作完整批量验收。需要服务端稳定itemId/jobId、逐项校验/独立错误与重试、已创建项幂等且不覆盖人工修改；未知旧枚举投影不可直接toUpperCase写非法值。UI公司+JD入口还未写。
+
+## 签名切片已实际完成
+
+- 当前API session 82179，PID15457，日志api-10b.log；worker session89666，PID15469，日志matching-worker-6b.log。前端仍session65848/PID11915/front-2.log。恢复核对cwd。
+- 签名已生效，3/6/597开发记录升级完成，维护开关已false并重启；正常signed intake e92f0625-7914-5320-b5be-ebe6fb8b5da4入库、自动匹配完成；未签名原生行retry404，测试行已删除。不要再打开维护入口。
+- 服务端integrity-typecheck-3空输出成功，integrity-lint-2零错误；9项签名/匹配测试通过。旧“尚未重启”的描述已被此检查点覆盖。
+- UI基础已扩为候选人上传、队列弹窗、匹配列表/详情、原生导航及独立路由；初版仅两标签，不等于完整工作台。前端代码尚未提交、未进行浏览器验收。Ego重建权限请求仍未收到回复，不可自行新建。
+- 下一大块先做稳定itemId的批量JD确认与公司/JD UI，再补MCP/CLI、评测、邮件、草稿跟进、门户/合同及订阅管理。完整目标均保留。

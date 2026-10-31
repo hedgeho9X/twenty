@@ -179,3 +179,12 @@
 - 原生接收/隔离/MIME检测与complete均复用，上传权限在multipart缓冲前校验。6项授权/签名边界测试通过；服务端全包类型检查及招聘 lint 通过。
 - 真实 multipart DOCX intake d5091942-1afd-5671-9d27-66b8fe3a0332 已完成两页材料整理并更新原fixture候选人，随后只产生1个自动匹配任务 66dcb4e6-1d88-58c7-9d60-a8dfe72c1685。
 - 实测现有候选人更新时发现 FILES 读取附加 url/extension 为只读，已仅投影 fileId/label 后回写。失败重试复用已有模型结果和文件checkpoint，成功后匹配独立进行，未重复运行材料模型。
+
+## 内部任务状态的可信边界
+
+- 通用 CRM CRUD 仍可编辑普通公司/候选人/JD；内部 intake、matchRun、pairCache 的输入与checkpoint改用服务端MAC校验，避免伪造RAW_JSON绕过上传、队列或模型结果。
+- 本地使用独立 RECRUITING_STATE_SIGNING_KEY，保存在私有环境文件。签名仅认证完整性，不加密资料；备份环境时需一起保留该key。FILES仅规范化fileId/label，忽略原生只读URL/extension。
+- 仅本人服务器管理员会话、维护开关打开时可一次性升级旧开发记录。本地升级3 intake、6 matchRun、597 pairCache后读取均通过；维护开关已关闭，入口返回400，API Key/应用不能运行维护。
+- 真实负向验证：原生CRUD可建立合成未签名行，但业务retry返回404，不进入处理；合成行已清理。普通有效队列仍200，未被污染。
+- 新签名intake e92f0625-7914-5320-b5be-ebe6fb8b5da4 已COMPLETED/STORED，后续自动run 4f0990b3-5e83-50e5-b0ee-17dd5ee50df8 完成。签名读写经过完整原生往返验证。
+- 签名与orchestration重点9项测试、服务端全包typecheck及招聘lint通过。匹配任务另在每批重查来源与目标读取权限，过期来源停止为SUPERSEDED，避免继续消耗旧版本评分。

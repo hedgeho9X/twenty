@@ -14,6 +14,7 @@ import {
   Res,
   UploadedFile,
   UseInterceptors,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { createHash } from 'node:crypto';
@@ -33,6 +34,8 @@ import { RecruitingMatchingService } from './recruiting-matching.service';
 import { RecruitingUploadService } from './recruiting-upload.service';
 import { RecruitingUploadPermissionGuard } from './recruiting-upload-permission.guard';
 import { contentVersion } from './domain/match-context';
+import { userIsFullAdmin } from 'src/engine/core-modules/impersonation/utils/user-is-full-admin.util';
+import { isImpersonating } from 'src/engine/guards/utils/is-impersonating.util';
 
 const companySchema = z
   .object({
@@ -68,6 +71,22 @@ export class RecruitingController {
     private readonly uploads: RecruitingUploadService,
   ) {}
 
+  /** Upgrades known local legacy envelopes only while a server-side maintenance switch is enabled. */
+  @Post('admin/seal-legacy-state')
+  sealLegacyState(@Req() request: Request) {
+    const context = buildWorkspaceAuthContextFromRequest(request);
+    if (
+      context.type !== 'user' ||
+      context.application ||
+      context.viaApplication ||
+      context.agentId ||
+      isImpersonating(request.impersonationContext) ||
+      !userIsFullAdmin(context.user)
+    )
+      throw new ForbiddenException('仅服务器管理员的本人会话可升级任务记录');
+    return this.records.sealLegacyState(context);
+  }
+
   /** Accepts one resume and an optional note in a single authenticated multipart request. */
   @Post('resume-intakes/upload')
   @HttpCode(202)
@@ -77,9 +96,9 @@ export class RecruitingController {
       limits: {
         files: 1,
         fileSize: 50 * 1024 * 1024,
-        fields: 3,
+        fields: 4,
         fieldSize: 100_000,
-        parts: 4,
+        parts: 5,
       },
     }),
   )
@@ -95,6 +114,7 @@ export class RecruitingController {
         note: z.string().max(100_000).optional(),
         candidateId: z.string().uuid().optional(),
         batchId: z.string().uuid().optional(),
+        source: z.enum(['manual', 'api']).optional(),
       })
       .strict()
       .safeParse(value);
@@ -104,13 +124,19 @@ export class RecruitingController {
     )
       throw new BadRequestException('请检查材料说明、候选人和提交标识');
     const context = buildWorkspaceAuthContextFromRequest(request);
-    const metadata = { ...parsed.data, note: parsed.data.note ?? '' };
+    const { source = 'api', ...details } = parsed.data;
+    const metadata = { ...details, note: details.note ?? '' };
     const digest = contentVersion({
       metadata,
       filename: file.originalname,
       bytes: createHash('sha256').update(file.buffer).digest('hex'),
     });
-    const existing = await this.intakes.existingMultipart(context, key, digest);
+    const existing = await this.intakes.existingMultipart(
+      context,
+      key,
+      digest,
+      source,
+    );
     if (existing) return existing;
     const uploaded = await this.uploads.buffer(context, file);
     return this.intakes.submit(
@@ -118,7 +144,7 @@ export class RecruitingController {
       {
         ...metadata,
         kind: 'CANDIDATE',
-        source: 'api',
+        source,
         files: [uploaded],
         ...(key ? { idempotencyKey: key } : {}),
       },
