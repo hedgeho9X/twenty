@@ -221,3 +221,12 @@
 - 资料整理默认改为官方模型管理smart档；显式RECRUITING_MODEL_ID仍可固定实验模型，禁用模型不会静默切换。合并事实仍超预算时明确待人工处理，不递归压缩或静默截断。
 - 5项完整覆盖/中断恢复/禁用模型测试通过，服务端全包TS/lint通过。真实合成JD共265104字符/555242字节，经10个分段及合并进入AWAITING_CONFIRMATION；末尾独立Iceberg/Trino要求及45000元薪资上限均保留。仅预览，没有创建或发布该长JD。
 - 该实测验证文字覆盖与末尾事实，完整长页图依然需要真实多页回归；材料模型整理不等于每个事实均理解无误。Jev评分的超长上下文仍独立待处理，不能把这项入库改动说成已解决旧8个超限评分。
+
+## 问候与发布草稿
+
+- recruitingDraft使用独立受签名保护的持久记录，复用10并发招聘队列。先保存模型结果checkpoint，再更新可编辑标题正文；中途写回失败可恢复，源候选人/岗位/公司版本变化后标过期，核对时再次检查；普通retry不会覆盖已核对的人工文案。
+- POST/GET drafts、retry/review已接共享服务。API Key、应用和带Agent委托身份不能确认人工核对；review只表示文案核对，不改变已发送、已发布、分享同意或推荐状态。未接任何消息/发布传输。
+- 两种真实合成草稿均已完成，Key核对403，直接会话核对成功，重复提交相同ID，retry原文保持。GREETING effd92fe-1a3d-502c-8a9a-82b9ab38a829；JOB_PUBLICATION edac60c2-340e-5713-9d90-1a7bdef1ada2。9项草稿/完整性测试、服务端全包TS/lint通过。
+- 官方元数据新增草稿表与字段。发现workspace-queue未启用使10项deferred schema action阻塞，确认该队列仅有本地schema任务后临时运行metadata worker，全部完成再停止；未启用旧邮件/工作流队列。bootstrap只对明确的前置deferred guard有限重试，不盲重试未知写入。
+- MCP新增draft_submit/draft_edit及kind=draft查询/重试/列表；CLI新增draft greeting/publication/edit，真实MCP与CLI回读APPROVED均成功。项目skill已同步。
+- 前端新增问候/发布草稿页、来源记录链接、失败重试、编辑/核对，匹配行可带入人岗组合；全包前端TS/lint通过。实际页面验收仍待Ego恢复许可，人工联系/推荐/发布回执和门户尚未实现。

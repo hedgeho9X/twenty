@@ -30,6 +30,7 @@ import { JwtAuthGuard } from 'src/engine/guards/jwt-auth.guard';
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
 import { RecruitingDirectoryService } from './recruiting-directory.service';
 import { RecruitingRequestLimitGuard } from './recruiting-request-limit.guard';
+import { RecruitingDraftsService } from './recruiting-drafts.service';
 import { RecruitingRecordsService } from './recruiting-records.service';
 import { RecruitingIntakeService } from './recruiting-intake.service';
 import { RecruitingMatchingService } from './recruiting-matching.service';
@@ -64,7 +65,65 @@ export class RecruitingController {
     private readonly intakes: RecruitingIntakeService,
     private readonly matching: RecruitingMatchingService,
     private readonly uploads: RecruitingUploadService,
+    private readonly drafts: RecruitingDraftsService,
   ) {}
+  /** Resolves a linked candidate label through the same directory permissions. */
+  @Get('candidates/:id')
+  candidate(@Req() request: Request, @Param('id') id: string) {
+    return this.directory.candidate(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
+  /** Resolves a linked job without loading its private raw materials into a selector. */
+  @Get('jobs/:id')
+  job(@Req() request: Request, @Param('id') id: string) {
+    return this.directory.job(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
+  /** Queues editable text without contacting or publishing anything. */
+  @Post('drafts')
+  @HttpCode(202)
+  draft(@Req() request: Request, @Body() body: unknown) {
+    return this.drafts.submit(
+      buildWorkspaceAuthContextFromRequest(request),
+      body,
+    );
+  }
+  /** Lists authorized draft receipts rather than complete candidate materials. */
+  @Get('drafts')
+  draftQueue(@Req() request: Request, @Query('offset') offset = '0') {
+    return this.drafts.list(
+      buildWorkspaceAuthContextFromRequest(request),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+    );
+  }
+  /** Rechecks source access and staleness before showing a draft. */
+  @Get('drafts/:id')
+  draftDetail(@Req() request: Request, @Param('id') id: string) {
+    return this.drafts.one(buildWorkspaceAuthContextFromRequest(request), id);
+  }
+  /** Resumes failed generation using trusted checkpoints. */
+  @Post('drafts/:id/retry')
+  @HttpCode(202)
+  draftRetry(@Req() request: Request, @Param('id') id: string) {
+    return this.drafts.retry(buildWorkspaceAuthContextFromRequest(request), id);
+  }
+  /** Saves editable text; approval is restricted to the operator's direct session. */
+  @Post('drafts/:id/review')
+  draftReview(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.drafts.review(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      body,
+    );
+  }
   /** Returns minimal candidate choices under native record permissions. */
   @Get('candidates')
   candidates(

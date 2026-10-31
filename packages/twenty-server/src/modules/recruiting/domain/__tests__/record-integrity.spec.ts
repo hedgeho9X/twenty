@@ -6,6 +6,41 @@ import {
 
 describe('recruiting record integrity', () => {
   const secret = 'unit-test-state-key';
+  it('protects approved draft text and normalizes native empty UUID and text defaults', () => {
+    const draft = {
+      id: 'draft',
+      kind: 'GREETING',
+      candidateId: 'person',
+      status: 'APPROVED',
+      body: 'reviewed text',
+      payload: {
+        input: { candidateId: 'person' },
+        approvedAt: '2026-11-01T00:00:00Z',
+      },
+    };
+    const sealed = sealRecruitingRecord(
+      'workspace',
+      'recruitingDraft',
+      draft,
+      secret,
+    );
+    expect(
+      verifyRecruitingRecord(
+        'workspace',
+        'recruitingDraft',
+        { ...sealed, jobId: null, title: '', error: '' },
+        secret,
+      ),
+    ).toBe(true);
+    expect(
+      verifyRecruitingRecord(
+        'workspace',
+        'recruitingDraft',
+        { ...sealed, body: 'unreviewed replacement' },
+        secret,
+      ),
+    ).toBe(false);
+  });
   const intake = {
     id: 'intake',
     kind: 'CANDIDATE',

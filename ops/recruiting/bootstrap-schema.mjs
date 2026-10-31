@@ -4,6 +4,22 @@ import { writeFile } from 'node:fs/promises';
 
 import { localGraphql } from './local-api.mjs';
 
+/** Retries only the native pre-mutation deferred-action guard; uncertain mutation results are never blindly retried. */
+const mutateMetadata = async (query, variables) => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await localGraphql(query, variables);
+    } catch (error) {
+      if (
+        attempt >= 20 ||
+        !/deferred schema action\(s\) are still running/.test(error.message)
+      )
+        throw error;
+      await new Promise((done) => setTimeout(done, 500));
+    }
+  }
+};
+
 /** Reads metadata identities from the dedicated local database without exporting record content. */
 const inspect = () => {
   const query = `SELECT json_build_object('objects',(SELECT json_agg(json_build_object('id',id,'name',"nameSingular")) FROM core."objectMetadata" WHERE "workspaceId"='4cb349cd-5765-4826-a2cb-73e5c5c2d564'),'fields',(SELECT json_agg(json_build_object('objectId',"objectMetadataId",'name',name,'type',type)) FROM core."fieldMetadata" WHERE "workspaceId"='4cb349cd-5765-4826-a2cb-73e5c5c2d564'));`;
@@ -33,6 +49,13 @@ let metadata = inspect();
 const created = [];
 for (const object of [
   {
+    nameSingular: 'recruitingDraft',
+    namePlural: 'recruitingDrafts',
+    labelSingular: '招聘草稿',
+    labelPlural: '招聘草稿',
+    icon: 'IconFilePencil',
+  },
+  {
     nameSingular: 'recruitingMatchRun',
     namePlural: 'recruitingMatchRuns',
     labelSingular: '匹配任务',
@@ -56,7 +79,7 @@ for (const object of [
 ]) {
   if (metadata.objects.some((entry) => entry.name === object.nameSingular))
     continue;
-  await localGraphql(
+  await mutateMetadata(
     'mutation Create($input:CreateOneObjectInput!){createOneObject(input:$input){id}}',
     { input: { object: { ...object, isLabelSyncedWithName: false } } },
   );
@@ -65,6 +88,15 @@ for (const object of [
 }
 
 const fields = [
+  ['recruitingDraft', 'kind', 'TEXT', '草稿类型'],
+  ['recruitingDraft', 'candidateId', 'UUID', '候选人记录'],
+  ['recruitingDraft', 'jobId', 'UUID', '岗位记录'],
+  ['recruitingDraft', 'status', 'TEXT', '草稿状态'],
+  ['recruitingDraft', 'payload', 'RAW_JSON', '生成记录'],
+  ['recruitingDraft', 'title', 'TEXT', '标题'],
+  ['recruitingDraft', 'body', 'TEXT', '正文'],
+  ['recruitingDraft', 'error', 'TEXT', '错误说明'],
+  ['recruitingContact', 'recruitingReceipt', 'RAW_JSON', '人工操作凭据'],
   ['company', 'recruitingDescription', 'TEXT', '公司简介'],
   ['person', 'recruitingProfile', 'RAW_JSON', '招聘资料'],
   ['recruitmentJob', 'recruitingProfile', 'RAW_JSON', '岗位资料'],
@@ -94,7 +126,7 @@ for (const [objectName, name, type, label] of fields) {
       throw new Error(`Conflicting field type: ${objectName}.${name}`);
     continue;
   }
-  await localGraphql(
+  await mutateMetadata(
     'mutation Create($input:CreateOneFieldMetadataInput!){createOneField(input:$input){id}}',
     {
       input: {

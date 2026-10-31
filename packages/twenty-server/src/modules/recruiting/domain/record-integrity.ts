@@ -7,6 +7,7 @@ const envelopeKeys: Record<string, string> = {
   recruitingIntake: 'result',
   recruitingMatchRun: 'payload',
   recruitingPairEvaluation: 'payload',
+  recruitingDraft: 'payload',
 };
 
 /** Finds only the feature's internal state fields, never ordinary editable CRM records. */
@@ -50,11 +51,21 @@ const canonicalRecord = (
             subjectId: record.subjectId,
             status: record.status,
           }
-        : {
-            candidateId: record.candidateId,
-            jobId: record.jobId,
-            status: record.status,
-          };
+        : object === 'recruitingDraft'
+          ? {
+              kind: record.kind,
+              candidateId: record.candidateId || '',
+              jobId: record.jobId || '',
+              status: record.status,
+              title: record.title || '',
+              body: record.body || '',
+              error: record.error || '',
+            }
+          : {
+              candidateId: record.candidateId,
+              jobId: record.jobId,
+              status: record.status,
+            };
   return JSON.parse(
     JSON.stringify({ workspaceId, object, id: record.id, critical, envelope }),
   ) as Record<string, unknown>;

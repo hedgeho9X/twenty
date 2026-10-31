@@ -24,6 +24,30 @@ export const recruitingCompanyInputSchema = z
 export class RecruitingDirectoryService {
   constructor(private readonly records: RecruitingRecordsService) {}
 
+  /** Resolves a linked candidate into a minimal selection label under current permissions. */
+  async candidate(context: WorkspaceAuthContext, id: string) {
+    const page = await this.records.list(context, 'person', {
+      filter: { id: { eq: id }, contactRoles: { containsAny: ['CANDIDATE'] } },
+      limit: 1,
+      select: ['id', 'name', 'jobTitle'],
+    });
+    if (!page.records[0])
+      throw new NotFoundException('候选人不存在或当前无权访问');
+    return page.records[0];
+  }
+
+  /** Resolves a selected job without loading resumes or billing details into the picker. */
+  async job(context: WorkspaceAuthContext, id: string) {
+    const page = await this.records.list(context, 'recruitmentJob', {
+      filter: { id: { eq: id } },
+      limit: 1,
+      select: ['id', 'name', 'companyId', 'jobStatus'],
+    });
+    if (!page.records[0])
+      throw new NotFoundException('岗位不存在或当前无权访问');
+    return page.records[0];
+  }
+
   /** Searches bounded company choices before material submission. */
   companies(context: WorkspaceAuthContext, search = '', offset = 0) {
     const query = search.trim().slice(0, 200);
