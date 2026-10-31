@@ -36,10 +36,12 @@ const runLabel = (status: string) => {
 export const RecruitingMatchResults = ({
   initialRunId,
   onDraft,
+  onSharing,
   active = true,
 }: {
   initialRunId?: string;
   onDraft?: (candidateId: string, jobId: string) => void;
+  onSharing?: (candidateId: string, jobId: string) => void;
   active?: boolean;
 }) => {
   const [runId, setRunId] = useState(initialRunId);
@@ -151,6 +153,11 @@ export const RecruitingMatchResults = ({
                       <Button
                         onClick={() => onDraft?.(pair.candidateId, pair.jobId)}
                       >{t`生成问候草稿`}</Button>
+                      <Button
+                        onClick={() =>
+                          onSharing?.(pair.candidateId, pair.jobId)
+                        }
+                      >{t`资料确认与跟进`}</Button>
                     </td>
                   </tr>
                 ))}

@@ -1,6 +1,8 @@
 import { lazy, useMemo } from 'react';
 
 import { createBrowserRouter } from 'react-router-dom';
+import { RecruitingPortalPage } from '~/pages/recruiting/RecruitingPortalPage';
+import { BaseThemeProvider } from '@/ui/theme/components/BaseThemeProvider';
 import { AppPath } from 'twenty-shared/types';
 
 import { LazyRoute } from '@/app/components/LazyRoute';
@@ -106,6 +108,14 @@ const createWorkspaceAppRouter = ({
   });
 
   return createBrowserRouter([
+    {
+      path: '/candidate-portal',
+      element: (
+        <BaseThemeProvider>
+          <RecruitingPortalPage />
+        </BaseThemeProvider>
+      ),
+    },
     {
       element: (
         <WorkspaceRouteObjectsProvider routeObjects={workspaceRouteObjects} />

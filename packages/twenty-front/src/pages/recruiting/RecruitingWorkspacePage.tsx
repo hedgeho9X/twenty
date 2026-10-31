@@ -13,6 +13,7 @@ import { RecruitingCompanyJobs } from '@/recruiting/components/RecruitingCompany
 import { RecruitingManualMatch } from '@/recruiting/components/RecruitingManualMatch';
 import { RecruitingDrafts } from '@/recruiting/components/RecruitingDrafts';
 import { RecruitingMailSources } from '@/recruiting/components/RecruitingMailSources';
+import { RecruitingSharing } from '@/recruiting/components/RecruitingSharing';
 import {
   StyledRecruitingBody,
   StyledRecruitingWorkspace,
@@ -57,6 +58,7 @@ export const RecruitingWorkspacePage = () => {
             <Tabs.Tab value="matches">{t`匹配待查看`}</Tabs.Tab>
             <Tabs.Tab value="manual">{t`手动匹配`}</Tabs.Tab>
             <Tabs.Tab value="drafts">{t`问候与发布草稿`}</Tabs.Tab>
+            <Tabs.Tab value="sharing">{t`资料确认与跟进`}</Tabs.Tab>
             <Tabs.Indicator />
           </Tabs.List>
           <Tabs.Panel value="companies" keepMounted>
@@ -92,12 +94,21 @@ export const RecruitingWorkspacePage = () => {
               active={tab === 'matches'}
               key={params.get('runId') ?? 'list'}
               initialRunId={params.get('runId') ?? undefined}
+              onSharing={(candidateId, jobId) =>
+                setParams((current) => {
+                  const next = new URLSearchParams(current);
+                  next.set('tab', 'sharing');
+                  next.set('sharingCandidateId', candidateId);
+                  next.set('sharingJobId', jobId);
+                  return next;
+                })
+              }
               onDraft={(candidateId, jobId) =>
                 setParams((current) => {
                   const next = new URLSearchParams(current);
                   next.set('tab', 'drafts');
-                  next.set('candidateId', candidateId);
-                  next.set('jobId', jobId);
+                  next.set('draftCandidateId', candidateId);
+                  next.set('draftJobId', jobId);
                   return next;
                 })
               }
@@ -106,9 +117,17 @@ export const RecruitingWorkspacePage = () => {
           <Tabs.Panel value="drafts" keepMounted>
             <RecruitingDrafts
               active={tab === 'drafts'}
-              key={`${params.get('candidateId')}:${params.get('jobId')}`}
-              initialCandidateId={params.get('candidateId') ?? undefined}
-              initialJobId={params.get('jobId') ?? undefined}
+              key={`${params.get('draftCandidateId')}:${params.get('draftJobId')}`}
+              initialCandidateId={params.get('draftCandidateId') ?? undefined}
+              initialJobId={params.get('draftJobId') ?? undefined}
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="sharing" keepMounted>
+            <RecruitingSharing
+              active={tab === 'sharing'}
+              initialCandidateId={params.get('sharingCandidateId') ?? undefined}
+              initialJobId={params.get('sharingJobId') ?? undefined}
+              key={`${params.get('sharingCandidateId')}:${params.get('sharingJobId')}`}
             />
           </Tabs.Panel>
           <Tabs.Panel value="manual" keepMounted>
