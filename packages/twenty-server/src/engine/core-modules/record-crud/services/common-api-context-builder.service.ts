@@ -43,10 +43,12 @@ export class CommonApiContextBuilderService {
     authContext,
     objectName,
     rolePermissionConfig,
+    isInternalRecordOperation,
   }: {
     authContext: WorkspaceAuthContext;
     objectName: string;
     rolePermissionConfig?: RolePermissionConfig;
+    isInternalRecordOperation?: boolean;
   }): Promise<CommonApiContext> {
     const workspaceId = authContext.workspace.id;
 
@@ -119,6 +121,7 @@ export class CommonApiContextBuilderService {
         flatIndexMaps,
         objectIdByNameSingular: idByNameSingular,
         rolePermissionConfig,
+        isInternalRecordOperation,
       },
       selectedFields,
       flatObjectMetadata,

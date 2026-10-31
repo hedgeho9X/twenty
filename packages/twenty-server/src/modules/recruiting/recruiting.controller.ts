@@ -28,6 +28,8 @@ import { buildWorkspaceAuthContextFromRequest } from 'src/engine/core-modules/au
 import { AuthPrincipalGuard } from 'src/engine/guards/auth-principal.guard';
 import { JwtAuthGuard } from 'src/engine/guards/jwt-auth.guard';
 import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
+import { RecruitingDirectoryService } from './recruiting-directory.service';
+import { RecruitingRequestLimitGuard } from './recruiting-request-limit.guard';
 import { RecruitingRecordsService } from './recruiting-records.service';
 import { RecruitingIntakeService } from './recruiting-intake.service';
 import { RecruitingMatchingService } from './recruiting-matching.service';
@@ -36,15 +38,6 @@ import { RecruitingUploadPermissionGuard } from './recruiting-upload-permission.
 import { contentVersion } from './domain/match-context';
 import { userIsFullAdmin } from 'src/engine/core-modules/impersonation/utils/user-is-full-admin.util';
 import { isImpersonating } from 'src/engine/guards/utils/is-impersonating.util';
-
-const companySchema = z
-  .object({
-    name: z.string().trim().min(1).max(300),
-    domain: z.string().trim().max(1000).optional(),
-    description: z.string().max(50_000).optional(),
-    recruitmentPreferences: z.string().max(50_000).optional(),
-  })
-  .strict();
 
 @Controller(ApiPath.Recruiting)
 @UseGuards(
@@ -61,85 +54,53 @@ const companySchema = z
     application: true,
   }),
   NoPermissionGuard,
+  RecruitingRequestLimitGuard,
 )
 /** Accepts identifiers from callers while preserving the native record permission checks. */
 export class RecruitingController {
   constructor(
     private readonly records: RecruitingRecordsService,
+    private readonly directory: RecruitingDirectoryService,
     private readonly intakes: RecruitingIntakeService,
     private readonly matching: RecruitingMatchingService,
     private readonly uploads: RecruitingUploadService,
   ) {}
-
-  /** Supplies small authorized candidate choices without returning every resume to a selector. */
+  /** Returns minimal candidate choices under native record permissions. */
   @Get('candidates')
   candidates(
     @Req() request: Request,
     @Query('search') search = '',
     @Query('offset') offset = '0',
   ) {
-    const query = search.trim().slice(0, 200);
-    return this.records.list(
+    return this.directory.candidates(
       buildWorkspaceAuthContextFromRequest(request),
-      'person',
-      {
-        filter: {
-          and: [
-            { contactRoles: { containsAny: ['CANDIDATE'] } },
-            ...(query
-              ? [
-                  {
-                    or: [
-                      { name: { firstName: { ilike: `%${query}%` } } },
-                      { name: { lastName: { ilike: `%${query}%` } } },
-                      { jobTitle: { ilike: `%${query}%` } },
-                    ],
-                  },
-                ]
-              : []),
-          ],
-        },
-        select: ['id', 'name', 'jobTitle'],
-        limit: 50,
-        offset: Math.max(0, Number.parseInt(offset, 10) || 0),
-      },
+      search,
+      Math.max(0, Number.parseInt(offset, 10) || 0),
     );
   }
 
-  /** Searches company-bound jobs; matching selectors request active jobs explicitly. */
+  /** Searches company-bound jobs without duplicating the matching pool rules. */
   @Get('jobs')
   jobs(
     @Req() request: Request,
     @Query('companyId') companyId?: string,
     @Query('search') search = '',
     @Query('active') active = 'true',
+    @Query('offset') offset = '0',
   ) {
-    if (companyId && !z.string().uuid().safeParse(companyId).success)
-      throw new BadRequestException('公司标识无效');
-    const filter = [
-      ...(companyId ? [{ companyId: { eq: companyId } }] : []),
-      ...(active === 'true' ? [{ jobStatus: { eq: 'RECRUITING' } }] : []),
-      ...(search.trim()
-        ? [{ name: { ilike: `%${search.trim().slice(0, 200)}%` } }]
-        : []),
-    ];
-    return this.records.list(
-      buildWorkspaceAuthContextFromRequest(request),
-      'recruitmentJob',
-      {
-        filter: filter.length ? { and: filter } : undefined,
-        select: ['id', 'name', 'companyId', 'jobStatus'],
-        limit: 100,
-      },
-    );
+    return this.directory.jobs(buildWorkspaceAuthContextFromRequest(request), {
+      companyId,
+      search,
+      active: active === 'true',
+      offset: Math.max(0, Number.parseInt(offset, 10) || 0),
+    });
   }
 
-  /** Opens the company already bound to an intake after a page refresh. */
+  /** Opens the authorized company already selected for an intake. */
   @Get('companies/:id')
   company(@Req() request: Request, @Param('id') id: string) {
-    return this.records.one(
+    return this.directory.company(
       buildWorkspaceAuthContextFromRequest(request),
-      'company',
       id,
     );
   }
@@ -379,79 +340,26 @@ export class RecruitingController {
     response.setHeader('Cache-Control', 'private, no-store');
     response.send(Buffer.from(bytes));
   }
-
-  /** Searches actual companies before the operator starts a JD batch. */
+  /** Searches existing companies before creating a JD batch. */
   @Get('companies')
-  async companies(
+  companies(
     @Req() request: Request,
     @Query('search') search = '',
     @Query('offset') offset = '0',
   ) {
-    const context = buildWorkspaceAuthContextFromRequest(request);
-    const query = search.trim().slice(0, 200);
-    return this.records.list(context, 'company', {
-      filter: query
-        ? {
-            or: [
-              { name: { ilike: `%${query}%` } },
-              { domainName: { primaryLinkUrl: { ilike: `%${query}%` } } },
-            ],
-          }
-        : undefined,
-      offset: Math.max(0, Number.parseInt(offset, 10) || 0),
-      limit: 50,
-      select: [
-        'id',
-        'name',
-        'domainName',
-        'recruitingDescription',
-        'recruitmentPreferences',
-      ],
-    });
+    return this.directory.companies(
+      buildWorkspaceAuthContextFromRequest(request),
+      search,
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+    );
   }
 
-  /** Creates a selected company without requiring a second screen or rewriting existing company data. */
+  /** Creates a company through the same validated domain boundary as native tools. */
   @Post('companies')
-  async createCompany(@Req() request: Request, @Body() body: unknown) {
-    const parsed = companySchema.safeParse(body);
-    if (!parsed.success)
-      throw new BadRequestException('请填写公司名称，并检查输入字段');
-    const data = parsed.data;
-    let domain;
-    if (data.domain) {
-      try {
-        const url = new URL(
-          data.domain.includes('://') ? data.domain : `https://${data.domain}`,
-        );
-        if (!['https:', 'http:'].includes(url.protocol))
-          throw new Error('unsupported_protocol');
-        domain = {
-          primaryLinkLabel: url.hostname,
-          primaryLinkUrl: url.origin,
-          secondaryLinks: [],
-        };
-      } catch {
-        throw new BadRequestException('请填写有效的公司网站地址');
-      }
-    }
-    return this.records.create(
+  createCompany(@Req() request: Request, @Body() body: unknown) {
+    return this.directory.createCompany(
       buildWorkspaceAuthContextFromRequest(request),
-      'company',
-      {
-        name: data.name,
-        ...(domain ? { domainName: domain } : {}),
-        ...(data.description
-          ? { recruitingDescription: data.description }
-          : {}),
-        ...(data.recruitmentPreferences
-          ? {
-              recruitmentPreferences: {
-                markdown: data.recruitmentPreferences,
-                blocknote: null,
-              },
-            }
-          : {}),
-      },
+      body,
     );
   }
 }

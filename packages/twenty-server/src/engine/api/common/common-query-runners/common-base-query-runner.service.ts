@@ -137,7 +137,7 @@ export abstract class CommonBaseQueryRunnerService<
     const isRootOperation =
       (queryRunnerContext.nestedOperationDepth ?? 0) === 0;
 
-    if (isRootOperation) {
+    if (isRootOperation && !queryRunnerContext.isInternalRecordOperation) {
       await this.consumeApiSpeedLimit(authContext);
     }
 
@@ -164,7 +164,7 @@ export abstract class CommonBaseQueryRunnerService<
       queryRunnerContext,
     );
 
-    if (isRootOperation) {
+    if (isRootOperation && !queryRunnerContext.isInternalRecordOperation) {
       this.recordApiComplexityUsage(authContext, () =>
         this.computeQueryComplexityV2(
           selectedFieldsResult,

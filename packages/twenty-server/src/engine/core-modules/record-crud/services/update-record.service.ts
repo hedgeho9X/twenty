@@ -52,6 +52,7 @@ export class UpdateRecordService {
         authContext,
         objectName,
         rolePermissionConfig,
+        isInternalRecordOperation: params.isInternalRecordOperation,
       });
 
       const fieldsToUpdateArray = fieldsToUpdate ?? Object.keys(objectRecord);

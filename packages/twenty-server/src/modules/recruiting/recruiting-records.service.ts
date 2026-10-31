@@ -47,6 +47,7 @@ export class RecruitingRecordsService {
   ) {
     const response = await this.findRecordsService.execute({
       authContext: context,
+      isInternalRecordOperation: true,
       objectName,
       filter: options.filter,
       offset: options.offset ?? 0,
@@ -121,6 +122,7 @@ export class RecruitingRecordsService {
     );
     const response = await this.createRecordService.execute({
       authContext: context,
+      isInternalRecordOperation: true,
       objectName,
       objectRecord,
       createdBy: {
@@ -165,6 +167,7 @@ export class RecruitingRecordsService {
     }
     const response = await this.updateRecordService.execute({
       authContext: context,
+      isInternalRecordOperation: true,
       objectName,
       objectRecordId: id,
       objectRecord,
@@ -214,6 +217,7 @@ export class RecruitingRecordsService {
       for (let offset = 0; ; offset += 100) {
         const page = await this.findRecordsService.execute({
           authContext: context,
+          isInternalRecordOperation: true,
           objectName: object,
           offset,
           limit: 100,
@@ -236,6 +240,7 @@ export class RecruitingRecordsService {
           );
           const response = await this.updateRecordService.execute({
             authContext: context,
+            isInternalRecordOperation: true,
             objectName: object,
             objectRecordId: item.id,
             objectRecord: { [key]: sealed[key] },

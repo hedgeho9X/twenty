@@ -42,6 +42,7 @@ export class CreateRecordService {
         authContext,
         objectName,
         rolePermissionConfig,
+        isInternalRecordOperation: params.isInternalRecordOperation,
       });
 
       if (

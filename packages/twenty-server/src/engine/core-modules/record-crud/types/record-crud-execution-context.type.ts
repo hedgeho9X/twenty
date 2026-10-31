@@ -5,4 +5,6 @@ export type RecordCrudExecutionContext = {
   authContext: WorkspaceAuthContext;
   rolePermissionConfig?: RolePermissionConfig;
   slimResponse?: boolean;
+  /** Trusted services account for the external request once while retaining native CRUD permissions. */
+  isInternalRecordOperation?: boolean;
 };

@@ -30,6 +30,12 @@ import { FileUploadModule } from 'src/engine/core-modules/file/file-upload/file-
 import { PermissionsModule } from 'src/engine/metadata-modules/permissions/permissions.module';
 import { RecruitingUploadPermissionGuard } from './recruiting-upload-permission.guard';
 import { RecruitingJobConfirmationService } from './recruiting-job-confirmation.service';
+import { RecruitingDirectoryService } from './recruiting-directory.service';
+import { RecruitingToolAuthorizationService } from './recruiting-tool-authorization.service';
+import { RecruitingOperationsTool } from './recruiting-operations.tool';
+import { RecruitingRequestLimitService } from './recruiting-request-limit.service';
+import { RecruitingRequestLimitGuard } from './recruiting-request-limit.guard';
+import { UsageLimitModule } from 'src/engine/core-modules/usage-limit/usage-limit.module';
 import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
 
 @Module({
@@ -45,6 +51,7 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
     FileModule,
     FileUploadModule,
     PermissionsModule,
+    UsageLimitModule,
     FilesFieldModule,
     TypeOrmModule.forFeature([ApiKeyEntity, FileEntity]),
   ],
@@ -58,6 +65,11 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
     RecruitingUploadService,
     RecruitingUploadPermissionGuard,
     RecruitingJobConfirmationService,
+    RecruitingDirectoryService,
+    RecruitingToolAuthorizationService,
+    RecruitingOperationsTool,
+    RecruitingRequestLimitService,
+    RecruitingRequestLimitGuard,
     ResumeIngestJob,
     RecruitingMatchingService,
     RecruitingPairEvaluatorService,

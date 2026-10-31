@@ -62,6 +62,7 @@ export class FindRecordsService {
         authContext,
         objectName,
         rolePermissionConfig,
+        isInternalRecordOperation: params.isInternalRecordOperation,
       });
 
       const { effectiveSelectedFields, warnings } =

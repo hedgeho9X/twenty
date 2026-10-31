@@ -17,4 +17,6 @@ export type CommonBaseQueryRunnerContext = {
   transactionScope?: WorkspaceTransactionScope;
   nestedOperationDepth?: number;
   nestedCreateRecordsCounter?: { count: number };
+  /** Set only by an authenticated server-side service, never parsed from query arguments. */
+  isInternalRecordOperation?: boolean;
 };
