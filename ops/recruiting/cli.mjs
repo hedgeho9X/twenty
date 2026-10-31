@@ -137,7 +137,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   });
   if (values.help || !positionals.length) {
     console.log(
-      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; mail import|select; match candidate|job|pair; draft greeting|publication|edit; task get|retry; queue list. Task kind: intake|match|draft|mail. Draft generation never sends or publishes. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
+      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; mail import|select; match candidate|job|pair; draft greeting|publication|edit; portal create|list|link|revoke|status; activity note|list; contract status|reminder; task get|retry; queue list. Task kind: intake|match|draft|mail. Draft generation never sends or publishes. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
     );
     return;
   }

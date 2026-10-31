@@ -149,6 +149,7 @@ if (
     'build',
     'api',
     'worker',
+    'ai-worker',
     'front',
     'command',
     'database-init',
@@ -192,6 +193,18 @@ if (
       environment,
       serverDirectory,
     );
+  if (action === 'ai-worker')
+    run(
+      process.execPath,
+      ['dist/queue-worker/queue-worker.js'],
+      {
+        ...environment,
+        WORKER_ENABLED_QUEUES: 'ai-queue',
+        DISABLE_CRON_JOBS_REGISTRATION: 'true',
+        DISABLE_WORKSPACE_CRON_JOBS_REGISTRATION: 'true',
+      },
+      serverDirectory,
+    );
   if (action === 'front')
     run(
       process.execPath,
@@ -231,7 +244,7 @@ if (
   }
 } else {
   console.log(
-    'Usage: node ops/recruiting/local.mjs init|up|down|build|database-init|api|front|worker|command',
+    'Usage: node ops/recruiting/local.mjs init|up|down|build|database-init|api|front|worker|ai-worker|command',
   );
   if (action !== 'help') process.exitCode = 1;
 }

@@ -39,3 +39,8 @@ description: 操作本项目的招聘业务：公司与JD录入、候选人材�
 - `portal create --candidate-id ID --job-id ID --audience CANDIDATE --days 7 --key 标识`准备本人核对入口；`portal status --candidate-id ID --job-id ID`查看当前分享确认。公司入口使用audience COMPANY，仅可一个岗位，必须先获得候选人对当前资料的有效确认。
 - `portal list`、`portal link --id ID`、`portal revoke --id ID`管理自己权限范围内的链接。MCP对应portal_create/list/link/revoke和sharing_status。链接内含限定用途凭据，只交给指定接收者，不写入公开日志。准备链接不代表已经推荐或发送。
 - `activity note --candidate-id ID --job-id ID --note-file 跟进说明.txt --key 标识`记录备注，`activity list --candidate-id ID`读取历史；MCP对应activity_note/activity_list。Agent不能确认实际已联系、已推荐或已发布，这些需要运营人员本人操作。撤回分享不会删除已经发生的历史跟进记录。
+
+## 合同资料与内部提醒
+
+- `contract status --company-id ID`读取合同状态，`contract reminder --company-id ID`准备内部跟进任务；MCP对应contract_status/contract_reminder。重复请求复用同一公司提醒，不覆盖人工修改。该任务不是外部签约草稿，不会发通知或自动签署。
+- 五字段资料及已发起/已签署仅公司负责人直接本人确认。接口返回version用于并发保存，不把显示时间当版本。缺外部平台配置时不能声称已经创建外部合同。

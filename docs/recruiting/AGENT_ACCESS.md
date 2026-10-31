@@ -22,7 +22,7 @@ JD 预览返回稳定 itemId。jobs_confirm 的 items 包含 itemId 与编辑后
 - MCP 完成文件上传、简历提交与入库，随后自动匹配 50 个岗位：46评分、4明确条件排除、0失败，完整覆盖。指定人岗匹配完成，重试复用缓存。
 - MCP 完成 JD 提交、预览、确认，创建一个明确标记合成的岗位；重复确认保持同一岗位。
 - 连续115次外部查询：99次通过、16次429、无其他错误。未提高或关闭原生外部限额。后台全量匹配在相同限制下正常完成。
-- CLI真实公司查询通过，5项客户端测试通过；工具身份与429边界8项测试通过。完整前端视觉验收及草稿/人工跟进入口仍未完成。
+- CLI真实公司查询通过，客户端及工具身份/429边界测试通过。草稿、门户与人工跟进的后续接口验收见以下章节；完整前端视觉验收仍未完成。
 
 详细请求与私有结果仅存于被忽略的 `.local/recruiting/`。以上都是本地合成验证，不代表生产验收，也不代表匹配质量评测完成。
 
@@ -39,3 +39,7 @@ JD 预览返回稳定 itemId。jobs_confirm 的 items 包含 itemId 与编辑后
 MCP增加portal_create、portal_list、portal_link、portal_revoke、sharing_status，CLI对应portal create/list/link/revoke/status。候选人链接可绑定最多5岗，公司预览仅一个岗位且要求当前有效确认。复制链接需要原创建主体，链接中含限定用途凭据，不能打印到公开报告或发送给未经确认的对象。
 
 MCP activity_note/activity_list和CLI activity note/list共用人工记录服务。Agent只能记录NOTE，不代替人确认已联系/已推荐/已发布。后者仅本人会话可用HTTP/UI操作，公司推荐额外检查候选人分享同意。MCP真实备注success=true且verified=true、门户列表成功、CLI状态与备注成功，API Key实际联系403。界面仍未浏览器验收。
+
+## 6. 合同兼容入口
+
+MCP contract_status/contract_reminder与CLI contract status/reminder --company-id ID共用合同服务。已真实验证两项MCP success=true和CLI状态查询；使用原合成公司及稳定内部任务，不创建新外部合同。资料/签署写入仅当前负责人直接本人会话；Agent不能声明已经签署。详见CONTRACTS.md。
