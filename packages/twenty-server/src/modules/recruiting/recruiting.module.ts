@@ -29,6 +29,7 @@ import { RecruitingUploadService } from './recruiting-upload.service';
 import { FileUploadModule } from 'src/engine/core-modules/file/file-upload/file-upload.module';
 import { PermissionsModule } from 'src/engine/metadata-modules/permissions/permissions.module';
 import { RecruitingUploadPermissionGuard } from './recruiting-upload-permission.guard';
+import { RecruitingJobConfirmationService } from './recruiting-job-confirmation.service';
 import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
 
 @Module({
@@ -56,6 +57,7 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
     RecruitingIntakeService,
     RecruitingUploadService,
     RecruitingUploadPermissionGuard,
+    RecruitingJobConfirmationService,
     ResumeIngestJob,
     RecruitingMatchingService,
     RecruitingPairEvaluatorService,

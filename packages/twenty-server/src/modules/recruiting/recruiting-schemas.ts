@@ -116,5 +116,9 @@ export const intakeInputSchema = z
 
 /** Candidate facts remain a simple object shared by the list, portal and pair scorer. */
 export type CandidateProfile = z.infer<typeof candidateProfileSchema>;
+/** Confirmed job facts remain separate from server-owned item and record identities. */
+export type RecruitingJobProfile = z.infer<
+  typeof jobProfilesSchema
+>['jobs'][number];
 /** Submission metadata is kept separate from model-generated facts. */
 export type RecruitingIntakeInput = z.infer<typeof intakeInputSchema>;

@@ -31,10 +31,10 @@ import {
 import { RecruitingExtractorService } from './recruiting-extractor.service';
 import { RecruitingMatchingService } from './recruiting-matching.service';
 import { RecruitingUploadService } from './recruiting-upload.service';
+import { RecruitingJobConfirmationService } from './recruiting-job-confirmation.service';
 import {
   candidateProfileSchema,
   intakeInputSchema,
-  jobProfilesSchema,
   type RecruitingIntakeInput,
 } from './recruiting-schemas';
 
@@ -45,7 +45,7 @@ export type RecruitingIntakeJobData = {
 };
 
 /** Processing state lives in the CRM even after queue entries expire. */
-type IntakeEnvelope = {
+export type IntakeEnvelope = {
   schemaVersion: 2;
   input: RecruitingIntakeInput;
   inputHash: string;
@@ -62,6 +62,7 @@ type IntakeEnvelope = {
   matchingRunIds?: string[];
   matchingError?: string;
   transportDigest?: string;
+  jobItems?: import('./recruiting-job-confirmation.service').RecruitingJobItem[];
 };
 
 @Injectable()
@@ -75,6 +76,7 @@ export class RecruitingIntakeService {
     private readonly extractor: RecruitingExtractorService,
     private readonly matching: RecruitingMatchingService,
     private readonly uploads: RecruitingUploadService,
+    private readonly jobs: RecruitingJobConfirmationService,
     @InjectMessageQueue(MessageQueue.recruitingQueue)
     private readonly queue: MessageQueueService,
   ) {}
@@ -205,7 +207,16 @@ export class RecruitingIntakeService {
   /** Returns the full authorized material state for a detail/preview view. */
   async one(context: WorkspaceAuthContext, id: string) {
     const record = await this.records.one(context, 'recruitingIntake', id);
-    return { ...this.receipt(record), detail: this.envelope(record) };
+    const envelope = this.envelope(record);
+    return {
+      ...this.receipt(record),
+      detail: {
+        ...envelope,
+        ...(envelope.input.kind === 'JOB'
+          ? { jobItems: this.jobs.preview(id, envelope) }
+          : {}),
+      },
+    };
   }
 
   /** Reuses successful material and extraction stages while binding the retry to its current caller. */
@@ -447,62 +458,9 @@ export class RecruitingIntakeService {
     }
   }
 
-  /** Publishes only the operator-confirmed JD preview, preserving the selected company relation. */
+  /** Confirms stable server-owned job items and returns persistent per-item outcomes. */
   async confirmJobs(context: WorkspaceAuthContext, id: string, value: unknown) {
-    const record = await this.records.one(context, 'recruitingIntake', id);
-    const envelope = this.envelope(record);
-    if (envelope.input.kind !== 'JOB' || !envelope.input.companyId)
-      throw new BadRequestException('这不是岗位导入任务');
-    if (record.state === 'COMPLETED') return this.receipt(record);
-    const jobs = jobProfilesSchema.parse(value).jobs;
-    if (!jobs.length) throw new BadRequestException('请至少确认一个岗位');
-    await this.records.one(context, 'company', envelope.input.companyId);
-    const jobIds = [];
-    for (const [index, job] of jobs.entries()) {
-      const jobId = v5(`${record.id}:job:${index}`, v5.URL);
-      if (!(await this.optional(context, 'recruitmentJob', jobId)))
-        await this.records.create(context, 'recruitmentJob', {
-          id: jobId,
-          name: job.title,
-          companyId: envelope.input.companyId,
-          jobStatus: 'RECRUITING',
-          jobDescription: { markdown: job.description, blocknote: null },
-          jobRecruitmentPreferences: {
-            markdown: job.preferences,
-            blocknote: null,
-          },
-          jobAttributes: [
-            ...job.employmentTypes.map((entry) => entry.toUpperCase()),
-            ...job.workModes.map((entry) => entry.toUpperCase()),
-          ],
-          recruitingProfile: {
-            ...job,
-            sourceIntakeId: id,
-            sourceHash: envelope.inputHash,
-          },
-        });
-      jobIds.push(jobId);
-    }
-    const result = await this.records.update(context, 'recruitingIntake', id, {
-      state: 'COMPLETED',
-      targetId: jobIds[0],
-      result: {
-        ...envelope,
-        stage: 'STORED',
-        jobIds,
-        recordUrl: `/object/recruitmentJob/${jobIds[0]}`,
-      },
-    });
-    await this.scheduleMatching(
-      context,
-      id,
-      this.envelope(result),
-      'recruitmentJob',
-      jobIds,
-    );
-    return this.receipt(
-      await this.records.one(context, 'recruitingIntake', id),
-    );
+    return this.receipt(await this.jobs.confirm(context, id, value));
   }
 
   /** Resolves preview authorization from its parent intake rather than accepting a storage path. */
@@ -596,6 +554,22 @@ export class RecruitingIntakeService {
       createdAt: record.createdAt,
       candidateId: envelope.candidateId,
       jobIds: envelope.jobIds,
+      items:
+        envelope.input.kind === 'JOB'
+          ? this.jobs.preview(record.id, envelope).map((item) => ({
+              itemId: item.itemId,
+              jobId: item.status === 'CREATED' ? item.jobId : undefined,
+              title: item.draft.title,
+              status: item.status,
+              error: item.error,
+              matchingError: item.matchingError,
+              matchingRunId: item.matchingRunId,
+              recordUrl:
+                item.status === 'CREATED'
+                  ? `/object/recruitmentJob/${item.jobId}`
+                  : undefined,
+            }))
+          : undefined,
       recordUrl: envelope.recordUrl,
       batchId: envelope.input.batchId,
       matchingStatus: envelope.matchingStatus,

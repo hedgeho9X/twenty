@@ -71,6 +71,79 @@ export class RecruitingController {
     private readonly uploads: RecruitingUploadService,
   ) {}
 
+  /** Supplies small authorized candidate choices without returning every resume to a selector. */
+  @Get('candidates')
+  candidates(
+    @Req() request: Request,
+    @Query('search') search = '',
+    @Query('offset') offset = '0',
+  ) {
+    const query = search.trim().slice(0, 200);
+    return this.records.list(
+      buildWorkspaceAuthContextFromRequest(request),
+      'person',
+      {
+        filter: {
+          and: [
+            { contactRoles: { containsAny: ['CANDIDATE'] } },
+            ...(query
+              ? [
+                  {
+                    or: [
+                      { name: { firstName: { ilike: `%${query}%` } } },
+                      { name: { lastName: { ilike: `%${query}%` } } },
+                      { jobTitle: { ilike: `%${query}%` } },
+                    ],
+                  },
+                ]
+              : []),
+          ],
+        },
+        select: ['id', 'name', 'jobTitle'],
+        limit: 50,
+        offset: Math.max(0, Number.parseInt(offset, 10) || 0),
+      },
+    );
+  }
+
+  /** Searches company-bound jobs; matching selectors request active jobs explicitly. */
+  @Get('jobs')
+  jobs(
+    @Req() request: Request,
+    @Query('companyId') companyId?: string,
+    @Query('search') search = '',
+    @Query('active') active = 'true',
+  ) {
+    if (companyId && !z.string().uuid().safeParse(companyId).success)
+      throw new BadRequestException('公司标识无效');
+    const filter = [
+      ...(companyId ? [{ companyId: { eq: companyId } }] : []),
+      ...(active === 'true' ? [{ jobStatus: { eq: 'RECRUITING' } }] : []),
+      ...(search.trim()
+        ? [{ name: { ilike: `%${search.trim().slice(0, 200)}%` } }]
+        : []),
+    ];
+    return this.records.list(
+      buildWorkspaceAuthContextFromRequest(request),
+      'recruitmentJob',
+      {
+        filter: filter.length ? { and: filter } : undefined,
+        select: ['id', 'name', 'companyId', 'jobStatus'],
+        limit: 100,
+      },
+    );
+  }
+
+  /** Opens the company already bound to an intake after a page refresh. */
+  @Get('companies/:id')
+  company(@Req() request: Request, @Param('id') id: string) {
+    return this.records.one(
+      buildWorkspaceAuthContextFromRequest(request),
+      'company',
+      id,
+    );
+  }
+
   /** Upgrades known local legacy envelopes only while a server-side maintenance switch is enabled. */
   @Post('admin/seal-legacy-state')
   sealLegacyState(@Req() request: Request) {
