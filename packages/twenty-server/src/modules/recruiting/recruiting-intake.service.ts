@@ -4,11 +4,13 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 
 import { createHash } from 'node:crypto';
 import { v4, v5 } from 'uuid';
 import { isPlainObject } from 'twenty-shared/utils';
+import { OrderByDirection } from 'twenty-shared/types';
 
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
@@ -27,6 +29,7 @@ import {
   type ParsedRecruitingMaterial,
 } from './recruiting-parser.service';
 import { RecruitingExtractorService } from './recruiting-extractor.service';
+import { RecruitingMatchingService } from './recruiting-matching.service';
 import {
   candidateProfileSchema,
   intakeInputSchema,
@@ -54,16 +57,21 @@ type IntakeEnvelope = {
   jobIds?: string[];
   recordUrl?: string;
   error?: string;
+  matchingStatus?: string;
+  matchingRunIds?: string[];
+  matchingError?: string;
 };
 
 @Injectable()
 /** Makes ingestion independent from later matching failures. */
 export class RecruitingIntakeService {
+  private readonly logger = new Logger(RecruitingIntakeService.name);
   constructor(
     private readonly records: RecruitingRecordsService,
     private readonly actors: RecruitingActorService,
     private readonly parser: RecruitingParserService,
     private readonly extractor: RecruitingExtractorService,
+    private readonly matching: RecruitingMatchingService,
     @InjectMessageQueue(MessageQueue.recruitingQueue)
     private readonly queue: MessageQueueService,
   ) {}
@@ -136,6 +144,7 @@ export class RecruitingIntakeService {
       filter: { name: { ilike: '[recruiting-v2]%' } },
       offset,
       limit: 50,
+      orderBy: [{ createdAt: OrderByDirection.DescNullsLast }],
     });
     return {
       ...page,
@@ -157,11 +166,19 @@ export class RecruitingIntakeService {
     const record = await this.records.one(context, 'recruitingIntake', id);
     const envelope = this.envelope(record);
     if (record.state === 'COMPLETED') return this.receipt(record);
-    if (
-      ['READY', 'PROCESSING'].includes(String(record.state)) ||
-      envelope.stage === 'AWAITING_CONFIRMATION'
-    )
-      return this.receipt(record);
+    if (envelope.stage === 'AWAITING_CONFIRMATION') return this.receipt(record);
+    if (['READY', 'PROCESSING'].includes(String(record.state))) {
+      const active =
+        await this.queue.getInFlightJobs<RecruitingIntakeJobData>();
+      if (
+        active.some(
+          (entry) =>
+            entry.data.intakeId === id &&
+            entry.data.actor.workspaceId === context.workspace.id,
+        )
+      )
+        return this.receipt(record);
+    }
     const actor = this.actors.capture(context);
     await this.records.update(context, 'recruitingIntake', id, {
       state: 'READY',
@@ -348,6 +365,15 @@ export class RecruitingIntakeService {
           matchingStatus: 'PENDING',
         },
       });
+      await this.scheduleMatching(
+        context,
+        record.id,
+        this.envelope(
+          await this.records.one(context, 'recruitingIntake', record.id),
+        ),
+        'person',
+        [candidateId],
+      );
     } catch (error) {
       const message =
         error instanceof BadRequestException
@@ -407,7 +433,16 @@ export class RecruitingIntakeService {
         recordUrl: `/object/recruitmentJob/${jobIds[0]}`,
       },
     });
-    return this.receipt(result);
+    await this.scheduleMatching(
+      context,
+      id,
+      this.envelope(result),
+      'recruitmentJob',
+      jobIds,
+    );
+    return this.receipt(
+      await this.records.one(context, 'recruitingIntake', id),
+    );
   }
 
   /** Resolves preview authorization from its parent intake rather than accepting a storage path. */
@@ -444,6 +479,42 @@ export class RecruitingIntakeService {
     );
   }
 
+  /** Writes only matching state after ingestion commits; scoring errors never become intake failures. */
+  private async scheduleMatching(
+    context: WorkspaceAuthContext,
+    intakeId: string,
+    envelope: IntakeEnvelope,
+    object: 'person' | 'recruitmentJob',
+    ids: string[],
+  ) {
+    const matchingRunIds = [];
+    let matchingError;
+    for (const id of ids) {
+      try {
+        matchingRunIds.push(
+          (await this.matching.submitForRecord(context, object, id)).runId,
+        );
+      } catch {
+        matchingError = '资料已保存，自动匹配暂未排队，可单独重试匹配';
+      }
+    }
+    try {
+      await this.records.update(context, 'recruitingIntake', intakeId, {
+        state: 'COMPLETED',
+        result: {
+          ...envelope,
+          matchingRunIds,
+          matchingStatus: matchingError ? 'FAILED_TO_QUEUE' : 'QUEUED',
+          matchingError,
+        },
+      });
+    } catch {
+      this.logger.warn(
+        'Recruiting material remains stored; matching receipt could not be refreshed.',
+      );
+    }
+  }
+
   /** Refuses legacy envelopes so archived intake rows cannot restart the former execution chain. */
   private envelope(record: RecruitingRecord): IntakeEnvelope {
     if (!isPlainObject(record.result) || record.result.schemaVersion !== 2)
@@ -467,6 +538,9 @@ export class RecruitingIntakeService {
       jobIds: envelope.jobIds,
       recordUrl: envelope.recordUrl,
       batchId: envelope.input.batchId,
+      matchingStatus: envelope.matchingStatus,
+      matchingRunIds: envelope.matchingRunIds,
+      matchingError: envelope.matchingError,
       files: record.files,
     };
   }

@@ -24,6 +24,7 @@ import { RecruitingMatchingService } from './recruiting-matching.service';
 import { RecruitingPairEvaluatorService } from './recruiting-pair-evaluator.service';
 import { RecruitingMatchJob } from './recruiting-match.job';
 import { TypeORMModule } from 'src/database/typeorm/typeorm.module';
+import { RecruitingRecordChangeListener } from './recruiting-record-change.listener';
 import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
 
 @Module({
@@ -51,6 +52,7 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
     RecruitingMatchingService,
     RecruitingPairEvaluatorService,
     RecruitingMatchJob,
+    RecruitingRecordChangeListener,
     provideWorkspaceScopedRepository(ApiKeyEntity),
     provideWorkspaceScopedRepository(FileEntity),
   ],

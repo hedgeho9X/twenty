@@ -18,6 +18,37 @@ describe('recruiting match context', () => {
     expect(result).not.toContain('13812345678');
   });
 
+  it('removes signed download URLs without discarding adjacent career evidence', () => {
+    const result = minimizeRecruitingText(
+      'TypeScript 后端 https://files.example.com/cv?private_token=secret ，维护队列',
+    );
+    expect(result).toContain('TypeScript 后端');
+    expect(result).toContain('维护队列');
+    expect(result).not.toContain('private_token');
+    expect(result).not.toContain('secret');
+  });
+
+  it('distinguishes occupational self-introductions from download-only mail boilerplate', () => {
+    const note =
+      '历史投递自述：\n我有四年客户成功经验，负责 SaaS 平台客户的培训、文档、续约和问题闭环。'.repeat(
+        3,
+      );
+    expect(
+      buildCandidateMatchContext({
+        id: 'p',
+        candidatePreferences: { markdown: note },
+      }),
+    ).toMatchObject({ supplementOnly: true, issue: undefined });
+    expect(
+      buildCandidateMatchContext({
+        id: 'p',
+        candidatePreferences: {
+          markdown: `历史投递自述：从QQ邮箱发来的超大附件，进入下载页面 https://files.example.com/cv?key=${'secret'.repeat(50)}`,
+        },
+      }).issue,
+    ).toContain('缺少');
+  });
+
   it('flattens legacy occupational facts and quotes without reintroducing identity fields', () => {
     const result = buildCandidateMatchContext({
       id: 'person',
@@ -81,9 +112,22 @@ describe('recruiting match context', () => {
   });
 
   it('does not turn negated or historical statements into current hard filters', () => {
-    for (const note of ['不只考虑全职', '以前不接受实习，现在可以', '并非不接受实习']) {
-      const candidate = buildCandidateMatchContext({ id: 'p', candidatePreferences: { markdown: note }, recruitingProfile: { summary: '工程师' } });
-      expect(evaluateRecruitingEligibility(candidate.eligibility, { status: 'RECRUITING', employmentTypes: ['internship'] }).status).toBe('eligible');
+    for (const note of [
+      '不只考虑全职',
+      '以前不接受实习，现在可以',
+      '并非不接受实习',
+    ]) {
+      const candidate = buildCandidateMatchContext({
+        id: 'p',
+        candidatePreferences: { markdown: note },
+        recruitingProfile: { summary: '工程师' },
+      });
+      expect(
+        evaluateRecruitingEligibility(candidate.eligibility, {
+          status: 'RECRUITING',
+          employmentTypes: ['internship'],
+        }).status,
+      ).toBe('eligible');
     }
   });
 
@@ -97,6 +141,22 @@ describe('recruiting match context', () => {
     expect(
       buildCandidateMatchContext({ id: 'p', jobTitle: '工程师' }).issue,
     ).toContain('缺少');
+  });
+
+  it('uses the current native preference instead of enforcing an archived submission note forever', () => {
+    for (const note of ['', '现在可以接受实习']) {
+      const candidate = buildCandidateMatchContext({
+        id: 'p',
+        candidatePreferences: { markdown: note },
+        recruitingProfile: { summary: '工程师', note: '不接受实习' },
+      });
+      expect(
+        evaluateRecruitingEligibility(candidate.eligibility, {
+          status: 'RECRUITING',
+          employmentTypes: ['internship'],
+        }).status,
+      ).toBe('eligible');
+    }
   });
 
   it('invalidates company context independently from human follow-up and contact fields', () => {

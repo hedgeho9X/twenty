@@ -40,6 +40,7 @@ export const minimizeRecruitingText = (
     result = result.split(name).join('[候选人]');
   return result
     .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[邮箱]')
+    .replace(/https?:\/\/[^\s<>"，。；（）)]+/giu, '[链接]')
     .replace(/(?<!\d)(?:\+?86[- ]?)?1[3-9]\d{9}(?!\d)/g, '[电话]');
 };
 
@@ -95,7 +96,15 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
   );
   const note = recruitingText(record.candidatePreferences);
   const sourceText = recruitingText(profile.sourceText);
-  const material = [sourceText, recruitingText(profile.note), note].join('\n');
+  const nativePreferences =
+    record.candidatePreferences &&
+    typeof record.candidatePreferences === 'object'
+      ? (record.candidatePreferences as Record<string, unknown>)
+      : undefined;
+  const material =
+    typeof nativePreferences?.markdown === 'string'
+      ? note
+      : [sourceText, recruitingText(profile.note)].join('\n');
   const compact = Object.keys(profile).length > 0;
   const context = {
     summary: recruitingText(profile.summary),
@@ -123,6 +132,9 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
   };
   const clean = minimizeContext(context, names);
   const eligibility: CandidateEligibility = {};
+  const certainty = /^历史投递自述[：:]/.test(material.trim())
+    ? ('unconfirmed' as const)
+    : ('confirmed' as const);
   const statements = material.split(/[\n。；;，,]+/).map((text) =>
     text
       .trim()
@@ -137,7 +149,7 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
   if (explicitFullTime)
     eligibility.employmentTypes = {
       values: ['full_time'],
-      certainty: 'confirmed',
+      certainty,
     };
   else {
     const values = compact
@@ -157,7 +169,7 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
   )
     eligibility.excludedEmploymentTypes = {
       values: ['internship'],
-      certainty: 'confirmed',
+      certainty,
     };
   const workModes = factTexts(profile.workModes);
   if (workModes.length)
@@ -173,6 +185,12 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
     ...clean.education,
     clean.sourceText,
   ].join('');
+  const supplementOnly =
+    !occupationalContent.trim() &&
+    clean.note.length >= 80 &&
+    /经验|经历|负责|项目|工作|技能|毕业|学历|擅长|开发|设计|运营|管理|投资/.test(
+      clean.note,
+    );
   const conflict =
     profile.identityConflict === true || Boolean(legacy['数据一致性提示']);
   return {
@@ -182,9 +200,10 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
     eligibility,
     issue: conflict
       ? '候选人材料存在身份冲突'
-      : !occupationalContent.trim()
+      : !occupationalContent.trim() && !supplementOnly
         ? '缺少可评分的职业材料'
         : undefined,
+    supplementOnly,
     version: contentVersion({ context: clean, eligibility, conflict }),
   };
 };

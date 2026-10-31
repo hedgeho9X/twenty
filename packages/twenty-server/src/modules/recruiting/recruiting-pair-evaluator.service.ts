@@ -120,6 +120,15 @@ export class RecruitingPairEvaluatorService {
       candidate.eligibility,
       job.eligibility,
     );
+    if (candidate.supplementOnly) {
+      eligibility.reasons.push({
+        code: 'supplement_only',
+        message: '目前只有投递自述或补充说明，原始简历需补充或核实',
+        blocking: false,
+      });
+      if (eligibility.status === 'eligible')
+        eligibility.status = 'needs_confirmation';
+    }
     const base: RecruitingPairResult = {
       candidateId: candidate.id,
       jobId: job.id,

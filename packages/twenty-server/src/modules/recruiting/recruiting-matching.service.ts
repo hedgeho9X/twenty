@@ -487,10 +487,14 @@ export class RecruitingMatchingService {
       needsReview: 0,
       failed: 0,
       cached: 0,
-      unavailable: Math.max(
-        0,
-        (payload.targetIds?.length ?? 0) - payload.results.length,
-      ),
+      unavailable: ['COMPLETED', 'PARTIAL', 'FAILED', 'NO_RESULTS'].includes(
+        String(run.status),
+      )
+        ? Math.max(0, (payload.targetIds?.length ?? 0) - payload.results.length)
+        : 0,
+      pending: ['QUEUED', 'PROCESSING'].includes(String(run.status))
+        ? Math.max(0, (payload.targetIds?.length ?? 0) - payload.results.length)
+        : 0,
     };
     for (const row of payload.results) {
       if (row.status === 'SCORED') counts.scored++;
