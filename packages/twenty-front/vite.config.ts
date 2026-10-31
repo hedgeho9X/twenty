@@ -122,6 +122,8 @@ export default defineConfig(({ mode }) => {
           }),
       fs: {
         allow: [searchForWorkspaceRoot(process.cwd())],
+        // Local runtime data contains credentials and source documents, outside the public app assets.
+        deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/.local/**'],
       },
     },
 
