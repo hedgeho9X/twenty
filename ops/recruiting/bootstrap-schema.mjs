@@ -49,6 +49,13 @@ let metadata = inspect();
 const created = [];
 for (const object of [
   {
+    nameSingular: 'recruitingMailbox',
+    namePlural: 'recruitingMailboxes',
+    labelSingular: '招聘收信设置',
+    labelPlural: '招聘收信设置',
+    icon: 'IconMail',
+  },
+  {
     nameSingular: 'recruitingMailEvent',
     namePlural: 'recruitingMailEvents',
     labelSingular: '邮件来源事件',
@@ -102,6 +109,9 @@ for (const object of [
 }
 
 const fields = [
+  ['recruitingMailbox', 'connectedAccountId', 'UUID', '原生邮箱连接'],
+  ['recruitingMailbox', 'enabled', 'BOOLEAN', '接入招聘材料'],
+  ['recruitingMailbox', 'payload', 'RAW_JSON', '连接授权引用'],
   ['recruitingMailEvent', 'sourceKey', 'TEXT', '接收事件'],
   ['recruitingMailEvent', 'sourceHash', 'TEXT', '原文摘要'],
   ['recruitingMailEvent', 'archiveId', 'UUID', '归档记录'],

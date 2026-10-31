@@ -41,6 +41,9 @@ import { RecruitingDraftsService } from './recruiting-drafts.service';
 import { RecruitingDraftJob } from './recruiting-draft.job';
 import { RecruitingMailService } from './recruiting-mail.service';
 import { RecruitingMailJob } from './recruiting-mail.job';
+import { RecruitingMailboxService } from './recruiting-mailbox.service';
+import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
+import { MessagingIMAPDriverModule } from 'src/modules/messaging/message-import-manager/drivers/imap/messaging-imap-driver.module';
 
 @Module({
   imports: [
@@ -56,8 +59,13 @@ import { RecruitingMailJob } from './recruiting-mail.job';
     FileUploadModule,
     PermissionsModule,
     UsageLimitModule,
+    MessagingIMAPDriverModule,
     FilesFieldModule,
-    TypeOrmModule.forFeature([ApiKeyEntity, FileEntity]),
+    TypeOrmModule.forFeature([
+      ApiKeyEntity,
+      FileEntity,
+      ConnectedAccountEntity,
+    ]),
   ],
   controllers: [RecruitingController],
   providers: [
@@ -78,6 +86,7 @@ import { RecruitingMailJob } from './recruiting-mail.job';
     RecruitingDraftJob,
     RecruitingMailService,
     RecruitingMailJob,
+    RecruitingMailboxService,
     ResumeIngestJob,
     RecruitingMatchingService,
     RecruitingPairEvaluatorService,
@@ -85,6 +94,7 @@ import { RecruitingMailJob } from './recruiting-mail.job';
     RecruitingRecordChangeListener,
     provideWorkspaceScopedRepository(ApiKeyEntity),
     provideWorkspaceScopedRepository(FileEntity),
+    provideWorkspaceScopedRepository(ConnectedAccountEntity),
   ],
   exports: [RecruitingActorService, RecruitingRecordsService],
 })

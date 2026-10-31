@@ -32,6 +32,7 @@ import { RecruitingDirectoryService } from './recruiting-directory.service';
 import { RecruitingRequestLimitGuard } from './recruiting-request-limit.guard';
 import { RecruitingDraftsService } from './recruiting-drafts.service';
 import { RecruitingMailService } from './recruiting-mail.service';
+import { RecruitingMailboxService } from './recruiting-mailbox.service';
 import { RecruitingRecordsService } from './recruiting-records.service';
 import { RecruitingIntakeService } from './recruiting-intake.service';
 import { RecruitingMatchingService } from './recruiting-matching.service';
@@ -68,7 +69,30 @@ export class RecruitingController {
     private readonly uploads: RecruitingUploadService,
     private readonly drafts: RecruitingDraftsService,
     private readonly mail: RecruitingMailService,
+    private readonly mailboxes: RecruitingMailboxService,
   ) {}
+  /** Exposes only the current mailbox owner's native connections and capture choices. */
+  @Get('mailboxes')
+  mailboxList(@Req() request: Request) {
+    return this.mailboxes.list(this.mailboxOwner(request));
+  }
+  /** Enables recruiting capture without turning on native historical synchronization. */
+  @Post('mailboxes/configure')
+  mailboxConfigure(@Req() request: Request, @Body() body: unknown) {
+    return this.mailboxes.configure(this.mailboxOwner(request), body);
+  }
+  /** Reads one latest native message in a read-only mailbox; no send, move or flag mutation is available. */
+  @Post('mailboxes/receive-latest')
+  @HttpCode(202)
+  mailboxReceive(@Req() request: Request, @Body() body: unknown) {
+    return this.mailboxes.receiveLatest(this.mailboxOwner(request), body);
+  }
+  /** Impersonation does not grant mailbox-owner authority even when generic CRM operations allow it. */
+  private mailboxOwner(request: Request) {
+    if (isImpersonating(request.impersonationContext))
+      throw new ForbiddenException('邮箱操作需要所有者本人会话');
+    return buildWorkspaceAuthContextFromRequest(request);
+  }
   /** Archives imported EML before MIME expansion; no mailbox is connected by this upload. */
   @Post('mail-archives/upload')
   @HttpCode(202)
