@@ -1,102 +1,55 @@
 # 恢复执行入口
 
-先读 DELIVERY_GOAL.md（权威完整目标）与 PROGRESS.md。用户已睡觉并明确 Go；目标仍 active，无 token budget。不要再 create_goal，也不要把已有基础当完整交付，不需要等用户确认。未经授权不得 push、Issue、PR、部署、生产写入或外发消息。不得 spawn 子 Agent。
+每次恢复先读 DELIVERY_GOAL.md（权威完整目标）、PROGRESS.md，再核对 git 状态和运行。用户已睡觉并明确 Go，目标 active，无 token budget；不得重新创建、缩小范围或仅因停止而标完成。不要 spawn 子Agent，不自行push、Issue、PR、部署、生产写入、外发消息。
 
-## 1. 当前代码和环境
+## 1. 唯一底座与运行
 
-- 唯一开发：/Users/jerry/code/personal/projects/twenty，分支 codex/fanhan-local-rebuild，个人官方 fork hedgeho9X/twenty，官方 base c0ad263b，源码 2.55.0。
-- 最新 commits：fc8fd5eb 原生 Gateway；1903099b 职业上下文；cd2db13c Jev pair evaluator；212c834c 双向任务；1335bb24 事件 actor；2b320cc5 自动匹配。先核对 git status/log；目前另有小的快照范围修正未提交。
-- B：API localhost:23001，前端 localhost:23000，parser localhost:23003；PG 25432/recruiting，Valkey 26379。A 的 fanhan-local-* 与 localhost:13000 保留，不操作无关 AirJelly/Supabase。
-- 真实迁入 53 公司、166 岗位、925 联系人、497 候选人、1206 文件；另有 1 公司、1 岗位、1 候选人 fixture。原业务表摘要/文件抽检已通过，官方升级完成，富文本 Tiptap 列由官方命令补齐。
-- 旧工作流 0 ACTIVE、邮箱/日历同步关、旧应用自动触发器关、旧订阅 sidecar 已停止。新 RECRUITING_AUTO_MATCH_ENABLED=true 只处理带明确 actor 的新原生资料事件。
-- 当前 API session 76581，PID 12498，日志 api-8.log；worker session 22208，PID 12509，日志 matching-worker-5.log；front session 65848，PID 11915，日志 front-2.log。恢复时用 lsof/cwd 核对，不盲用 PID。
-- Worker 启用 recruiting-queue（全局 10）与 recruiting-match-queue（全局 2 runs，每 run 3 pairs）。旧升级 worker 已停止。
-- 全部私有数据、环境、Token、日志、实验和模型在被忽略的 .local/recruiting/，禁止打印/提交。完整邮件/自述中的下载 URL 也可能带访问参数，不能再输出原文样本。
-- 安装专用 CONNECT→SOCKS bridge 127.0.0.1:11081，session 71944。不是产品服务，构建完可停止，不修改全局代理。
+- /Users/jerry/code/personal/projects/twenty；个人官方fork hedgeho9X/twenty；分支codex/fanhan-local-rebuild；官方base c0ad263b35a734dbd2528bf82c5dd38d3b18dc1b，源码2.55.0。旧fanhan-twenty只读参考。
+- 新B：UI localhost:23000；API127.0.0.1:23001；parser23003；PG25432/recruiting；Valkey26379。保留A localhost:13000与所有fanhan-local-*，不动无关AirJelly/Supabase。禁止Supabase CLI及绕过。
+- 当前API session1524/PID21310，日志api-15.log；worker session6752/PID21321，日志matching-worker-11.log；front session65848/PID11915/front-2.log。先lsof/ps/cwd核实，不能盲kill。
+- worker只启recruiting-queue（10）与recruiting-match-queue（2runs×3pairs）。RECRUITING_AUTO_MATCH_ENABLED=true；旧18工作流在B均停、邮箱/日历同步关、旧logicFunction触发器关，旧sidecar停。
+- 新增草稿表时曾有10项deferred schema action；已临时运行workspace-queue worker，仅确认过的一项RunDeferredWorkspaceMigrationActionsJob，全部完成并停PID20867。不要常驻或盲开其他队列。
+- 固定Node .local/recruiting/runtime/node-v26.12.1-darwin-arm64/bin/node。私有env、session、模型、报告、原始材料都在被忽略的.local/recruiting，绝不打印/提交。STORAGE签名key与独立RECRUITING_STATE_SIGNING_KEY要保留备份。
+- RECRUITING_ALLOW_LEGACY_STATE_SEALING=false，维护入口已关闭。不要再开。Vite fs.deny **/.local/**已经实测403，不撤销。
+- 初始迁入53公司/166岗位/925联系人/497候选人/1206文件；另有fixtures 1公司/5岗位/1候选人。新增长JD仅预览，没有确认创建。
 
-## 2. 已有真实链路
+## 2. 已完成切片与证据
 
-- 公司查询/创建、公司绑定 JD→后台预览→人工确认→岗位创建，已真实通过。
-- 原生上传 DOCX→Docling 两页截图/文字→本机 ChatGPT 订阅→Output.object→原生候选人写入/附件复制→原生 REST 回读，已通过；相同提交复用 intake/candidate，重试复用解析和模型 checkpoint。
-- fixture 候选人 926eee86-1b7f-5085-82a1-50f164e09124；intake 2c631dc4-8e24-53e6-93a5-779e8b6fbdb7。
-- fixture 岗位 3aafb953-d524-5ee4-868e-6b246920adf1；JD intake 48a9e744-f075-5e6b-a78e-7336a1c97684。公司 ID 在私有 job-intake-smoke.json。
-- Pair run 529b947e-b739-5483-8a9f-e16f9a6919bc，真实 score 3.18；限定反向 b2a84a8b-4013-5e50-a575-aba2b84fa0c2 同分 cached=true。
-- 候选人全量 run 11c98199-eb85-5b50-ab47-6ab28a2a1853：47 岗，43 评分/4 排除/0 失败，前五无明确雇佣类型冲突。版本变更后旧47对曾全部变 stale，不继续显示旧前五。
-- 原生 person PATCH 自动触发 2bfe2f0a-4cc5-5961-9669-a93a0049c207：同样47/43/4/0，COMPLETED。
-- 原生 job PATCH 自动触发 93166da1-b69e-5e8c-bc8c-3f0f6ee67ec9：498 候选人，421 评分/77 待处理/0 请求失败，PARTIAL，前五仅覆盖成功范围；该轮 cost USD 0.103779186。
-- 77 中69没有当前可用结构化职业事实、8超保守预算。69逐项核对的 JSON/说明形状保存在 missing-career-inputs.json：大多 candidateSearchJson=null；有些有职业自述，有些仅下载提示，不能一概说没有材料。
-- 新增历史自述 fallback/URL 子串清理/当前人工偏好优先规则，仅源码和测试通过，尚未重建运行。不能把旧421结果称为最新修正后的结果。
+- commits：6d6f426b 原生MCP/CLI与正确外部计量；cc6a2ef5 原生4入口UI；38a4cd1d 旧入口隔离；681870d1 完整长材料分段；38400398 草稿队列/人工核对；2ccf86d6 草稿MCP/CLI；c461e298 草稿UI。先核对git log/status。
+- 既有统一上传、Docling截图、Output.object、公司/JD稳定itemId确认、内置只读订阅、Jev逐对评估、签名内部状态、双向队列/原生变更自动匹配已真实运行，详情见PROGRESS，不重做。
+- MCP简历intake79e49a46-13e1-59c2-b8f9-e5c12f09c5bf已入库；自动run44db8f12-a284-54d6-8353-6f55d6bbf085为50总数/46评分/4排除/0失败，COMPLETED，complete=true。指定pair a7130f25-e39e-5d09-bcce-313ab0f2759c完成并缓存复用。
+- MCP JD intake bad7af8f-4a54-51e3-8f30-992fe0bb144e→合成岗位2cbca970-1038-55e1-a334-311a4c1b26b6；重复确认同ID。
+- Key外部115次请求99通过/16次429/0其他错误，未提高或关闭外部限流；内部CRUD仍有原生权限/审计/存储额度。受限Key越权拒绝且已revoke，之后403。
+- 长材料：3b102eea-cf1a-5e4b-8e70-b6e7f5088c2f，265104字符/555242字节，10段事实+最终结构化合并，末尾Iceberg/Trino及45000薪资保留，AWAITING_CONFIRMATION。不创建/发布。真实长页图仍待验证；Jev超限仍未解决。
+- 草稿真实订阅：effd92fe-1a3d-502c-8a9a-82b9ab38a829问候，edac60c2-340e-5713-9d90-1a7bdef1ada2岗位发布；API Key核对403，直接会话合成核对APPROVED，retry不覆盖文案。MCP/CLI已读回APPROVED。没有任何发送/发布。
+- 新页面/recruiting-workspace：公司岗位、候选人上传、匹配待查看、手动匹配、问候/发布草稿；队列弹窗，匹配行带入草稿。官方组件/主题/图标，无新UI库。源码TS/lint通过，不等于视觉验收。
+- 原生metadata隐藏旧运营工作台/旧Skill入口及4个内部表导航，停3旧匹配/沟通页动作；合同入口尚保留。configure-navigation.mjs与私有首轮backup可回退，尚未演练。
+- 旧source自述fallback/URL清理已在运行版本生效；旧fullreverse93166da1... 421评分/77review是修改前证据，不能冒充最新。尚需以最新规则重新回归（复用有效缓存）。
 
-## 3. 订阅与 Jev
+## 3. 浏览器阻塞
 
-- 原生 Provider 注册 chatgpt-subscription/gpt-5.6-sol；文本、图片、Output.object 均真实通过。固定只读 ~/.codex/auth.json，不复制或刷新原登录；原文件已确认不变。不是新代理服务。
-- 新 SIWC 本人授权、连接存储/刷新/设置页、普通官方 Agent 选模/工具 smoke 尚未完成；当前可用本机来源继续服务其他工作。
-- Jev 使用原生 Gateway Provider recruiting-gateway/typesafe-ai/jev，凭据通过官方 /admin-panel addAiProvider 注册。configure-jev.mjs 正确接口是 /admin-panel，addAiProvider 本身是 upsert，没有 updateAiProvider。
-- 首次使用 skill 已执行 setup-key.py --check；凭据 ~/.config/candidate-ranking-algorithm/.env，仅服务端读，不打印或复制到仓库。
-- 问题保持 match-v0.1 五级能力标准；上下文/eligibility 独立版本，未知不作拒绝。Jev 不生成解释，不能编造理由；intent 和明确约束分开展示。
-- 上游默认64k/request、32k/question；本实现以UTF-8 bytes+reserve保守检查，不是精确token计数。长文现在显式待处理，自动分块合并仍要做。
+- 已读ego-browser Skill，曾在专用空间14登录B并看到公司表。空间14后来消失，已inventory确认。已向用户异步请求允许重建，尚无回复。
+- Skill明确禁止用新TaskSpace恢复丢失Page。不可自行新建、接管用户其他空间、绕到CUA/Playwright；旧space10授权页也不能动。仅浏览器QA等待，其他工作继续，不称UI验收完成。
 
-## 4. 工具和构建
+## 4. 认证、模型与测试工具
 
-- 固定 Node .local/recruiting/runtime/node-v26.12.1-darwin-arm64/bin/node（已核对SHA256），PATH 加其 bin。
-- node ops/recruiting/local.mjs build 或 node ops/recruiting/build-source.mjs twenty-server build。Nx 本机发现曾卡住，不要再用其等待阻塞。
-- shared改动先完成 shared build，再做其他包 typecheck；不得边写 shared d.ts 边检查依赖包。
-- 服务端全包检查：在 packages/twenty-server 运行 ../../node_modules/.bin/tsgo -p tsconfig.json --noEmit；不用 tsconfig.build。
-- Jest --config jest.config.mjs --runInBand --watchman=false --runTestsByPath ...；oxlint 已能使用编译好的 twenty-oxlint-rules。
-- 最新 auto-match-typecheck-2.log 全包通过；auto-match-lint-1.log 0 warnings/0 errors；auto-match-tests-2.log 15项通过。随后小的poolChanged代码改动，match-snapshot-tests.log 6项通过，需补适当类型检查。
-- renderer 已成功构建：twenty-ui build:individual、twenty-shared build:individual、renderer generate-remote-dom-elements、sandbox:prebuild、build。twenty-sdk 没有 build:individual，不能再调用该目标；SDK本身已 build。
-- local-api.mjs 导出 localRequest、localGraphql、localUpload，只连 B，私有 session 自动 renewToken。localRequest 返回 Response，必须 response.json()；不要直接 JSON.stringify(Response)。
-- localUpload 目前用原生 createFileUpload→PUT→complete；前端现已启动，上传URL可经23000代理，脚本仅本地可改23001且保留签名，不打印URL。
+- 内置订阅只读~/.codex/auth.json（不复制/刷新原登录），nativeProvider chatgpt-subscription/gpt-5.6-sol，文本/图片/object真实通过。SIWC连接/PKCE/加密刷新/设置UI与普通Agent/tools尚未完成。订阅sidecar已停。
+- Extractor默认官方smart档，RECRUITING_MODEL_ID可固定实验。Jev nativeGateway recruiting-gateway/typesafe-ai/jev，独立key ~/.config/candidate-ranking-algorithm/.env，只内存加载。不要称Jev属于ChatGPT订阅，别猜模型ID/底层版本。
+- 正向Admin测试Key在.local/recruiting/agent-integration-keys.json[0]，expires2026-11-01T20:02:47Z；[1]受限Key已revoke。不能cat此文件。nativeAPI默认100/min，不增加限额。
+- local-api.mjs仅B、自动renew私有session；localRequest返回Response，需要.json()。AdminAI GraphQL是/admin-panel，普通metadata是/metadata。MCP响应可能SSE，解析event/data，别直接response.json()。
+- build：node ops/recruiting/build-source.mjs twenty-server build；等完成再启动API/worker，防dist暂缺。Nx发现曾卡死。tsgo全包在各package cwd用../../node_modules/.bin/tsgo -p tsconfig.json --noEmit。Jest --config jest.config.mjs --runInBand --watchman=false --runTestsByPath。
+- 最新drafts-typecheck-4、drafts-front-typecheck-2空输出通过；drafts-lint-3和drafts-front-lint零错误；drafts-tests-2为9项通过，CLI5项。后续修改再跑必要检查，不无意义重跑全部。
+- CLI薄层ops/recruiting/cli.mjs，凭据env；项目skill.agents/skills/recruiting/SKILL.md已经skill-creator校验，没有全局安装。CLI多JD文件跨进程上传checkpoint仍待补齐，单简历multipart幂等已实测。
 
-## 5. 浏览器与 UI 接续
+## 5. 当前在调查与后续完整任务
 
-- ego-browser skill 已完整读，专用 TaskSpace 14，p1 已实际登录 localhost:23000，当前原生公司表54条。只能复用此 space，不另建、不接管其他用户空间，不用旧space10的授权页。不要 finish 正在进行的任务。
-- 新运营 UI 已建立 types/request/query/styles 四类基础文件，页面与路由尚未写，旧数据库导入的“运营工作台”页面不是本次交付。旧自定义手动动作尚需禁用/替换，避免以后点到旧执行链。
-- 新UI建议路径 /recruiting-workspace；不能用 /recruiting，它是API代理前缀。
-- 尽量官方 Twenty组件：PageHeader、PageContainer、Button（children/startIcon/loading）、Input/Textarea（onValueChange）、Field.Root/Label/Description、Tabs.Root/List/Tab/Indicator/Panel、Dialog.Root/Portal/Backdrop/Viewport/Popup/Header/Title/Description/Body/Footer。
-- 当前组件在 twenty-ui/primitives/input、navigation、surfaces、feedback、data-display 导出；样例在各组件 __stories__。业务样式使用 Linaria + themeCssVariables，不引入shadcn等第二套组件库。
-- UI fetch 使用官方 SESSION_COOKIE_OPT_IN_HEADER_NAME + credentials:include、~/config 的 REACT_APP_SERVER_BASE_URL（默认同源）；当前官方已经是 cookie auth，不再找旧 tokensPairState。
-- 原生 metadata hook 是 useObjectMetadataItem({objectNameSingular:'recruitingIntake'})，不是 useObjectMetadataItemByNameSingular。
-- 路由接 createWorkspaceRouteObjects.tsx；导航可用原生 NavigationDrawerItem。后续通过元数据API隐藏新增内部表导航，替换旧工作台链接。
-- 具体操作：公司搜索/就地创建→JD文件/文字+说明→可逐行编辑确认的正常页面；候选人批量文件+说明→队列短弹窗→原生记录链接；匹配待查看/双向和指定匹配→详情并列材料/公司/条件/评分；再加跟进/草稿/门户。
+1. 邮件：官方ImapMessageParserService fetchAll(source:true)已经拿完整EML并PostalMime.parse；buildMessage只保留去引文text、附件名与headers，原始bytes/HTML/附件内容未进入原生message。需要在仍有source时接受控完整归档（账号、folder、uidValidity/UID、Message-ID、text/html、全部附件/inline），绑定原连接owner当前权限，接统一intake。原生MessagingGetMessagesService转发provider；不要另建解析链、启用批量历史同步或发送邮件。尚无新实收验收。
+2. 草稿已有，人工跟进/联系/推荐/发布回执仍需后端+UI+MCP/CLI；实际动作需要直接用户会话确认，不能把复制/模型结果当发送。公司分享要接候选人门户的真实同意，不猜CRM原字段。
+3. 门户资料/附件/意向/分享确认及撤回。数据库person.candidatePortalState在全部970行（含softdeleted）均null；当前checkout旧repo未找到门户源实现，不能宣称已恢复。需要明确capability链接与绑定访问、上传仅入指定候选人，撤回后不再授权分享。原candidatePortalProfile/Link等字段保留。
+4. 长材料：补真实长页图与中文扫描、损坏/加密/多格式回归。Jev当前UTF8 bytes保守预算不是精确token计量，8个长候选人仍review；不得静默截断或冒充已评分。
+5. 评测RS(I)：旧30×46/1380cache都是已见，22/8非unseen；独立raw材料盲审silver、固定holdout、能力/意向分开对照，输出约束违规/unknown误拒/保真/前五/覆盖/费用/延迟。Embedding只可选对照，不必经。
+6. 完整内置订阅管理，原生官方Agent默认选模和tools/流真实验证；SIWC本人授权缺失如实标未验收，现有只读source可继续用。
+7. 合同兼容盘点：旧twenty-contracts是固定RPO模板→法大大autoStart:false草稿→负责人手动编辑发起/确认状态，尚无真实平台配置/模板且旧用户明确不要沙箱签约测试。保留company.contractDetails/DraftId/Preparation/Status及原native数据，必要原行为和阻塞说明，不能自造电子签/外发。
+8. UI视觉与运营完整交互、需求与数据链路HTML、启动/停止/迁移/回退/证据文档；个人飞书若授权可用写personal文档，不发消息/不发布网站。
 
-## 6. 紧接着的工作
-
-1. 先检查未提交的 snapshot/poolChanged 修正。修正内容：读取旧匹配时不再显示已移出候选人角色的联系人；全池人数改变要标 poolChanged，不冒充当前全量覆盖；新目标需发起新run，retry保留原快照范围。测试已过，提交前补类型/lint。
-2. 重建并只重启本仓库 API/worker，使 URL 清理、职业自述fallback生效。对既有全量反向 run重试，复用仍有效cache，另存最新证据；不能把下载提示当职业事实，也不能把historical意向当当前硬限制。
-3. 统一上传后端已写：POST uploads/targets、uploads/complete 和 resume-intakes/upload（单请求multipart）；原生生命周期+调用者绑定凭据，入库时移除凭据。同一multipart重发202同intake，改说明复用key409，无凭据fileId引用400。完整DOCX→模型→现有候选人更新→单个匹配任务已实测；详见 multipart-intake-result.json。优先继续真正UI和CLI。
-4. 文件授权已补业务上传凭据，覆盖workspace/principal/fileId/label/expiry；native FileEntity无上传者，不能直接凭fileId进入新提交。6项权限/凭据测试通过，类型/lint通过。parser.file仍用于已授权并绑定intake后的内部读取。既有候选人附件重解析需要经可读来源记录重新绑定，不得开放任意fileId mint凭据。单请求路径已使用native receiveFileStream+complete，不绕隔离检查。
-5. 已验证真实intake事件/回调共用一个匹配run（66dcb4e6-1d88-58c7-9d60-a8dfe72c1685）。曾发现原生读取FILES附加url/extension不能原样回写，已只投影fileId/label；失败后重试复用解析/模型checkpoint并成功。继续完善批量JD逐项失败/独立重试、确认幂等、人工修改不被覆盖；现在confirmJobs仍按index顺序创建，部分失败管理不完整。
-6. 完成长文分块/合并与中文扫描、损坏/加密文件等必要格式回归，全部页图覆盖不丢页。当前8个超限旧候选人不能冒充已经评分。
-7. 补官方 MCP DefineTool/ToolRegistry 业务动作与薄 CLI/skill：公司/JD、简历、进度、双向/指定匹配、结果、草稿与人工跟进。认证/权限/重复提交要实测。尚未注册招聘 MCP工具。
-8. 独立评测/RS(I)：已有实验30×46/1380缓存是回顾资料，22/8不是未见测试集；新增未见候选人、盲审silver标签、硬约束/输入保真/前五/排序/覆盖/耗时费用报告。不是用户确认gold，不无限调优。
-9. 完整邮件 EML/原文/正文/全部附件与内嵌资源归档、来源事件去重，受控收信接统一入口；当前同步仍关闭，没有新实收验收。
-10. 问候/JD发布草稿、人工联系/推荐记录、门户资料/附件/意向/分享确认与撤回、合同必要兼容。旧数据已导入，旧触发器关，不能称门户已恢复。
-11. 继续内置订阅管理：设置页面、官方Agent默认选模与tools验证、SIWC新账号PKCE/OIDC/刷新/加密连接。缺本人授权如实记录，现有只读本机来源仍可用。
-12. 整体UI/API/权限/重试/去重验收、更新数据链路HTML、启动/回退/验收文档；个人飞书授权若可用，按原用户要求同步个人文档，不发消息、不发布网站。
-
-完整目标以 DELIVERY_GOAL 为准，不能缩成只交已实现的API或把未验收项勾选完成。
-
-## 最新额外检查点
-
-- Vite默认/@fs会读到仓库.local，已增加fs.deny并实测私有配置/session/报告、raw import和编码路径均403，首页200。commit b4484dd9。不要撤销此规则。
-- 目前新上传代码与前端基础文件仍需核对提交状态。上传相关全包typecheck3通过、6项授权/凭据测试通过、lint2无错误；模型未因重试重复执行。
-- 单请求intake d5091942-1afd-5671-9d27-66b8fe3a0332 已 COMPLETED/STORED，candidate为原fixture，matchingRunIds仅一项。上传凭据不在持久化input中。
-
-## 进行中的任务签名切片（必须先接续）
-
-- 又完成了 UI 页面/路由：RecruitingWorkspacePage、CandidateIntake、QueueDialog、MatchResults、导航；只实现候选人和匹配两个入口，其他完整目标仍待做。首轮前端全包TS通过；Styled前缀/CSS排序/类型文件名问题已修正，lint2为0。Source file refs via useRef 是取消资源，带明确局部lint说明，不是渲染状态。
-- Ego空间14已消失，inventory确认不存在；已向用户异步请求允许重建，尚未收到回复。禁止另建空间或绕到其他浏览器。其他代码/API工作继续。不得把未渲染的UI称页面验收完成。
-- 新发现内部任务RAW_JSON经通用CRUD可编辑，必须签名保护，避免伪造队列指令/评分缓存。已写 domain/record-integrity.ts 及单测；RecruitingRecordsService对3个内部对象自动签名写入、校验读取；native普通公司/候选人/JD仍可正常编辑。
-- IMPORTANT：新签名代码尚未在API/worker重启生效，老开发记录还没签名。不要直接重启worker跑任务。先查看 integrity-* 检查日志，修好，运行 local.mjs init 生成稳定的RECRUITING_STATE_SIGNING_KEY，然后把私有env的 RECRUITING_ALLOW_LEGACY_STATE_SEALING 临时设 true；停止本仓库API/worker，构建并只启API，POST /recruiting/admin/seal-legacy-state（AdminPanelGuard）升级本地开发记录，仅输出计数；关私有开关并重启API/worker，再跑真实任务/缓存回读。原始schema1历史intake不会升级。此维护入口以后必须关闭。
-- 当前类签名保护immutable输入和checkpoint、状态/目标/文件引用；FILES只取fileId/label做规范化，忽略只读url/extension。签名使用独立环境key，默认fallback APP_SECRET；本地init会持久化独立key，不能打印或丢失。新代码需要完整真实native往返验证，尤其默认targetId/error空值。
-- 匹配新增每3对重查来源及读取目标权限，来源版本改变时SUPERSEDED停止旧任务；尚未重启验证。6项旧orchestration测试通过，需补来源变更/目标权限丢失测试。
-- 正在准备批量JD确认重做：当前confirmJobs按index建ID且部分失败不checkpoint，不应拿它作完整批量验收。需要服务端稳定itemId/jobId、逐项校验/独立错误与重试、已创建项幂等且不覆盖人工修改；未知旧枚举投影不可直接toUpperCase写非法值。UI公司+JD入口还未写。
-
-## 签名切片已实际完成
-
-- 当前API session 82179，PID15457，日志api-10b.log；worker session89666，PID15469，日志matching-worker-6b.log。前端仍session65848/PID11915/front-2.log。恢复核对cwd。
-- 签名已生效，3/6/597开发记录升级完成，维护开关已false并重启；正常signed intake e92f0625-7914-5320-b5be-ebe6fb8b5da4入库、自动匹配完成；未签名原生行retry404，测试行已删除。不要再打开维护入口。
-- 服务端integrity-typecheck-3空输出成功，integrity-lint-2零错误；9项签名/匹配测试通过。旧“尚未重启”的描述已被此检查点覆盖。
-- UI基础已扩为候选人上传、队列弹窗、匹配列表/详情、原生导航及独立路由；初版仅两标签，不等于完整工作台。前端代码尚未提交、未进行浏览器验收。Ego重建权限请求仍未收到回复，不可自行新建。
-- 下一大块先做稳定itemId的批量JD确认与公司/JD UI，再补MCP/CLI、评测、邮件、草稿跟进、门户/合同及订阅管理。完整目标均保留。
+完整范围以DELIVERY_GOAL为准。未完成项不能为结束任务勾选完成。恢复后直接继续有独立进展的工作，不停在状态总结。
