@@ -166,6 +166,35 @@ describe('subscription Responses adapter', () => {
     await expect(response.text()).rejects.toThrow('terminal event');
   });
 
+  it.each(['error', 'response.failed', 'response.incomplete'])(
+    'rejects streaming %s without forwarding provider error payloads',
+    async (type) => {
+      const adapted = createSubscriptionFetch({
+        loadCredential: async () => credential,
+        upstreamFetch: async () =>
+          eventResponse(
+            [
+              {
+                type,
+                error: { message: 'synthetic-private-error' },
+                response: { status: 'failed' },
+              },
+            ],
+            3,
+          ),
+      });
+      const response = await adapted('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        body: '{"stream":true}',
+      });
+      await expect(response.text()).rejects.toThrow(
+        type === 'response.incomplete'
+          ? 'response is incomplete'
+          : 'subscription request failed',
+      );
+    },
+  );
+
   it('loads fresh credentials per request', async () => {
     let revision = 0;
     const upstream = jest.fn(async () => eventResponse([completed]));

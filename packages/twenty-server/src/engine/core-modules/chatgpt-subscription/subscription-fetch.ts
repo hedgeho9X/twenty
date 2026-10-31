@@ -156,6 +156,20 @@ const guardedStream = (response: Response): Response => {
         for (const frame of frames) {
           const event = readFrame(frame);
           if (
+            ['error', 'response.failed', 'response.incomplete'].includes(
+              String(event?.type),
+            )
+          ) {
+            controller.error(
+              new Error(
+                event?.type === 'response.incomplete'
+                  ? 'ChatGPT subscription response is incomplete'
+                  : 'ChatGPT subscription request failed',
+              ),
+            );
+            return;
+          }
+          if (
             [
               'response.completed',
               'response.failed',
