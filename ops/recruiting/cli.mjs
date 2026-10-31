@@ -176,6 +176,16 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     result = await client.request(
       `/recruiting/${action}?search=${encodeURIComponent(values.query ?? '')}${values['company-id'] ? `&companyId=${encodeURIComponent(values['company-id'])}` : ''}`,
     );
+  else if (group === 'contract' && ['status', 'reminder'].includes(action))
+    result =
+      action === 'status'
+        ? await client.request(
+            `/recruiting/contracts/${encodeURIComponent(required('company-id'))}`,
+          )
+        : await client.post(
+            `contracts/${encodeURIComponent(required('company-id'))}/reminder`,
+            {},
+          );
   else if (group === 'activity' && action === 'note')
     result = await client.post('activities', {
       action: 'NOTE',

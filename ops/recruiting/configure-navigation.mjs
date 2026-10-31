@@ -1,5 +1,5 @@
 /** Hides migrated legacy launchers and internal task tables through native metadata, only in the isolated local instance. */
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, rename } from 'node:fs/promises';
 import { localGraphql } from './local-api.mjs';
 
 const backupPath = '.local/recruiting/navigation-backup.json';
@@ -20,6 +20,7 @@ const legacyLabels = new Set([
   '匹配跟进 · 复制话术',
   '候选人页面展示',
   '候选人沟通页',
+  '合同 · 准备签约',
 ]);
 
 /** Restores backed-up native entries without touching any business record or workflow. */
@@ -62,7 +63,7 @@ if (process.argv.includes('--restore')) {
     (item) =>
       item.isActive && item.applicationId && legacyLabels.has(item.label),
   );
-  // Never overwrite the first rollback snapshot on an idempotent second run.
+  // Preserve each entry's first known state before hiding additional entries on later runs.
   try {
     await writeFile(backupPath, JSON.stringify({ navigation, commands }), {
       mode: 0o600,
@@ -70,6 +71,24 @@ if (process.argv.includes('--restore')) {
     });
   } catch (error) {
     if (error.code !== 'EEXIST') throw error;
+    const previous = JSON.parse(await readFile(backupPath, 'utf8'));
+    const extraNavigation = navigation.filter(
+      (item) => !previous.navigation.some((saved) => saved.id === item.id),
+    );
+    const extraCommands = commands.filter(
+      (item) => !previous.commands.some((saved) => saved.id === item.id),
+    );
+    if (extraNavigation.length || extraCommands.length) {
+      await writeFile(
+        `${backupPath}.tmp`,
+        JSON.stringify({
+          navigation: [...previous.navigation, ...extraNavigation],
+          commands: [...previous.commands, ...extraCommands],
+        }),
+        { mode: 0o600 },
+      );
+      await rename(`${backupPath}.tmp`, backupPath);
+    }
   }
   for (const item of navigation)
     await localGraphql(
