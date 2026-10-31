@@ -5,6 +5,8 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ConflictException,
+  Inject,
 } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
@@ -30,12 +32,28 @@ import {
 import { RecruitingRecordsService } from './recruiting-records.service';
 import { RecruitingUploadService } from './recruiting-upload.service';
 import { RecruitingMailService } from './recruiting-mail.service';
+import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
+import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
+import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
+import { PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-advisory-lock.service';
+import { RECRUITING_ADVISORY_LOCK } from './recruiting-advisory-lock.constant';
+import { RECRUITING_MAILBOX_POLL_JOB } from './recruiting-mailbox-poll-job.constant';
 
 type MailboxPayload = {
   version: 1;
   actor: RecruitingActor;
   autoSubmit: boolean;
   acceptAfter: string;
+  cursor?: { uidValidity: string; lastUid: number };
+  lastPollAt?: string;
+  lastPollError?: string;
+};
+
+/** Only actor references and native connection identity enter the durable timer job. */
+export type RecruitingMailboxPollData = {
+  workspaceId: string;
+  connectedAccountId: string;
+  actor: RecruitingActor;
 };
 
 @Injectable()
@@ -51,6 +69,10 @@ export class RecruitingMailboxService {
     private readonly nativeImap: ImapClientProvider,
     private readonly mail: RecruitingMailService,
     private readonly config: TwentyConfigService,
+    @InjectMessageQueue(MessageQueue.recruitingQueue)
+    private readonly queue: MessageQueueService,
+    @Inject(RECRUITING_ADVISORY_LOCK)
+    private readonly locks: PostgresAdvisoryLockService,
   ) {}
 
   /** Lists only the caller's non-archived native IMAP connections, without passwords, OAuth tokens or server connection parameters. */
@@ -74,13 +96,21 @@ export class RecruitingMailboxService {
         autoSubmit: setting
           ? (setting.payload as MailboxPayload).autoSubmit
           : true,
+        ...((setting?.payload as MailboxPayload | undefined)?.lastPollAt
+          ? { lastPollAt: (setting!.payload as MailboxPayload).lastPollAt }
+          : {}),
+        ...((setting?.payload as MailboxPayload | undefined)?.lastPollError
+          ? {
+              lastPollError: (setting!.payload as MailboxPayload).lastPollError,
+            }
+          : {}),
       });
     }
     return {
       connections,
       nativeIntegrationEnabled: this.config.get('IS_IMAP_SMTP_CALDAV_ENABLED'),
       notice:
-        '接入仅处理原生随后收到的新邮件；不会开启历史同步、旧工作流或发送邮件。',
+        '开启后约每分钟只读检查INBOX的新邮件；初次建立当前UID基线，不拉取历史、不改已读或原生同步游标，不发送邮件。',
     };
   }
 
@@ -101,34 +131,266 @@ export class RecruitingMailboxService {
       throw new BadRequestException('邮箱连接功能尚未由管理员启用');
     const account = await this.account(owner, parsed.data.connectedAccountId);
     await this.uploads.assertUploadPermission(owner);
-    const existing = await this.setting(owner, account.id);
-    const previous = existing?.payload as MailboxPayload | undefined;
-    const data = {
-      name: '招聘收信设置',
-      connectedAccountId: account.id,
-      enabled: parsed.data.enabled,
-      payload: {
-        version: 1,
-        actor: this.actors.capture(owner),
+    return this.serial(owner, account.id, async () => {
+      const existing = await this.setting(owner, account.id);
+      const previous = existing?.payload as MailboxPayload | undefined;
+      const continuing = Boolean(
+        existing?.enabled &&
+        previous?.actor.userWorkspaceId === owner.userWorkspaceId &&
+        previous.cursor,
+      );
+      const cursor = parsed.data.enabled
+        ? continuing
+          ? previous!.cursor
+          : await this.baseline(account.id)
+        : previous?.cursor;
+      const data = {
+        name: '招聘收信设置',
+        connectedAccountId: account.id,
+        enabled: parsed.data.enabled,
+        payload: {
+          version: 1,
+          actor: this.actors.capture(owner),
+          autoSubmit: parsed.data.autoSubmit,
+          ...(cursor ? { cursor } : {}),
+          acceptAfter:
+            continuing && previous?.acceptAfter
+              ? previous.acceptAfter
+              : new Date(Math.floor(Date.now() / 1000) * 1000).toISOString(),
+        },
+      };
+      if (existing)
+        await this.records.update(
+          owner,
+          'recruitingMailbox',
+          existing.id,
+          data,
+        );
+      else
+        await this.records.create(owner, 'recruitingMailbox', {
+          id: this.id(owner.workspace.id, account.id),
+          ...data,
+        });
+      const id = this.id(owner.workspace.id, account.id);
+      if (parsed.data.enabled) {
+        try {
+          await this.queue.addCron({
+            jobName: RECRUITING_MAILBOX_POLL_JOB,
+            jobId: id,
+            data: {
+              workspaceId: owner.workspace.id,
+              connectedAccountId: account.id,
+              actor: this.actors.capture(owner),
+            } satisfies RecruitingMailboxPollData,
+            options: { repeat: { every: 60_000 } },
+          });
+        } catch {
+          await this.records.update(owner, 'recruitingMailbox', id, {
+            enabled: false,
+          });
+          throw new BadRequestException('自动收信未能开启，请稍后重试');
+        }
+      } else
+        await this.queue
+          .removeCron({ jobName: RECRUITING_MAILBOX_POLL_JOB, jobId: id })
+          .catch(() => undefined);
+      return {
+        connectedAccountId: account.id,
+        enabled: parsed.data.enabled,
         autoSubmit: parsed.data.autoSubmit,
-        acceptAfter:
-          existing?.enabled && previous?.acceptAfter
-            ? previous.acceptAfter
-            : new Date(Math.floor(Date.now() / 1000) * 1000).toISOString(),
-      },
-    };
-    if (existing)
-      await this.records.update(owner, 'recruitingMailbox', existing.id, data);
-    else
-      await this.records.create(owner, 'recruitingMailbox', {
-        id: this.id(owner.workspace.id, account.id),
-        ...data,
-      });
+      };
+    });
+  }
+
+  /** Captures only UIDs after the owner-approved baseline, preserving each accepted original before advancing its cursor. */
+  async poll(data: RecruitingMailboxPollData) {
+    const owner = this.owner(await this.actors.resolve(data.actor));
+    if (owner.workspace.id !== data.workspaceId)
+      throw new ForbiddenException('收信工作区已变化');
+    return this.serial(owner, data.connectedAccountId, async () => {
+      const setting = await this.setting(owner, data.connectedAccountId);
+      if (!setting?.enabled || !this.config.get('IS_IMAP_SMTP_CALDAV_ENABLED'))
+        return { received: 0 };
+      const payload = setting.payload as MailboxPayload;
+      if (payload.actor.userWorkspaceId !== owner.userWorkspaceId)
+        throw new ForbiddenException('邮箱接入所有者已变化');
+      await this.account(owner, data.connectedAccountId);
+      await this.uploads.assertUploadPermission(owner);
+      let client: ImapFlow | undefined;
+      let lock: { release: () => void } | undefined;
+      let received = 0;
+      let current = { ...payload };
+      try {
+        client = await this.nativeImap.getClient(data.connectedAccountId);
+        lock = await client.getMailboxLock('INBOX', { readOnly: true });
+        const position = this.position(client);
+        if (!current.cursor) {
+          current.cursor = position;
+        } else if (current.cursor.uidValidity !== position.uidValidity) {
+          await this.records.update(owner, 'recruitingMailbox', setting.id, {
+            enabled: false,
+            payload: {
+              ...current,
+              lastPollAt: new Date().toISOString(),
+              lastPollError:
+                '邮箱基线已变化，已停止自动收取；请核对最新原件后重新开启。',
+            },
+          });
+          await this.queue.removeCron({
+            jobName: RECRUITING_MAILBOX_POLL_JOB,
+            jobId: setting.id,
+          });
+          return { received: 0, baselineChanged: true };
+        } else {
+          const cursor = current.cursor;
+          const found = await client.search(
+            { uid: `${cursor.lastUid + 1}:*` },
+            { uid: true },
+          );
+          const ids = (found || [])
+            .filter((uid) => uid > cursor.lastUid)
+            .sort((a, b) => a - b)
+            .slice(0, 10);
+          for (const uid of ids) {
+            const header = await client.fetchOne(
+              String(uid),
+              { uid: true, size: true, internalDate: true, flags: true },
+              { uid: true },
+            );
+            if (!header) {
+              current.cursor = { ...cursor, lastUid: uid };
+              continue;
+            }
+            if (
+              !Number.isFinite(header.size) ||
+              Number(header.size) > 50 * 1024 * 1024
+            )
+              throw new BadRequestException(
+                '有邮件大小未知或超过50MB，未下载或截断；请先在邮箱核对。',
+              );
+            const receivedAt =
+              header.internalDate instanceof Date
+                ? header.internalDate.getTime()
+                : Date.parse(header.internalDate ?? '');
+            if (!Number.isFinite(receivedAt))
+              throw new BadRequestException(
+                '新邮件缺少稳定接收时间，请核对原件。',
+              );
+            if (
+              receivedAt >= Date.parse(current.acceptAfter) &&
+              !header.flags?.has('\\Draft')
+            ) {
+              const message = await client.fetchOne(
+                String(uid),
+                { uid: true, source: true, internalDate: true, flags: true },
+                { uid: true },
+              );
+              if (!message || !message.source)
+                throw new BadRequestException(
+                  '新邮件原文暂不可读，系统未推进该邮件。',
+                );
+              if (message.source.byteLength > 50 * 1024 * 1024)
+                throw new BadRequestException('新邮件超过50MB，未导入或截断。');
+              await this.accept(
+                owner,
+                {
+                  workspaceId: owner.workspace.id,
+                  userWorkspaceId: owner.userWorkspaceId,
+                  connectedAccountId: data.connectedAccountId,
+                  folder: 'INBOX',
+                  uidValidity: cursor.uidValidity,
+                  uid: message.uid,
+                  source: message.source,
+                  flags: [...(message.flags ?? [])],
+                  internalDate: message.internalDate,
+                },
+                current.autoSubmit,
+              );
+              received++;
+            }
+            current = {
+              ...current,
+              cursor: { ...cursor, lastUid: uid },
+              lastPollAt: new Date().toISOString(),
+              lastPollError: undefined,
+            };
+            await this.records.update(owner, 'recruitingMailbox', setting.id, {
+              payload: current,
+            });
+          }
+        }
+        await this.records.update(owner, 'recruitingMailbox', setting.id, {
+          payload: {
+            ...current,
+            lastPollAt: new Date().toISOString(),
+            lastPollError: undefined,
+          },
+        });
+        return { received };
+      } catch (error) {
+        const message =
+          error instanceof BadRequestException
+            ? error.message
+            : '自动收信未完成，请核对邮箱连接、网络及当前权限。';
+        await this.records
+          .update(owner, 'recruitingMailbox', setting.id, {
+            payload: {
+              ...current,
+              lastPollAt: new Date().toISOString(),
+              lastPollError: message,
+            },
+          })
+          .catch(() => undefined);
+        throw new BadRequestException(message);
+      } finally {
+        lock?.release();
+        if (client) await this.nativeImap.closeClient(client);
+      }
+    });
+  }
+
+  /** Establishes the current INBOX position with EXAMINE semantics and no original downloads or synchronization changes. */
+  private async baseline(accountId: string) {
+    let client: ImapFlow | undefined;
+    let lock: { release: () => void } | undefined;
+    try {
+      client = await this.nativeImap.getClient(accountId);
+      lock = await client.getMailboxLock('INBOX', { readOnly: true });
+      return this.position(client);
+    } finally {
+      lock?.release();
+      if (client) await this.nativeImap.closeClient(client);
+    }
+  }
+  /** Requires server UIDNEXT/UIDVALIDITY rather than guessing an initial historical range. */
+  private position(client: ImapFlow) {
+    const mailbox = client.mailbox;
+    if (
+      !mailbox ||
+      typeof mailbox === 'boolean' ||
+      !mailbox.uidValidity ||
+      !Number.isSafeInteger(mailbox.uidNext) ||
+      mailbox.uidNext < 1
+    )
+      throw new BadRequestException('邮箱缺少稳定UID基线，自动接入未开启。');
     return {
-      connectedAccountId: account.id,
-      enabled: parsed.data.enabled,
-      autoSubmit: parsed.data.autoSubmit,
+      uidValidity: String(mailbox.uidValidity),
+      lastUid: mailbox.uidNext - 1,
     };
+  }
+  /** Configuration and acquisition share one short owner mailbox mutex, preventing a stale cursor from overwriting a new activation. */
+  private async serial<T>(
+    owner: UserWorkspaceAuthContext,
+    accountId: string,
+    callback: () => Promise<T>,
+  ) {
+    const result = await this.locks.tryWithLock(
+      `recruiting-mailbox:${owner.workspace.id}:${accountId}`,
+      callback,
+    );
+    if (!result.acquired)
+      throw new ConflictException('邮箱正在读取或设置中，请稍后重试');
+    return result.value;
   }
 
   /** Fetches exactly the latest message through the existing native client in read-only mode, without changing cursor, flags or background sync. */

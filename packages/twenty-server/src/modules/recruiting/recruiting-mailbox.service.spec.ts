@@ -15,6 +15,8 @@ import { type RecruitingUploadService } from './recruiting-upload.service';
 import { type RecruitingMailService } from './recruiting-mail.service';
 import { type TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { RecruitingMailboxService } from './recruiting-mailbox.service';
+import { type MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
+import { type PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-advisory-lock.service';
 
 const accountId = '151bf00b-d37f-415f-8612-1696e1ab880e';
 const actor = { workspaceId: 'workspace', userWorkspaceId: 'owner' };
@@ -71,8 +73,9 @@ const setup = () => {
   const uploads = { assertUploadPermission: jest.fn(async () => actor) };
   const lock = { release: jest.fn() };
   const client = {
-    mailbox: { uidValidity: BigInt(99) },
+    mailbox: { uidValidity: BigInt(99), uidNext: 124 },
     getMailboxLock: jest.fn(async () => lock),
+    search: jest.fn(async () => [] as number[]),
     fetchOne: jest
       .fn()
       .mockResolvedValueOnce({ uid: 123, size: 100 })
@@ -91,6 +94,16 @@ const setup = () => {
     receive: jest.fn(async () => ({ archiveId: 'archive', status: 'QUEUED' })),
   };
   const config = { get: jest.fn(() => true) };
+  const queue = {
+    addCron: jest.fn(async () => undefined),
+    removeCron: jest.fn(async () => undefined),
+  };
+  const locks = {
+    tryWithLock: jest.fn(async (_name, callback) => ({
+      acquired: true,
+      value: await callback(),
+    })),
+  };
   const service = new RecruitingMailboxService(
     accounts as unknown as WorkspaceScopedRepository<ConnectedAccountEntity>,
     records as unknown as RecruitingRecordsService,
@@ -99,6 +112,8 @@ const setup = () => {
     native as unknown as ImapClientProvider,
     mail as unknown as RecruitingMailService,
     config as unknown as TwentyConfigService,
+    queue as unknown as MessageQueueService,
+    locks as unknown as PostgresAdvisoryLockService,
   );
   return {
     service,
@@ -110,6 +125,8 @@ const setup = () => {
     lock,
     mail,
     config,
+    queue,
+    locks,
   };
 };
 
@@ -126,6 +143,136 @@ it('defaults capture off and never returns tokens or connection parameters', asy
   ]);
   expect(JSON.stringify(result)).not.toContain('password');
   expect(JSON.stringify(result)).not.toContain('accessToken');
+});
+
+it('creates a no-download baseline, schedules one durable timer and removes it on opt-out', async () => {
+  const { service, client, queue, records } = setup();
+  await service.configure(context, {
+    connectedAccountId: accountId,
+    enabled: true,
+  });
+  expect(client.fetchOne).not.toHaveBeenCalled();
+  expect(records.create).toHaveBeenCalledWith(
+    context,
+    'recruitingMailbox',
+    expect.objectContaining({
+      payload: expect.objectContaining({
+        cursor: { uidValidity: '99', lastUid: 123 },
+      }),
+    }),
+  );
+  expect(queue.addCron).toHaveBeenCalledWith(
+    expect.objectContaining({ options: { repeat: { every: 60_000 } } }),
+  );
+  await service.configure(context, {
+    connectedAccountId: accountId,
+    enabled: false,
+  });
+  expect(queue.removeCron).toHaveBeenCalledTimes(1);
+  const opened = client.getMailboxLock.mock.calls.length;
+  expect(
+    await service.poll({ ...actor, connectedAccountId: accountId, actor }),
+  ).toEqual({ received: 0 });
+  expect(client.getMailboxLock).toHaveBeenCalledTimes(opened);
+});
+
+it('accepts each new UID durably before advancing and filters IMAP reverse-range old UIDs', async () => {
+  const { service, client, mail, records } = setup();
+  await service.configure(context, {
+    connectedAccountId: accountId,
+    enabled: true,
+  });
+  client.search.mockResolvedValue([123, 124]);
+  client.fetchOne.mockReset().mockResolvedValue({
+    uid: 124,
+    size: 100,
+    internalDate: new Date(Date.now() + 1000),
+    flags: new Set(),
+    source: event.source,
+  });
+  const data = { ...actor, connectedAccountId: accountId, actor };
+  expect(await service.poll(data)).toEqual({ received: 1 });
+  expect(mail.receive).toHaveBeenCalledTimes(1);
+  expect(records.update).toHaveBeenLastCalledWith(
+    context,
+    'recruitingMailbox',
+    expect.any(String),
+    expect.objectContaining({
+      payload: expect.objectContaining({
+        cursor: { uidValidity: '99', lastUid: 124 },
+      }),
+    }),
+  );
+  expect(await service.poll(data)).toEqual({ received: 0 });
+  expect(mail.receive).toHaveBeenCalledTimes(1);
+});
+
+it('preserves the failing UID on archive failure and rejects oversized messages before body download', async () => {
+  const { service, client, mail, records } = setup();
+  await service.configure(context, {
+    connectedAccountId: accountId,
+    enabled: true,
+  });
+  client.search.mockResolvedValue([124]);
+  client.fetchOne.mockReset().mockResolvedValue({
+    uid: 124,
+    size: 100,
+    internalDate: new Date(Date.now() + 1000),
+    flags: new Set(),
+    source: event.source,
+  });
+  mail.receive.mockRejectedValue(new Error('private upstream failure'));
+  const data = { ...actor, connectedAccountId: accountId, actor };
+  await expect(service.poll(data)).rejects.toBeInstanceOf(BadRequestException);
+  expect(records.update).toHaveBeenLastCalledWith(
+    context,
+    'recruitingMailbox',
+    expect.any(String),
+    expect.objectContaining({
+      payload: expect.objectContaining({
+        cursor: { uidValidity: '99', lastUid: 123 },
+        lastPollError: expect.not.stringContaining('private upstream'),
+      }),
+    }),
+  );
+  client.fetchOne
+    .mockReset()
+    .mockResolvedValue({ uid: 124, size: 51 * 1024 * 1024 });
+  await expect(service.poll(data)).rejects.toBeInstanceOf(BadRequestException);
+  expect(client.fetchOne).toHaveBeenCalledTimes(1);
+});
+
+it('stops acquisition after UIDVALIDITY changes rather than silently replaying or skipping a different mailbox', async () => {
+  const { service, client, records, queue } = setup();
+  await service.configure(context, {
+    connectedAccountId: accountId,
+    enabled: true,
+  });
+  client.mailbox.uidValidity = BigInt(100);
+  expect(
+    await service.poll({ ...actor, connectedAccountId: accountId, actor }),
+  ).toEqual({ received: 0, baselineChanged: true });
+  expect(client.search).not.toHaveBeenCalled();
+  expect(client.fetchOne).not.toHaveBeenCalled();
+  expect(records.update).toHaveBeenLastCalledWith(
+    context,
+    'recruitingMailbox',
+    expect.any(String),
+    expect.objectContaining({ enabled: false }),
+  );
+  expect(queue.removeCron).toHaveBeenCalledTimes(1);
+});
+
+it('does not report enabled if its durable timer cannot be registered', async () => {
+  const { service, queue } = setup();
+  queue.addCron.mockRejectedValue(new Error('queue unavailable'));
+  await expect(
+    service.configure(context, {
+      connectedAccountId: accountId,
+      enabled: true,
+    }),
+  ).rejects.toBeInstanceOf(BadRequestException);
+  expect((await service.list(context)).connections[0].enabled).toBe(false);
 });
 
 it('refuses API-key ownership and foreign connections before opening the native client', async () => {

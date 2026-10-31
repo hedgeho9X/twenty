@@ -42,6 +42,7 @@ import { RecruitingDraftJob } from './recruiting-draft.job';
 import { RecruitingMailService } from './recruiting-mail.service';
 import { RecruitingMailJob } from './recruiting-mail.job';
 import { RecruitingMailboxService } from './recruiting-mailbox.service';
+import { RecruitingMailboxPollJob } from './recruiting-mailbox-poll.job';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import { MessagingIMAPDriverModule } from 'src/modules/messaging/message-import-manager/drivers/imap/messaging-imap-driver.module';
 import { RecruitingLockModule } from './recruiting-lock.module';
@@ -96,6 +97,7 @@ import { RecruitingPortalController } from './recruiting-portal.controller';
     RecruitingMailService,
     RecruitingMailJob,
     RecruitingMailboxService,
+    RecruitingMailboxPollJob,
     RecruitingPortalService,
     RecruitingActivityService,
     RecruitingContractsService,

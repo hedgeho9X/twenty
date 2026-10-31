@@ -21,10 +21,12 @@ type Mailboxes = {
     handle: string;
     enabled: boolean;
     autoSubmit: boolean;
+    lastPollAt?: string;
+    lastPollError?: string;
   }[];
 };
 
-/** Capture applies to future native receipts; this panel never starts historical sync or sends mail. */
+/** An explicit owner opt-in checks future INBOX receipts without historical synchronization or sending mail. */
 export const RecruitingMailboxSettings = ({
   active,
   onReceived,
@@ -109,10 +111,21 @@ export const RecruitingMailboxSettings = ({
                   void configure(connection, { enabled: checked === true });
                 }}
               />
-              <Field.Label>{t`将原生后续收到的新邮件接入招聘材料`}</Field.Label>
+              <Field.Label>{t`自动接收新邮件为招聘材料`}</Field.Label>
             </Field.Item>
-            <Field.Description>{t`这个开关只接管新收件，不会开启原生后台同步或重新处理历史邮件。`}</Field.Description>
+            <Field.Description>{t`开启时记录邮箱当前位置，之后约每分钟只读检查INBOX的新邮件，不处理此前历史邮件。`}</Field.Description>
           </Field.Root>
+          {connection.lastPollAt && (
+            <StyledRecruitingMuted>
+              {t`最近检查：`}
+              {new Date(connection.lastPollAt).toLocaleString()}
+            </StyledRecruitingMuted>
+          )}
+          {connection.lastPollError && (
+            <StyledRecruitingError role="alert">
+              {connection.lastPollError}
+            </StyledRecruitingError>
+          )}
           <Field.Root>
             <Field.Item>
               <Checkbox
