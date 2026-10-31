@@ -113,3 +113,10 @@
 - 发现旧定制富文本缺 Tiptap 列，使原生 people REST 本身返回 500；通过官方 2.51 迁移重跑修复并转换 4769 个值，保留原 Blocknote/Markdown，REST 恢复 200。
 - 最新全包 TypeScript 检查通过；招聘入口 lint 无警告/错误；intake 契约 6 项测试通过。仍应在后续改动后重新核对。
 - 当前仅后端基础闭环，未实现匹配 Job2、完整 UI、招聘 MCP/CLI、邮件适配、问候、门户和独立 SIWC 管理；下一步详见 NEXT_ACTIONS.md，目标不缩减。
+
+## 原生 Gateway 评估 Provider
+
+- 官方模型工厂增加 `@ai-sdk/gateway`，同时支持语言与 evaluation 模型；Jev 使用独立评估注册表，不冒充 ChatGPT 订阅模型。
+- Provider 工厂单测通过，无付费请求；`configure-jev.mjs` 通过原生管理员 API 注册，凭据只在内存与本地服务器配置使用，不进入仓库、报告或前端。
+- 上游 TypeSafe 当前文档确认默认 64k/request、32k/question；匹配采用保守 UTF-8 字节预算并明确报超限，不启用未经验证的长上下文请求头。
+- 依据：https://docs.typesafe.ai/models 、https://ai-sdk.dev/providers/ai-sdk-providers/ai-gateway 。实际业务匹配验收另行记录。

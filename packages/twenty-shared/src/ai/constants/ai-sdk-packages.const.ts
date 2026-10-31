@@ -8,6 +8,7 @@ export const AI_SDK_PACKAGES = [
   '@ai-sdk/openai-compatible',
   '@ai-sdk/azure',
   '@ai-sdk/typesafe-ai',
+  '@ai-sdk/gateway',
 ] as const;
 
 export type AiSdkPackage = (typeof AI_SDK_PACKAGES)[number];

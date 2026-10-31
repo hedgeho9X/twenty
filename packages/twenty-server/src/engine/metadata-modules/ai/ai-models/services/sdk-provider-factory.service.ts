@@ -4,6 +4,7 @@ import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { createAnthropic, type AnthropicProvider } from '@ai-sdk/anthropic';
 import { createAzure } from '@ai-sdk/azure';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createGateway } from '@ai-sdk/gateway';
 import { createMistral } from '@ai-sdk/mistral';
 import { createOpenAI, type OpenAIProvider } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
@@ -35,6 +36,7 @@ import {
   AI_SDK_OPENAI,
   AI_SDK_OPENAI_COMPATIBLE,
   AI_SDK_TYPESAFE_AI,
+  AI_SDK_GATEWAY,
   AI_SDK_XAI,
 } from 'src/engine/metadata-modules/ai/ai-models/constants/ai-sdk-package.const';
 import { sanitizeGeminiToolResultRefsMiddleware } from 'src/engine/metadata-modules/ai/ai-models/middleware/sanitize-gemini-tool-result-refs.middleware';
@@ -162,6 +164,18 @@ export class SdkProviderFactoryService {
         return this.buildAzureProvider(config);
       case AI_SDK_TYPESAFE_AI:
         return this.buildTypeSafeAiProvider(config);
+      case AI_SDK_GATEWAY: {
+        const provider = createGateway({
+          apiKey: config.apiKey,
+          baseURL: config.baseUrl,
+          fetch: createSubscriptionTransport(
+            process.env.RECRUITING_MODEL_PROXY_URL,
+          ),
+        });
+        return this.toProviderInstance(provider, AI_SDK_GATEWAY, (modelId) =>
+          provider.languageModel(modelId),
+        );
+      }
       default:
         throw new Error(`Unsupported SDK package: ${config.npm}`);
     }

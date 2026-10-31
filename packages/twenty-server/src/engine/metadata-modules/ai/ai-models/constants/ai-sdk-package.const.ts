@@ -7,3 +7,4 @@ export const AI_SDK_BEDROCK = '@ai-sdk/amazon-bedrock' as const;
 export const AI_SDK_OPENAI_COMPATIBLE = '@ai-sdk/openai-compatible' as const;
 export const AI_SDK_AZURE = '@ai-sdk/azure' as const;
 export const AI_SDK_TYPESAFE_AI = '@ai-sdk/typesafe-ai' as const;
+export const AI_SDK_GATEWAY = '@ai-sdk/gateway' as const;
