@@ -36,9 +36,11 @@ const draftLabel = (status: string) =>
 export const RecruitingDrafts = ({
   initialCandidateId,
   initialJobId,
+  active = true,
 }: {
   initialCandidateId?: string;
   initialJobId?: string;
+  active?: boolean;
 }) => {
   const [kind, setKind] = useState('GREETING');
   const [candidate, setCandidate] = useState<RecruitingCandidate>();
@@ -60,10 +62,12 @@ export const RecruitingDrafts = ({
   const list = useRecruitingQuery<RecruitingPage<RecruitingDraft>>(
     `drafts?offset=${offset}`,
     8000,
+    active,
   );
   const detail = useRecruitingQuery<RecruitingDraft>(
     draftId ? `drafts/${draftId}` : null,
     draftId ? 4000 : 0,
+    active,
   );
   const submit = async () => {
     setBusy(true);

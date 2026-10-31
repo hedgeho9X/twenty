@@ -39,10 +39,12 @@ export const RecruitingCompanyJobs = ({
   initialIntakeId,
   onSubmitted,
   onIntakeChange,
+  active = true,
 }: {
   initialIntakeId?: string;
   onSubmitted: () => void;
   onIntakeChange: (id: string | undefined) => void;
+  active?: boolean;
 }) => {
   const [company, setCompany] = useState<RecruitingCompany>();
   const [createCompany, setCreateCompany] = useState(false);
@@ -67,6 +69,7 @@ export const RecruitingCompanyJobs = ({
   const query = useRecruitingQuery<JobIntakeDetail>(
     intakeId ? `resume-intakes/${intakeId}` : null,
     intakeId ? 5000 : 0,
+    active,
   );
   const boundCompany = useRecruitingQuery<RecruitingCompany>(
     query.data?.detail.input.companyId

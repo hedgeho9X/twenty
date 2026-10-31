@@ -238,3 +238,8 @@
 - 实际合成archive f2c854b0-0bf5-5fc1-979a-2440dced6e04，6份材料下载SHA256均相符，inline图片保留。重复原文/材料提交复用ID；intake ead17ffe-3cf0-572f-b4d3-56995621ee0e COMPLETED/STORED，expectedRoles后端工程师，自动run59d966ea-cef7-53be-a47d-dc10474559b7。没有新建人，仅更新原fixture。smoke-mail.mjs可复现。
 - 首次连续上传第二次碰到展开锁返回400，已加受理后快速回执路径及回归测试，尚未重启验证最新修正。当前API16/PID22596/session86569，worker12/PID22607/session64658；metadata worker2/PID22242已停。恢复先核对。
 - 10项MIME/恢复/权限测试已通过，新增快速回执测试正在mail-archive-tests-3运行；服务端TS/lint通过。新增表的官方schema任务已由临时workspace worker执行完再关闭。原生IMAP事件接入、实际收信、邮件UI/MCP/CLI仍未完成，不能将上传EML称实际收信。
+
+## 工作台后台轮询
+
+- 隐藏的JD/匹配/草稿标签页停止定时请求，保留已加载数据与本地编辑状态，返回时恢复；取消或过期响应不能覆盖新的路径结果。避免多个保留面板累积占满原生外部限额。
+- 两项React hook回归测试、前端全包TS和lint通过。该验证不替代浏览器页面验收。

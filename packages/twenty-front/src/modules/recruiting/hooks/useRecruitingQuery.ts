@@ -4,7 +4,11 @@ import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
 import { t } from '@lingui/core/macro';
 
 /** Polls only when requested and aborts pending reads when the path or mounted screen changes. */
-export const useRecruitingQuery = <T>(path: string | null, interval = 0) => {
+export const useRecruitingQuery = <T>(
+  path: string | null,
+  interval = 0,
+  enabled = true,
+) => {
   const [data, setData] = useState<T>();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -12,6 +16,7 @@ export const useRecruitingQuery = <T>(path: string | null, interval = 0) => {
   const controller = useRef<AbortController | null>(null);
   const reload = useCallback(async () => {
     controller.current?.abort();
+    if (!enabled) return;
     if (!path) {
       setData(undefined);
       setLoading(false);
@@ -37,10 +42,17 @@ export const useRecruitingQuery = <T>(path: string | null, interval = 0) => {
     } finally {
       if (!current.signal.aborted) setLoading(false);
     }
-  }, [path]);
+  }, [path, enabled]);
   useEffect(() => {
     setData(undefined);
     setError('');
+  }, [path]);
+  useEffect(() => {
+    if (!enabled) {
+      controller.current?.abort();
+      setLoading(false);
+      return;
+    }
     void reload();
     const timer = interval
       ? window.setInterval(() => {
@@ -51,6 +63,6 @@ export const useRecruitingQuery = <T>(path: string | null, interval = 0) => {
       if (timer) window.clearInterval(timer);
       controller.current?.abort();
     };
-  }, [reload, interval]);
+  }, [reload, interval, enabled]);
   return { data, error, loading, reload };
 };

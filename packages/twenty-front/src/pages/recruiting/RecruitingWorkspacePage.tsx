@@ -59,6 +59,7 @@ export const RecruitingWorkspacePage = () => {
           </Tabs.List>
           <Tabs.Panel value="companies" keepMounted>
             <RecruitingCompanyJobs
+              active={tab === 'companies'}
               initialIntakeId={params.get('intakeId') ?? undefined}
               onSubmitted={() => setHasNewTasks(true)}
               onIntakeChange={(id) =>
@@ -80,6 +81,7 @@ export const RecruitingWorkspacePage = () => {
           </Tabs.Panel>
           <Tabs.Panel value="matches" keepMounted>
             <RecruitingMatchResults
+              active={tab === 'matches'}
               key={params.get('runId') ?? 'list'}
               initialRunId={params.get('runId') ?? undefined}
               onDraft={(candidateId, jobId) =>
@@ -95,6 +97,7 @@ export const RecruitingWorkspacePage = () => {
           </Tabs.Panel>
           <Tabs.Panel value="drafts" keepMounted>
             <RecruitingDrafts
+              active={tab === 'drafts'}
               key={`${params.get('candidateId')}:${params.get('jobId')}`}
               initialCandidateId={params.get('candidateId') ?? undefined}
               initialJobId={params.get('jobId') ?? undefined}

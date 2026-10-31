@@ -36,9 +36,11 @@ const runLabel = (status: string) => {
 export const RecruitingMatchResults = ({
   initialRunId,
   onDraft,
+  active = true,
 }: {
   initialRunId?: string;
   onDraft?: (candidateId: string, jobId: string) => void;
+  active?: boolean;
 }) => {
   const [runId, setRunId] = useState(initialRunId);
   const [offset, setOffset] = useState(0);
@@ -47,10 +49,12 @@ export const RecruitingMatchResults = ({
   const list = useRecruitingQuery<RecruitingPage<RecruitingMatchRun>>(
     `match-runs?offset=${offset}`,
     8000,
+    active,
   );
   const detail = useRecruitingQuery<RecruitingMatchRun>(
     runId ? `match-runs/${runId}` : null,
     runId ? 8000 : 0,
+    active,
   );
   const run = detail.data;
 
