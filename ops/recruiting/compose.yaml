@@ -1,0 +1,30 @@
+name: twenty-recruiting
+services:
+  db:
+    image: pgvector/pgvector:pg16@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
+    env_file: ../../.local/recruiting/postgres.env
+    ports: ["127.0.0.1:25432:5432"]
+    volumes: ["database:/var/lib/postgresql/data"]
+    networks: [local]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twenty -d recruiting"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  cache:
+    image: valkey/valkey:7@sha256:828b1cbb1c258e02b9cd9588063fa997e097444e610d3f3c00d43e21400e2b8d
+    command: ["valkey-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    ports: ["127.0.0.1:26379:6379"]
+    volumes: ["cache:/data"]
+    networks: [local]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+networks:
+  local:
+    internal: true
+volumes:
+  database:
+  cache:
