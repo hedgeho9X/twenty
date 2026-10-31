@@ -104,3 +104,22 @@
 - 纯协议helper支持初始/已注册client重登、注册返回必须issued ID、identity-onlygrant与plan permission分开；新授权不能替换旧活动账号直到验证身份；refresh如果id_token有返回要验证同sub，缺省可保留原tokenhint；若无refresh或plan scope，不得当可用模型连接。退出按发现endpoint先revoke refresh，再清本地，失败明确remoteRevocationConfirmed=false。retainclient/accountmapping与hostId；不修改Codex原登录。
 - 官方模型管理前端SettingsAdminAI.tsx，provider schema AiProviderConfig+subscriptionAccountId已有，authType=chatgpt已有；当前publicSIWC连接UI未做。models catalog按账号，不猜5.6/6.1名。oauthURL不带id_token_hint以免ID token回到前端JS，允许账户选择器。
 - 仍未做：SIWC完整以上、全格式长图中文扫描损坏/加密回归、合同必要兼容盘点/可用入口、数据链路HTML与交付文档/个人飞书需求、实际UI浏览器验收。Ego恢复许可未收到，不能新建TaskSpace或绕浏览器。不要停止或缩目标，全部完成前goal保持active。
+
+
+## 2026-11-01 07:47 最新恢复点（覆盖上面所有旧进程和待办）
+
+- 先读DELIVERY_GOAL.md、PROGRESS.md顶部与07:45节、RUNBOOK.md。唯一仓库/分支/边界不变，整体未完成，native goal active。不要重做已经有证据的实现或扩大目标，也不要为制造进展反复付费跑旧实验。
+- 最新代码commit：461803bd邮箱持久新邮件poll；06cfad8a实际Shadcn组件；0b32f322离线表格与数据链路；a6c26d19公开AI-only启动器和合同Agent说明；a696de6a CLI跨进程JD上传恢复；e3530ea6 CSV防护；4e1eea44旧DOC回归；0c3fb5bf交付运行说明。后续文档提交以git log为准。所有仅本地commit，没有push/Issue/PR/生产或外发。
+- 当前API34/session58969/PID41435，招聘worker28/session56030/PID41446；AI-only worker4/session84811/PID42530现已保留运行，让本地普通原生Agent可用。Vite/PID11915，parser23003。重启前先lsof/ps/cwd，不使用旧PID盲kill；新增公开命令node ops/recruiting/local.mjs ai-worker仅ai-queue，持久主worker仍只有招聘两队列，旧cron/工作流/发送队列不启。
+- 最后服务端build是mail-poll-build.log，API34包含当前所有服务端改动，后续只是CLI、HTML、测试和文档，无需重建服务端。两包TS/lint通过；29套162项招聘/订阅Jest+15项CLI/上传恢复/缓存测试通过；不要无变化重复全套测试。
+- 邮件poll已实现并真实空轮询通过，合成新UID/失败/去重/超限/UIDVALIDITY变化13tests。本人连接最终enabled=false，autoSubmit恢复true，原生sync0。不可称已收到自然新邮件；不自行发送测试邮件。详见MAIL_SOURCES.md和私有mail-poll-evidence.json。
+- CLI jobs submit明确--key时用700/600本地checkpoint，按实例/凭据/key隔离。默认~/.cache/twenty-recruiting，可用TWENTY_CLI_STATE_DIR。无原材料/API Key，包含短时上传能力。原子immutable slot选同一引用，输入变化先拒，重跑查当前服务器权限。真实intake86069667-3a0c-5a7f-987e-39eb85b8c7e8同ID同file，到AWAITING_CONFIRMATION、1preview，未建新岗位；私有cli-recovery-test/evidence.json。不用为测重试重新制造候选人。
+- Shadcn表格私有.local/recruiting/evaluations/rsi-v1/report.html已离线打包（约327KB），56rows、筛7、排序、恢复、CSV BOM/换行/防公式DOM通过。sources在ops/recruiting/report-ui，独立npm锁及MIT许可，node_modules是指向私有依赖的忽略symlink。重建node ops/recruiting/report-ui/build.mjs，不调用模型。通用docs/recruiting/data-flow.html有9点击节点，无PII。仍未做视觉QA，不能换浏览器绕过Ego。
+- RSI初审原生tokens已核实95457输入/36691输出/cache0；不等于美元/免费。368Jev对原费用0.108646524USD，56机器silver不是human gold；原输入preview-v1不回写，8人看过结果后只能回归集。无需重跑收费。
+- preview-v2旧DOC刚补真实HTTP：真OLE二进制、2页、2PNG、尾段文字、all_pages/complete。旧9项加此单项全部按预期通过，生成器与smoke已纳入DOC。详见PARSER_VALIDATION.md，原件结果私有doc-v2-evidence.json。
+- 个人飞书文档已personal用户创建并精准更新、回读：https://my.feishu.cn/docx/H0sld6jFuosjIMxd1TWc4PcanPb 。CLI身份已正常，不需要重新扫码。lark-created-document.json和lark-document-final-check.json私有。后续只更新自己这份文档，不修改对方原文，不发IM。最新文档内容已写HTML/测试完成。
+- 最新delivery-health.json：54company/171job/926people/498candidate（原基线53/166/925/497，其余合成fixture），各队列waiting/active/delayed0、3个worker，原生mail/calendar0、ACTIVEworkflow0、招聘mailbox enabled0。前端/API/parser200；Vite绝对fs私有路径403，相对/.local路径200为SPA HTML而非JSON。匹配queue留1条03:04权限失败，已审计同run03:08COMPLETED/46score/4excluded/0fail；当前50对资料陈旧且池变化，不返回旧排名。未删历史failedjob也没为清零重跑。
+- 接下来只能推进有新证据的验收：专用Ego TaskSpace14丢失，之前恢复许可未答。skill及CLIguide规定整个目标只能一个space，不能新建恢复、不能claim他人space/换CUA/Chrome/Playwright绕过。需本人允许恢复空间后再实际逐页QA；此前inventory无14，别反复查无变化。已完成DOM测试不当浏览器验收。
+- 新SIWC连接数0，所有管理/加密/rotation/真实loopback离线测完；仍需本人Continue with ChatGPT后新token的真实调用/刷新/失效。旧只读Codex来源文本/图/object/nativeAgent/tool真过；不碰原登录/keychain，不生成新授权链接让睡觉用户再过期。
+- 另需要自然新邮件实收观测、业务方解析/匹配质量核对；外部FDD无配置，合同已保留五字段/提醒/手动确认并真MCP/CLI过，不能称外部签约集成完成。
+- 已完成可独立推进的代码、接口、实验、HTML和交付文档。不要将整个目标标complete；没有新本人输入时不能用空转或反复测试冒充进展。阻塞状态需遵循native goal的连续3目标轮次规则；本次才结束长执行轮，不能把自动压缩次数当作目标轮次数。
