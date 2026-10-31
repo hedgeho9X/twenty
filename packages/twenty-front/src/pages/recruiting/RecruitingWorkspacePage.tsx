@@ -11,6 +11,7 @@ import { RecruitingQueueDialog } from '@/recruiting/components/RecruitingQueueDi
 import { RecruitingMatchResults } from '@/recruiting/components/RecruitingMatchResults';
 import { RecruitingCompanyJobs } from '@/recruiting/components/RecruitingCompanyJobs';
 import { RecruitingManualMatch } from '@/recruiting/components/RecruitingManualMatch';
+import { RecruitingDrafts } from '@/recruiting/components/RecruitingDrafts';
 import {
   StyledRecruitingBody,
   StyledRecruitingWorkspace,
@@ -53,6 +54,7 @@ export const RecruitingWorkspacePage = () => {
             <Tabs.Tab value="resumes">{t`候选人入库`}</Tabs.Tab>
             <Tabs.Tab value="matches">{t`匹配待查看`}</Tabs.Tab>
             <Tabs.Tab value="manual">{t`手动匹配`}</Tabs.Tab>
+            <Tabs.Tab value="drafts">{t`问候与发布草稿`}</Tabs.Tab>
             <Tabs.Indicator />
           </Tabs.List>
           <Tabs.Panel value="companies" keepMounted>
@@ -80,6 +82,22 @@ export const RecruitingWorkspacePage = () => {
             <RecruitingMatchResults
               key={params.get('runId') ?? 'list'}
               initialRunId={params.get('runId') ?? undefined}
+              onDraft={(candidateId, jobId) =>
+                setParams((current) => {
+                  const next = new URLSearchParams(current);
+                  next.set('tab', 'drafts');
+                  next.set('candidateId', candidateId);
+                  next.set('jobId', jobId);
+                  return next;
+                })
+              }
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="drafts" keepMounted>
+            <RecruitingDrafts
+              key={`${params.get('candidateId')}:${params.get('jobId')}`}
+              initialCandidateId={params.get('candidateId') ?? undefined}
+              initialJobId={params.get('jobId') ?? undefined}
             />
           </Tabs.Panel>
           <Tabs.Panel value="manual" keepMounted>

@@ -35,8 +35,10 @@ const runLabel = (status: string) => {
 /** Opens one result inline; bulk material confirmation remains a separate normal page. */
 export const RecruitingMatchResults = ({
   initialRunId,
+  onDraft,
 }: {
   initialRunId?: string;
+  onDraft?: (candidateId: string, jobId: string) => void;
 }) => {
   const [runId, setRunId] = useState(initialRunId);
   const [offset, setOffset] = useState(0);
@@ -115,6 +117,7 @@ export const RecruitingMatchResults = ({
                   <th>{t`岗位`}</th>
                   <th>{t`能力匹配`}</th>
                   <th>{t`意向与条件`}</th>
+                  <th>{t`后续操作`}</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,6 +142,11 @@ export const RecruitingMatchResults = ({
                           {reason.message}
                         </StyledRecruitingMuted>
                       ))}
+                    </td>
+                    <td>
+                      <Button
+                        onClick={() => onDraft?.(pair.candidateId, pair.jobId)}
+                      >{t`生成问候草稿`}</Button>
                     </td>
                   </tr>
                 ))}

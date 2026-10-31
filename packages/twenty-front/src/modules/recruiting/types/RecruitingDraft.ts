@@ -1,0 +1,14 @@
+/** A text draft carries review state independently of actual communication or publication. */
+export type RecruitingDraft = {
+  draftId: string;
+  name: string;
+  kind: 'GREETING' | 'JOB_PUBLICATION';
+  status: string;
+  error?: string;
+  title?: string;
+  body?: string;
+  stale?: boolean;
+  approvedAt?: string;
+  generation?: { profile: { reviewNotes: string[] } };
+  source?: { candidateUrl?: string; jobUrl?: string };
+};
