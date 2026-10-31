@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 
 import { EnterpriseModule } from 'src/engine/core-modules/enterprise/enterprise.module';
+import { ChatgptSubscriptionModule } from 'src/engine/core-modules/chatgpt-subscription/chatgpt-subscription.module';
 import { AiModelConfigService } from 'src/engine/metadata-modules/ai/ai-models/services/ai-model-config.service';
 import { AiModelPreferencesService } from 'src/engine/metadata-modules/ai/ai-models/services/ai-model-preferences.service';
 import { AiModelRegistryService } from 'src/engine/metadata-modules/ai/ai-models/services/ai-model-registry.service';
@@ -11,7 +12,7 @@ import { SdkProviderFactoryService } from 'src/engine/metadata-modules/ai/ai-mod
 
 @Global()
 @Module({
-  imports: [EnterpriseModule],
+  imports: [EnterpriseModule, ChatgptSubscriptionModule],
   providers: [
     DefaultAiCatalogService,
     ProviderConfigService,

@@ -1,9 +1,12 @@
 /** Verifies gateway model kinds without making billable requests. */
 import { SdkProviderFactoryService } from '../services/sdk-provider-factory.service';
+import { type SiwcStoreService } from 'src/engine/core-modules/chatgpt-subscription/siwc-store.service';
 
 describe('AI Gateway provider', () => {
   it('registers native evaluation models separately from language models', () => {
-    const factory = new SdkProviderFactoryService();
+    const factory = new SdkProviderFactoryService({
+      credential: jest.fn(),
+    } as unknown as SiwcStoreService);
     const provider = factory.createProvider('test-gateway', {
       npm: '@ai-sdk/gateway',
       apiKey: 'test-only',

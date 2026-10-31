@@ -31,7 +31,7 @@ const token = (nonce = 'nonce', options: Record<string, unknown> = {}) =>
 /** Routes only fixed official endpoints while collecting form requests for protocol assertions. */
 const setup = (credentials: Record<string, unknown> = {}) => {
   const transport = jest.fn(
-    async (input: RequestInfo | URL, init?: RequestInit) => {
+    async (input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith('openid-configuration')) return Response.json(discovery);
       if (url.endsWith('jwks.json'))

@@ -22,6 +22,7 @@ import { type AiSdkPackage } from 'twenty-shared/ai';
 import { isDefined } from 'twenty-shared/utils';
 
 import { loadLocalCodexCredential } from 'src/engine/core-modules/chatgpt-subscription/local-codex-credential';
+import { SiwcStoreService } from 'src/engine/core-modules/chatgpt-subscription/siwc-store.service';
 import {
   createSubscriptionFetch,
   createSubscriptionTransport,
@@ -57,6 +58,9 @@ export type AiSdkProviderInstance = {
 export class SdkProviderFactoryService {
   private readonly logger = new Logger(SdkProviderFactoryService.name);
   private readonly providerInstances = new Map<string, AiSdkProviderInstance>();
+
+  /** Credentials are loaded at request time so a cached SDK instance cannot retain an expired subscription token. */
+  constructor(private readonly subscriptions: SiwcStoreService) {}
 
   createProvider(
     providerName: string,
@@ -132,7 +136,9 @@ export class SdkProviderFactoryService {
         apiKey: 'subscription-managed',
         fetch: createSubscriptionFetch({
           loadCredential: () =>
-            loadLocalCodexCredential(config.subscriptionAccountId),
+            config.subscriptionConnectionId
+              ? this.subscriptions.credential(config.subscriptionConnectionId)
+              : loadLocalCodexCredential(config.subscriptionAccountId),
           upstreamFetch: createSubscriptionTransport(
             process.env.RECRUITING_MODEL_PROXY_URL,
           ),
