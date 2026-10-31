@@ -10,6 +10,7 @@ export type RecruitingConstraint = {
 /** Candidate preferences use canonical values, never inferred from seniority or age. */
 export type CandidateEligibility = {
   employmentTypes?: RecruitingConstraint;
+  excludedEmploymentTypes?: RecruitingConstraint;
   workModes?: RecruitingConstraint;
   locationIds?: RecruitingConstraint;
 };
@@ -78,6 +79,21 @@ export const evaluateRecruitingEligibility = (
       '雇佣类型',
     ),
   );
+  const excludedTypes = candidate.excludedEmploymentTypes;
+  if (
+    excludedTypes?.values.length &&
+    job.employmentTypes?.length &&
+    job.employmentTypes.every((value) => excludedTypes.values.includes(value))
+  ) {
+    const blocking = excludedTypes.certainty === 'confirmed';
+    reasons.push({
+      code: `employment_type_rejected_${blocking ? 'conflict' : 'unknown'}`,
+      message: blocking
+        ? '岗位仅提供候选人明确不接受的雇佣类型'
+        : '需确认候选人是否接受该雇佣类型',
+      blocking,
+    });
+  }
   reasons.push(
     ...checkConstraint(
       candidate.workModes,
