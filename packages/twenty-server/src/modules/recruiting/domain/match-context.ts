@@ -123,11 +123,17 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
   };
   const clean = minimizeContext(context, names);
   const eligibility: CandidateEligibility = {};
-  const statements = material.split(/[\n。；;]+/).map((text) => text.trim()
-    .replace(/^(?:求职意向|求职要求|本次说明)[：:]\s*/, '')
-    .replace(/^(?:我|本人)?(?:目前|现在|本次)?\s*/, ''));
-  const explicitFullTime = statements.some((text) =>
-    /^(?:只|仅)(?:接受|考虑|找|投递|投)?\s*全职(?:[，,。\s]|$)/i.test(text));
+  const statements = material.split(/[\n。；;，,]+/).map((text) =>
+    text
+      .trim()
+      .replace(/^(?:求职意向|求职要求|本次说明)[：:]\s*/, '')
+      .replace(/^(?:我|本人)?(?:目前|现在|本次)?\s*/, ''),
+  );
+  const explicitFullTime = statements.some(
+    (text) =>
+      /^(?:只|仅)(?:接受|考虑|找|投递|投)?\s*全职/i.test(text) &&
+      !/或|以及|实习|兼职|合同/.test(text),
+  );
   if (explicitFullTime)
     eligibility.employmentTypes = {
       values: ['full_time'],
@@ -142,7 +148,13 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
     if (values.length)
       eligibility.employmentTypes = { values, certainty: 'unconfirmed' };
   }
-  if (statements.some((text) => /^(?:不接受|不考虑|不找|拒绝)\s*实习(?:[，,。\s]|$)/i.test(text)))
+  if (
+    statements.some((text) =>
+      /^(?:不接受|不考虑|不找|拒绝)\s*实习(?:岗位|工作|职位|生)?(?:\s|$)/i.test(
+        text,
+      ),
+    )
+  )
     eligibility.excludedEmploymentTypes = {
       values: ['internship'],
       certainty: 'confirmed',
@@ -227,6 +239,12 @@ export const buildJobMatchContext = (
         ),
     locationIds: cityValues(profile.locations),
   };
+  if (
+    !eligibility.employmentTypes?.length &&
+    /实习/.test(context.title) &&
+    !/全职|兼职|亦可|也可|可投/.test(context.title)
+  )
+    eligibility.employmentTypes = ['internship'];
   const clean = minimizeContext(context);
   const cleanCompany = minimizeContext(companyContext);
   return {
