@@ -33,10 +33,17 @@ export class RecruitingToolAuthorizationService {
       throw new ForbiddenException(
         '招聘工具需要已授权的工作区用户、API Key或应用身份',
       );
+    // Native Agent runs keep delegation in viaApplication; ordinary record services derive that restriction from application.
     const scoped =
-      input.type === 'user' || input.type === 'application'
-        ? { ...input, agentId: context.agentId ?? input.agentId }
-        : input;
+      input.type === 'user'
+        ? {
+            ...input,
+            application: input.application ?? input.viaApplication,
+            agentId: context.agentId ?? input.agentId,
+          }
+        : input.type === 'application'
+          ? { ...input, agentId: context.agentId ?? input.agentId }
+          : input;
     const current = await this.actors.resolve(this.actors.capture(scoped));
     const maps = await this.cache.getOrRecompute(context.workspaceId, [
       'userWorkspaceRoleMap',

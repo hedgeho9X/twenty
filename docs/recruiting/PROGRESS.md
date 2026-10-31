@@ -298,3 +298,10 @@
 - ops/recruiting/smoke-portal.mjs真实匿名HTTP闭环通过：无Cookie/Authorization，资料保存/意向/文件原生PUT/完成、重复简历提交同ID、入库完成至原fixture、分享/撤回/重确认/撤销。初始空JSON映射被官方存储省略造成MAC失配已修正。两内部对象及9字段通过官方metadata创建，导航已隐藏。
 - 跟进记录复用recruitingContact，旧迁入记录保留并标历史待核对，新签名回执可区分本人确认。Agent能记NOTE，实际联系/推荐/发布要求直接本人会话；公司推荐还要有效分享确认。真实合成HTTP/MCP/CLI成功，Key声明已联系403、未确认推荐403，均没有任何外发。
 - 门户/分享/签名/活动5套15项测试通过，前后端全包TS、相关lint通过；门户公共页面及原生工作台入口已实现，尚待实际浏览器验收。原Ego任务空间丢失，恢复许可尚无回复，继续独立API和数据工作。
+
+## 官方Agent与订阅的真实工具执行
+
+- 新建无触发器的本地验收Agent，模型chatgpt-subscription/gpt-5.6-sol。官方runAgent→ai-queue→AgentTurn流式执行完成，原生文本与平面结构化对象均真实成功，不另起模型代理。
+- 创建仅公司读取、无业务写权限的验收角色。第一次学习招聘工具成功但执行被拒，定位到官方runAgent将代理应用放在viaApplication，而通用记录权限从application重建，原严格比较正确阻止了丢失的应用约束。
+- 工具入口现在将该受信任原生委托应用保留为application参与重建，继续严格比较用户/应用/Agent角色交集；不能保留完整交集的其他调用仍拒绝。8项权限测试通过。真实learn_tools→execute_tool成功，工具输出success=true，查询合成公司返回1。
+- ai-queue启动前所有状态计数0；使用临时独立ai-only worker，未改变持久招聘worker允许列表、未启动原收信/工作流/发送队列。验收结束需停止该临时worker。原生Agent的responseFormat目前只接受顶层string/number/boolean字段，复杂候选人对象仍由已有AI SDK提取器处理，不能把两者混称。

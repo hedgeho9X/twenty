@@ -89,3 +89,58 @@ it('preserves revoked authorization failure without an administrator fallback', 
   );
   expect(limits.admit).not.toHaveBeenCalled();
 });
+
+it('retains the native Agent application restriction when a member executes through viaApplication', async () => {
+  const auth = {
+    type: 'user',
+    workspace: { id: 'workspace' },
+    userWorkspaceId: 'member',
+    viaApplication: { id: 'application', defaultRoleId: 'app-role' },
+  } as unknown as WorkspaceAuthContext;
+  const actors = {
+    capture: jest.fn((value) => value),
+    resolve: jest.fn(async (value) => value),
+  };
+  const cache = {
+    getOrRecompute: jest.fn(async () => ({
+      userWorkspaceRoleMap: { member: 'member-role' },
+      apiKeyRoleMap: {},
+      flatRoleTargetByAgentIdMaps: { agent: { roleId: 'agent-role' } },
+    })),
+  };
+  const service = new RecruitingToolAuthorizationService(
+    actors as unknown as RecruitingActorService,
+    cache as unknown as WorkspaceCacheService,
+    { admit: jest.fn() } as unknown as RecruitingRequestLimitService,
+  );
+  const result = await service.resolve({
+    workspaceId: 'workspace',
+    authContext: auth,
+    agentId: 'agent',
+    rolePermissionConfig: {
+      intersectionOf: {
+        userWorkspaceRoleId: 'member-role',
+        applicationRoleId: 'app-role',
+        agentRoleId: 'agent-role',
+      },
+    },
+  });
+  expect(result).toMatchObject({
+    application: { defaultRoleId: 'app-role' },
+    viaApplication: { defaultRoleId: 'app-role' },
+    agentId: 'agent',
+  });
+  await expect(
+    service.resolve({
+      workspaceId: 'workspace',
+      authContext: auth,
+      agentId: 'agent',
+      rolePermissionConfig: {
+        intersectionOf: {
+          userWorkspaceRoleId: 'member-role',
+          agentRoleId: 'agent-role',
+        },
+      },
+    }),
+  ).rejects.toBeInstanceOf(ForbiddenException);
+});
