@@ -65,6 +65,7 @@ export const intakeFileSchema = z.object({
   fileId: z.string().uuid(),
   label: z.string().min(1).max(512),
   role: z.enum(['primary', 'supplement', 'archive']).default('primary'),
+  uploadReceipt: z.string().max(4096).optional(),
 });
 
 /** API and UI submissions preserve the same raw text, notes and provenance. */

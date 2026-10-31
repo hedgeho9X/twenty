@@ -9,7 +9,7 @@
 - B：API localhost:23001，前端 localhost:23000，parser localhost:23003；PG 25432/recruiting，Valkey 26379。A 的 fanhan-local-* 与 localhost:13000 保留，不操作无关 AirJelly/Supabase。
 - 真实迁入 53 公司、166 岗位、925 联系人、497 候选人、1206 文件；另有 1 公司、1 岗位、1 候选人 fixture。原业务表摘要/文件抽检已通过，官方升级完成，富文本 Tiptap 列由官方命令补齐。
 - 旧工作流 0 ACTIVE、邮箱/日历同步关、旧应用自动触发器关、旧订阅 sidecar 已停止。新 RECRUITING_AUTO_MATCH_ENABLED=true 只处理带明确 actor 的新原生资料事件。
-- 当前 API session 24785，PID 9995，日志 api-6.log；worker session 95859，PID 10006，日志 matching-worker-3.log；front session 64242，PID 9062，日志 front-1.log。恢复时用 lsof/cwd 核对，不盲用 PID。
+- 当前 API session 76581，PID 12498，日志 api-8.log；worker session 22208，PID 12509，日志 matching-worker-5.log；front session 65848，PID 11915，日志 front-2.log。恢复时用 lsof/cwd 核对，不盲用 PID。
 - Worker 启用 recruiting-queue（全局 10）与 recruiting-match-queue（全局 2 runs，每 run 3 pairs）。旧升级 worker 已停止。
 - 全部私有数据、环境、Token、日志、实验和模型在被忽略的 .local/recruiting/，禁止打印/提交。完整邮件/自述中的下载 URL 也可能带访问参数，不能再输出原文样本。
 - 安装专用 CONNECT→SOCKS bridge 127.0.0.1:11081，session 71944。不是产品服务，构建完可停止，不修改全局代理。
@@ -51,7 +51,7 @@
 ## 5. 浏览器与 UI 接续
 
 - ego-browser skill 已完整读，专用 TaskSpace 14，p1 已实际登录 localhost:23000，当前原生公司表54条。只能复用此 space，不另建、不接管其他用户空间，不用旧space10的授权页。不要 finish 正在进行的任务。
-- 新运营 UI 目前完全未写，旧数据库导入的“运营工作台”页面不是本次交付。旧自定义手动动作尚需禁用/替换，避免以后点到旧执行链。
+- 新运营 UI 已建立 types/request/query/styles 四类基础文件，页面与路由尚未写，旧数据库导入的“运营工作台”页面不是本次交付。旧自定义手动动作尚需禁用/替换，避免以后点到旧执行链。
 - 新UI建议路径 /recruiting-workspace；不能用 /recruiting，它是API代理前缀。
 - 尽量官方 Twenty组件：PageHeader、PageContainer、Button（children/startIcon/loading）、Input/Textarea（onValueChange）、Field.Root/Label/Description、Tabs.Root/List/Tab/Indicator/Panel、Dialog.Root/Portal/Backdrop/Viewport/Popup/Header/Title/Description/Body/Footer。
 - 当前组件在 twenty-ui/primitives/input、navigation、surfaces、feedback、data-display 导出；样例在各组件 __stories__。业务样式使用 Linaria + themeCssVariables，不引入shadcn等第二套组件库。
@@ -64,9 +64,9 @@
 
 1. 先检查未提交的 snapshot/poolChanged 修正。修正内容：读取旧匹配时不再显示已移出候选人角色的联系人；全池人数改变要标 poolChanged，不冒充当前全量覆盖；新目标需发起新run，retry保留原快照范围。测试已过，提交前补类型/lint。
 2. 重建并只重启本仓库 API/worker，使 URL 清理、职业自述fallback生效。对既有全量反向 run重试，复用仍有效cache，另存最新证据；不能把下载提示当职业事实，也不能把historical意向当当前硬限制。
-3. 优先把统一上传和真实运营UI做出来。需要补业务上传包装/单文件multipart端点与CLI；已有JSON fileRefs不能算完整统一上传API。
-4. 文件授权边界要核实并补齐：当前 parser.file 只校验workspace/status/static/size；原生 FileEntity 没有上传者字段，只有path分区/settings/contentSha256。不要认为拿到fileId就自动有字段/记录权限。可用薄业务上传target+complete包装原生 FileUploadService，并签发绑定workspace/principal/fileId的提交凭据；既有引用必须绑定当前可读intake/来源记录。不要新造完整Vault。Native FileUploadModule导出 FileUploadService；createFileUpload与completeFileUpload真实签名已查。
-5. 再验证一次真实intake的事件/回调自动匹配幂等、失败不影响已入库状态。继续完善批量JD逐项失败/独立重试、确认幂等、人工修改不被覆盖；现在confirmJobs仍按index顺序创建，部分失败管理不完整。
+3. 统一上传后端已写：POST uploads/targets、uploads/complete 和 resume-intakes/upload（单请求multipart）；原生生命周期+调用者绑定凭据，入库时移除凭据。同一multipart重发202同intake，改说明复用key409，无凭据fileId引用400。完整DOCX→模型→现有候选人更新→单个匹配任务已实测；详见 multipart-intake-result.json。优先继续真正UI和CLI。
+4. 文件授权已补业务上传凭据，覆盖workspace/principal/fileId/label/expiry；native FileEntity无上传者，不能直接凭fileId进入新提交。6项权限/凭据测试通过，类型/lint通过。parser.file仍用于已授权并绑定intake后的内部读取。既有候选人附件重解析需要经可读来源记录重新绑定，不得开放任意fileId mint凭据。单请求路径已使用native receiveFileStream+complete，不绕隔离检查。
+5. 已验证真实intake事件/回调共用一个匹配run（66dcb4e6-1d88-58c7-9d60-a8dfe72c1685）。曾发现原生读取FILES附加url/extension不能原样回写，已只投影fileId/label；失败后重试复用解析/模型checkpoint并成功。继续完善批量JD逐项失败/独立重试、确认幂等、人工修改不被覆盖；现在confirmJobs仍按index顺序创建，部分失败管理不完整。
 6. 完成长文分块/合并与中文扫描、损坏/加密文件等必要格式回归，全部页图覆盖不丢页。当前8个超限旧候选人不能冒充已经评分。
 7. 补官方 MCP DefineTool/ToolRegistry 业务动作与薄 CLI/skill：公司/JD、简历、进度、双向/指定匹配、结果、草稿与人工跟进。认证/权限/重复提交要实测。尚未注册招聘 MCP工具。
 8. 独立评测/RS(I)：已有实验30×46/1380缓存是回顾资料，22/8不是未见测试集；新增未见候选人、盲审silver标签、硬约束/输入保真/前五/排序/覆盖/耗时费用报告。不是用户确认gold，不无限调优。
@@ -76,3 +76,9 @@
 12. 整体UI/API/权限/重试/去重验收、更新数据链路HTML、启动/回退/验收文档；个人飞书授权若可用，按原用户要求同步个人文档，不发消息、不发布网站。
 
 完整目标以 DELIVERY_GOAL 为准，不能缩成只交已实现的API或把未验收项勾选完成。
+
+## 最新额外检查点
+
+- Vite默认/@fs会读到仓库.local，已增加fs.deny并实测私有配置/session/报告、raw import和编码路径均403，首页200。commit b4484dd9。不要撤销此规则。
+- 目前新上传代码与前端基础文件仍需核对提交状态。上传相关全包typecheck3通过、6项授权/凭据测试通过、lint2无错误；模型未因重试重复执行。
+- 单请求intake d5091942-1afd-5671-9d27-66b8fe3a0332 已 COMPLETED/STORED，candidate为原fixture，matchingRunIds仅一项。上传凭据不在持久化input中。

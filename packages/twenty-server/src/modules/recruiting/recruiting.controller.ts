@@ -12,7 +12,11 @@ import {
   Headers,
   HttpCode,
   Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { createHash } from 'node:crypto';
 
 import { type Request, type Response } from 'express';
 import { ApiPath } from 'twenty-shared/types';
@@ -26,6 +30,9 @@ import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
 import { RecruitingRecordsService } from './recruiting-records.service';
 import { RecruitingIntakeService } from './recruiting-intake.service';
 import { RecruitingMatchingService } from './recruiting-matching.service';
+import { RecruitingUploadService } from './recruiting-upload.service';
+import { RecruitingUploadPermissionGuard } from './recruiting-upload-permission.guard';
+import { contentVersion } from './domain/match-context';
 
 const companySchema = z
   .object({
@@ -58,7 +65,84 @@ export class RecruitingController {
     private readonly records: RecruitingRecordsService,
     private readonly intakes: RecruitingIntakeService,
     private readonly matching: RecruitingMatchingService,
+    private readonly uploads: RecruitingUploadService,
   ) {}
+
+  /** Accepts one resume and an optional note in a single authenticated multipart request. */
+  @Post('resume-intakes/upload')
+  @HttpCode(202)
+  @UseGuards(RecruitingUploadPermissionGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        files: 1,
+        fileSize: 50 * 1024 * 1024,
+        fields: 3,
+        fieldSize: 100_000,
+        parts: 4,
+      },
+    }),
+  )
+  async uploadResume(
+    @Req() request: Request,
+    @UploadedFile() file: { buffer: Buffer; originalname: string } | undefined,
+    @Body() value: unknown,
+    @Headers('idempotency-key') key?: string,
+  ) {
+    if (!file) throw new BadRequestException('请上传简历文件（file）');
+    const parsed = z
+      .object({
+        note: z.string().max(100_000).optional(),
+        candidateId: z.string().uuid().optional(),
+        batchId: z.string().uuid().optional(),
+      })
+      .strict()
+      .safeParse(value);
+    if (
+      !parsed.success ||
+      (key !== undefined && (!key.length || key.length > 256))
+    )
+      throw new BadRequestException('请检查材料说明、候选人和提交标识');
+    const context = buildWorkspaceAuthContextFromRequest(request);
+    const metadata = { ...parsed.data, note: parsed.data.note ?? '' };
+    const digest = contentVersion({
+      metadata,
+      filename: file.originalname,
+      bytes: createHash('sha256').update(file.buffer).digest('hex'),
+    });
+    const existing = await this.intakes.existingMultipart(context, key, digest);
+    if (existing) return existing;
+    const uploaded = await this.uploads.buffer(context, file);
+    return this.intakes.submit(
+      context,
+      {
+        ...metadata,
+        kind: 'CANDIDATE',
+        source: 'api',
+        files: [uploaded],
+        ...(key ? { idempotencyKey: key } : {}),
+      },
+      { transportDigest: digest },
+    );
+  }
+
+  /** Creates a native storage upload target with a caller-bound recruiting submission receipt. */
+  @Post('uploads/targets')
+  uploadTarget(@Req() request: Request, @Body() body: unknown) {
+    return this.uploads.target(
+      buildWorkspaceAuthContextFromRequest(request),
+      body,
+    );
+  }
+
+  /** Completes native MIME/size checks and returns a reusable authorized material reference. */
+  @Post('uploads/complete')
+  completeUpload(@Req() request: Request, @Body() body: unknown) {
+    return this.uploads.complete(
+      buildWorkspaceAuthContextFromRequest(request),
+      body,
+    );
+  }
 
   /** Starts either direction or a specified pair without holding an HTTP request open. */
   @Post('match-runs')

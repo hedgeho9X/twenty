@@ -2,7 +2,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const sessionPath = join(repository, '.local/recruiting/session.json');
@@ -45,7 +44,9 @@ export const localRequest = async (path, options = {}) => {
     redirect: 'error',
     signal: options.signal ?? AbortSignal.timeout(60_000),
     headers: {
-      'content-type': 'application/json',
+      ...(options.body instanceof FormData
+        ? {}
+        : { 'content-type': 'application/json' }),
       origin: session.origin,
       ...options.headers,
       authorization: `Bearer ${session.token}`,
@@ -73,29 +74,13 @@ export const localGraphql = async (
 export const localUpload = async (filePath) => {
   const filename = basename(filePath);
   const bytes = await readFile(filePath);
-  const metadata = spawnSync(
-    'docker',
-    [
-      'exec',
-      'twenty-recruiting-db-1',
-      'psql',
-      '-U',
-      'twenty',
-      '-d',
-      'recruiting',
-      '-X',
-      '-Atc',
-      `SELECT f.id FROM core."fieldMetadata" f JOIN core."objectMetadata" o ON o.id=f."objectMetadataId" WHERE o."nameSingular"='recruitingIntake' AND f.name='files' AND o."workspaceId"='4cb349cd-5765-4826-a2cb-73e5c5c2d564';`,
-    ],
-    { encoding: 'utf8' },
-  );
-  if (metadata.status !== 0 || !metadata.stdout.trim())
-    throw new Error('Intake upload field is unavailable');
-  const result = await localGraphql(
-    'mutation Upload($filename:String!,$size:Float!,$fieldId:String!){createFileUpload(filename:$filename,size:$size,fileFolder:FilesField,fieldMetadataId:$fieldId){fileId uploadUrl contentType}}',
-    { filename, size: bytes.length, fieldId: metadata.stdout.trim() },
-  );
-  const target = result.createFileUpload;
+  const response = await localRequest('/recruiting/uploads/targets', {
+    method: 'POST',
+    body: JSON.stringify({ filename, size: bytes.length }),
+  });
+  if (!response.ok)
+    throw new Error(`Recruiting upload target failed (${response.status})`);
+  const target = await response.json();
   const url = new URL(target.uploadUrl);
   if (!['localhost', '127.0.0.1'].includes(url.hostname))
     throw new Error('Refusing a nonlocal upload target');
@@ -110,9 +95,13 @@ export const localUpload = async (filePath) => {
   });
   if (!uploaded.ok)
     throw new Error(`Native upload failed (${uploaded.status})`);
-  await localGraphql(
-    'mutation Complete($fileId:String!){completeFileUpload(fileId:$fileId){id size}}',
-    { fileId: target.fileId },
-  );
-  return { fileId: target.fileId, label: filename, role: 'primary' };
+  const completed = await localRequest('/recruiting/uploads/complete', {
+    method: 'POST',
+    body: JSON.stringify({ uploadReceipt: target.uploadReceipt }),
+  });
+  if (!completed.ok)
+    throw new Error(
+      `Recruiting upload completion failed (${completed.status})`,
+    );
+  return completed.json();
 };

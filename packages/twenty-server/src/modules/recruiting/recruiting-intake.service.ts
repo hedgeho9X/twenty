@@ -30,6 +30,7 @@ import {
 } from './recruiting-parser.service';
 import { RecruitingExtractorService } from './recruiting-extractor.service';
 import { RecruitingMatchingService } from './recruiting-matching.service';
+import { RecruitingUploadService } from './recruiting-upload.service';
 import {
   candidateProfileSchema,
   intakeInputSchema,
@@ -60,6 +61,7 @@ type IntakeEnvelope = {
   matchingStatus?: string;
   matchingRunIds?: string[];
   matchingError?: string;
+  transportDigest?: string;
 };
 
 @Injectable()
@@ -72,18 +74,32 @@ export class RecruitingIntakeService {
     private readonly parser: RecruitingParserService,
     private readonly extractor: RecruitingExtractorService,
     private readonly matching: RecruitingMatchingService,
+    private readonly uploads: RecruitingUploadService,
     @InjectMessageQueue(MessageQueue.recruitingQueue)
     private readonly queue: MessageQueueService,
   ) {}
 
   /** Accepts completed file references once; retries must reuse the same payload and key. */
-  async submit(context: WorkspaceAuthContext, value: unknown) {
+  async submit(
+    context: WorkspaceAuthContext,
+    value: unknown,
+    options?: { transportDigest?: string },
+  ) {
     const parsed = intakeInputSchema.safeParse(value);
     if (!parsed.success)
       throw new BadRequestException(
         parsed.error.issues.map((issue) => issue.message).join('；'),
       );
-    const input = { ...parsed.data, note: parsed.data.note ?? '' };
+    for (const file of parsed.data.files) this.uploads.authorize(context, file);
+    const input = {
+      ...parsed.data,
+      note: parsed.data.note ?? '',
+      files: parsed.data.files.map((file) => ({
+        fileId: file.fileId,
+        label: file.label,
+        role: file.role,
+      })),
+    };
     const actor = this.actors.capture(context);
     if (input.companyId)
       await this.records.one(context, 'company', input.companyId);
@@ -100,7 +116,11 @@ export class RecruitingIntakeService {
     let record = await this.optional(context, 'recruitingIntake', id);
     if (record) {
       const envelope = this.envelope(record);
-      if (envelope.inputHash !== inputHash)
+      if (
+        envelope.inputHash !== inputHash &&
+        (!options?.transportDigest ||
+          envelope.transportDigest !== options.transportDigest)
+      )
         throw new ConflictException(
           '同一提交标识已对应另一份材料，请使用新的提交标识',
         );
@@ -113,6 +133,7 @@ export class RecruitingIntakeService {
         inputHash,
         actor,
         stage: 'QUEUED',
+        transportDigest: options?.transportDigest,
       };
       try {
         record = await this.records.create(context, 'recruitingIntake', {
@@ -129,12 +150,37 @@ export class RecruitingIntakeService {
         });
       } catch (error) {
         const concurrent = await this.optional(context, 'recruitingIntake', id);
-        if (!concurrent || this.envelope(concurrent).inputHash !== inputHash)
+        if (
+          !concurrent ||
+          (this.envelope(concurrent).inputHash !== inputHash &&
+            (!options?.transportDigest ||
+              this.envelope(concurrent).transportDigest !==
+                options.transportDigest))
+        )
           throw error;
         record = concurrent;
       }
     }
     await this.enqueue(id, actor);
+    return this.receipt(record);
+  }
+
+  /** Reuses a previously accepted multipart request before allocating another native file. */
+  async existingMultipart(
+    context: WorkspaceAuthContext,
+    key: string | undefined,
+    digest: string,
+  ) {
+    if (!key) return undefined;
+    const id = v5(`${context.workspace.id}:CANDIDATE:api:${key}`, v5.URL);
+    const record = await this.optional(context, 'recruitingIntake', id);
+    if (!record) return undefined;
+    if (this.envelope(record).transportDigest !== digest)
+      throw new ConflictException(
+        '同一提交标识已对应其他材料，请使用新的提交标识',
+      );
+    if (record.state === 'READY')
+      await this.enqueue(id, this.actors.capture(context));
     return this.receipt(record);
   }
 
@@ -322,12 +368,25 @@ export class RecruitingIntakeService {
         await this.records.update(context, 'person', candidateId, {
           recruitingProfile,
           candidateResumes: [
-            ...previous.filter(
-              (old) =>
-                !files.some(
-                  (file) => isPlainObject(old) && old.fileId === file.fileId,
-                ),
-            ),
+            ...previous
+              .filter(
+                (old) =>
+                  !files.some(
+                    (file) => isPlainObject(old) && old.fileId === file.fileId,
+                  ),
+              )
+              .map((old) => {
+                if (
+                  !isPlainObject(old) ||
+                  typeof old.fileId !== 'string' ||
+                  typeof old.label !== 'string'
+                )
+                  throw new BadRequestException(
+                    '既有简历附件引用需要核对，系统未覆盖原有附件',
+                  );
+                // Native reads enrich refs with readonly URL/extension fields which cannot be written back.
+                return { fileId: old.fileId, label: old.label };
+              }),
             ...files,
           ],
         });

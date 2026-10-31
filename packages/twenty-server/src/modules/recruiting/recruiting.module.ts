@@ -25,6 +25,10 @@ import { RecruitingPairEvaluatorService } from './recruiting-pair-evaluator.serv
 import { RecruitingMatchJob } from './recruiting-match.job';
 import { TypeORMModule } from 'src/database/typeorm/typeorm.module';
 import { RecruitingRecordChangeListener } from './recruiting-record-change.listener';
+import { RecruitingUploadService } from './recruiting-upload.service';
+import { FileUploadModule } from 'src/engine/core-modules/file/file-upload/file-upload.module';
+import { PermissionsModule } from 'src/engine/metadata-modules/permissions/permissions.module';
+import { RecruitingUploadPermissionGuard } from './recruiting-upload-permission.guard';
 import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
 
 @Module({
@@ -38,6 +42,8 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
     WorkspaceCacheModule,
     WorkspaceCacheStorageModule,
     FileModule,
+    FileUploadModule,
+    PermissionsModule,
     FilesFieldModule,
     TypeOrmModule.forFeature([ApiKeyEntity, FileEntity]),
   ],
@@ -48,6 +54,8 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
     RecruitingParserService,
     RecruitingExtractorService,
     RecruitingIntakeService,
+    RecruitingUploadService,
+    RecruitingUploadPermissionGuard,
     ResumeIngestJob,
     RecruitingMatchingService,
     RecruitingPairEvaluatorService,

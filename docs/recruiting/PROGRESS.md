@@ -171,3 +171,11 @@
 
 - 匹配详情会核对当前候选人角色，并比较当前全池数量与任务快照。池里新增目标时返回 poolChanged/currentPoolCount，不能把旧快照标为当前全量完成。
 - 新增目标需要新任务；失败重试仍固定原任务范围。6项 orchestration 测试通过，包含新目标进入后 complete=false；当前服务端全包类型检查通过。
+
+## 已验收的统一上传边界
+
+- 新建 targets/complete 包装原生上传生命周期，并签发绑定工作区、调用者、文件及标签的24小时提交凭据；新提交不能只给任意 fileId。凭据在入库前移除，不进入队列材料或模型上下文。
+- 单请求 POST /recruiting/resume-intakes/upload 支持 file + optional note、已有candidateId及batchId。multipart 内容摘要在分配文件前做幂等查询；同请求重发202同intake，修改说明后复用key409；无凭据的裸fileId引用400。
+- 原生接收/隔离/MIME检测与complete均复用，上传权限在multipart缓冲前校验。6项授权/签名边界测试通过；服务端全包类型检查及招聘 lint 通过。
+- 真实 multipart DOCX intake d5091942-1afd-5671-9d27-66b8fe3a0332 已完成两页材料整理并更新原fixture候选人，随后只产生1个自动匹配任务 66dcb4e6-1d88-58c7-9d60-a8dfe72c1685。
+- 实测现有候选人更新时发现 FILES 读取附加 url/extension 为只读，已仅投影 fileId/label 后回写。失败重试复用已有模型结果和文件checkpoint，成功后匹配独立进行，未重复运行材料模型。
