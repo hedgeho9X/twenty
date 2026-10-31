@@ -42,6 +42,7 @@ export type RecruitingPairResult = {
   jobLabel: string;
   companyId?: string;
   status: 'SCORED' | 'EXCLUDED' | 'NEEDS_REVIEW' | 'FAILED';
+  protocolVersion?: string;
   eligibility: EligibilityResult;
   intent?: {
     expectedRoles: string[];
@@ -93,7 +94,7 @@ export class RecruitingPairEvaluatorService {
       jobId: job.id,
       jobVersion: job.version,
       companyVersion: job.companyVersion,
-      protocolVersion: RECRUITING_MATCH_PROTOCOL.version,
+      protocolVersion: RECRUITING_MATCH_PROTOCOL.abilityCacheNamespace,
       modelVersion: modelId,
     });
     return {
@@ -133,6 +134,7 @@ export class RecruitingPairEvaluatorService {
         eligibility.status = 'needs_confirmation';
     }
     const base: RecruitingPairResult = {
+      protocolVersion: RECRUITING_MATCH_PROTOCOL.version,
       candidateId: candidate.id,
       jobId: job.id,
       candidateLabel: candidate.label,
@@ -164,23 +166,34 @@ export class RecruitingPairEvaluatorService {
       company: job.company,
     };
     const questions = { match: RECRUITING_MATCH_PROTOCOL.question };
-    // UTF-8 bytes are a deliberately conservative ceiling, not a claim of exact Jev tokenization.
+    // This is a transport cap, not tokenization. Jev enforces its actual per-question and per-request token limits.
     if (
       Buffer.byteLength(stableSerialize({ state, questions })) + 2048 >
-      32_000
+      1_000_000
     )
       return {
         ...base,
-        error:
-          '完整材料超过当前 Jev 上下文安全预算，未截断；请先整理或拆分材料',
+        error: '完整材料超过请求体积上限，未截断；请先整理或拆分材料',
       };
     const cached = await this.cached(context, cacheId, cacheKey);
-    if (cached) return { ...cached, cached: true };
+    if (cached)
+      return {
+        ...cached,
+        eligibility,
+        protocolVersion: base.protocolVersion,
+        cached: true,
+      };
     const result = await this.locks.tryWithLock(
       `recruiting-pair:${context.workspace.id}:${cacheId}`,
       async () => {
         const current = await this.cached(context, cacheId, cacheKey);
-        if (current) return { ...current, cached: true };
+        if (current)
+          return {
+            ...current,
+            eligibility,
+            protocolVersion: base.protocolVersion,
+            cached: true,
+          };
         const model = this.registry.getEvaluationModel(modelId);
         if (!model || !this.registry.isModelAdminAllowed(modelId))
           throw new BadRequestException('请先配置可用的 Jev 评分模型');
@@ -224,6 +237,11 @@ export class RecruitingPairEvaluatorService {
           questions,
           base,
         );
+        if (!response)
+          return {
+            ...base,
+            error: '完整材料超过Jev默认上下文限制，未截断；请整理材料后重试',
+          };
         const answer = response.answers.match;
         if (
           answer.type !== 'score' ||
@@ -313,6 +331,37 @@ export class RecruitingPairEvaluatorService {
           ? error.statusCode
           : undefined;
       const unauthorized = status === 401 || status === 403;
+      const detail =
+        error && typeof error === 'object'
+          ? [
+              'message' in error && typeof error.message === 'string'
+                ? error.message
+                : '',
+              'responseBody' in error && typeof error.responseBody === 'string'
+                ? error.responseBody
+                : '',
+            ].join(' ')
+          : '';
+      const contextLimited =
+        [400, 413, 422].includes(Number(status)) &&
+        /context|input.{0,30}tokens/i.test(detail) &&
+        /limit|exceed|maximum|too.long|too.large/i.test(detail);
+      if (contextLimited) {
+        await this.records.update(
+          context,
+          'recruitingPairEvaluation',
+          cacheId,
+          {
+            status: 'NEEDS_REVIEW',
+            score: null,
+            payload: {
+              ...base,
+              error: '完整材料超过Jev默认上下文限制，未截断；请整理材料后重试',
+            },
+          },
+        );
+        return undefined;
+      }
       await this.records.update(context, 'recruitingPairEvaluation', cacheId, {
         status: 'FAILED',
         score: null,

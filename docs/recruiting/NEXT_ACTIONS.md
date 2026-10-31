@@ -62,3 +62,17 @@
 - 新recruitingMailArchive与MailEvent的对象/字段已由官方metadata创建，deferred indexes已完成，两个内部表导航已隐藏。MailUploadService新增fromMailArchive，只允许从可读且签名通过的父记录重绑其artifact，不允许任意fileID。
 - 下一步：原生ImapMessageParser结果保留rawSource→GetMessages边界发受控source事件→绑定原connected account owner的捕获配置；先验单封收取，不开启旧历史同步/工作流，不发邮件。目标需要邮件UI和MCP/CLI。默认capture关闭，不能凭workspaceID升为system身份。
 - 其余完整目标仍按上面第5节和DELIVERY_GOAL执行，不停在归档API。
+
+## 2026-11-01 05:30 最新恢复点
+
+- 最新commits：76ef1329完整MIME归档，dcf9b6c6邮件MCP/CLI，422bc220邮件UI，458f60de原生IMAP事件，c8c6613d本人邮箱/单封只读，17e37602连接UI，a9569e4c独立锁池，efc8a420姓名与技能保真。
+- 本人IMAP连接1个已真实只读最新一封，archive9719d751-6805-5477-86d4-12ead6b69719，6份资源、原文SHA正确、0intake；捕获配置已实际开/关往返并最终关闭。原生协议入口true，所有messageChannel自动同步0、旧ACTIVEworkflow0、cron关、只启招聘两worker队列。不要再说未连接过真实邮箱，也不要说后台同步已运行。
+- 新Mailbox.enableTime边界按服务器INTERNALDATE阻止原生历史回放变成新投递，8项测试通过；默认捕获关闭。UI与APIkey403证明所有者隔离，未浏览器验收。cookie opt-in JSON/下载实测200，无opt-in403。
+- 独立recruiting-locks池18连接复用官方PostgresAdvisoryLockService，避免core默认10被长任务锁占满；真实18锁+仅2普通查询连接全完成48ms。所有锁消费者已注入，API19已实际启动；新模块禁DDL/实体/迁移，Nest管理关闭。
+- 用户命名Li/An/He/Go会误删Linux/Angular/Helm等的原全局替换已修，仅明确姓名头处理；11项输入回归通过。sourceCode已commit，但API20仍旧minimizer，下一build会更新。
+- 目前正在build：session88188已是旧完成；最新match-window-build.log对应exec session稍后从tool状态取。API20/PID26729、worker16/PID26740已核对cwd并SIGTERM，当前应无API/worker监听，等构建真正完成再启动，日志建议api21/worker17。
+- 当前未提交新匹配修正：公司PAUSED/CLOSED先排除，未知公司状态仍保留；相关公司变更触发队列。能力问题未改，abilityCacheNamespace保留历史值以复用付费分数；整体协议标记context-v2/eligibility-v3。新run存protocolVersion，执行/重试会写本轮版本，旧未记录的返回legacy/unrecorded。
+- 另修错误窗口检查：原32k UTF8字节并非32k token，误拒8位。改为1MB传输上限、不截断，真正token上下文由Jev服务端检查；实际上下文拒绝变NEEDS_REVIEW，不当0，不泄漏provider body。51项原重点测试已通过；新增完整中文长文与服务端拒绝测试正在match-window-tests-2（需看最终日志），TS/lint日志见match-window-*。
+- 官方docs live确认https://docs.typesafe.ai/models默认64k/request/32k/question，单位token；未启用Danger-Zone长上下文。别用豆包/tiktoken冒充Jev精确tokenizer。8个旧误拒candidate IDs可从93166da1...的results中error LIKE上下文读出，已在tool输出；需要在新运行版本下对原fixtureJD发限定反向run实际测，复用其他缓存。
+- 原reverse旧77review仍是老证据；当前还有输入源增补、正式RSI独立holdout评测、门户资料/附件/意向/分享/撤回、人工跟进/发布回执、完整SIWC管理/nativeAgent/tools、合同兼容盘点、数据链路HTML/交付/个人Feishu文档。不要停下或缩范围。
+- 下一步先接续新build、跑8位原窗口拒绝的真实Jev，提交匹配修正，再尽快完成剩余业务。精简分析，多实际执行；不要反复空转扩大可选范围。Ego恢复许可仍未回复，不得创建新TaskSpace或绕其他浏览器验收。

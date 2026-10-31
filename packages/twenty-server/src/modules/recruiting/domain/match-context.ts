@@ -227,6 +227,17 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
 };
 
 /** Keeps company background separate from the job-specific requirements and legacy snapshot. */
+export const buildCompanyMatchContext = (company?: MatchSource) =>
+  minimizeContext({
+    name: recruitingText(company?.name),
+    description: recruitingText(company?.recruitingDescription),
+    preferences: recruitingText(company?.recruitmentPreferences),
+    ...(['CLOSED', 'PAUSED'].includes(String(company?.recruitmentStatus))
+      ? { recruitmentStatus: String(company?.recruitmentStatus) }
+      : {}),
+  });
+
+/** Uses current company hiring state in eligibility without treating an unknown company status as closed. */
 export const buildJobMatchContext = (
   record: MatchSource,
   company?: MatchSource,
@@ -235,11 +246,7 @@ export const buildJobMatchContext = (
   const attributes = factTexts(record.jobAttributes).map((entry) =>
     entry.toLowerCase(),
   );
-  const companyContext = {
-    name: recruitingText(company?.name),
-    description: recruitingText(company?.recruitingDescription),
-    preferences: recruitingText(company?.recruitmentPreferences),
-  };
+  const companyContext = buildCompanyMatchContext(company);
   const context = {
     title: recruitingText(record.name),
     description:
@@ -276,6 +283,11 @@ export const buildJobMatchContext = (
         ),
     locationIds: cityValues(profile.locations),
   };
+  if (
+    company?.recruitmentStatus === 'CLOSED' ||
+    company?.recruitmentStatus === 'PAUSED'
+  )
+    eligibility.companyStatus = company.recruitmentStatus;
   if (
     !eligibility.employmentTypes?.length &&
     /实习/.test(context.title) &&

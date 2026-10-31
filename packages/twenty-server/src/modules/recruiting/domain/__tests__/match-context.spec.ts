@@ -8,6 +8,40 @@ import {
 import { evaluateRecruitingEligibility } from '../match-policy';
 
 describe('recruiting match context', () => {
+  it('excludes a paused company but retains unknown company states and invalidates only affected inputs', () => {
+    const job = {
+      id: 'job',
+      name: '后端',
+      jobStatus: 'RECRUITING',
+      jobDescription: { markdown: 'TypeScript服务' },
+    };
+    const open = buildJobMatchContext(job, {
+      id: 'company',
+      name: '公司',
+      recruitmentStatus: 'ACTIVE',
+    });
+    const unknown = buildJobMatchContext(job, {
+      id: 'company',
+      name: '公司',
+      recruitmentStatus: 'UNKNOWN',
+    });
+    const paused = buildJobMatchContext(job, {
+      id: 'company',
+      name: '公司',
+      recruitmentStatus: 'PAUSED',
+    });
+    expect(evaluateRecruitingEligibility({}, open.eligibility).status).toBe(
+      'eligible',
+    );
+    expect(unknown.companyVersion).toBe(open.companyVersion);
+    expect(evaluateRecruitingEligibility({}, paused.eligibility)).toMatchObject(
+      {
+        status: 'excluded',
+        reasons: [expect.objectContaining({ code: 'company_not_recruiting' })],
+      },
+    );
+    expect(paused.companyVersion).not.toBe(open.companyVersion);
+  });
   it('preserves Linux, Angular, Helm, OpenAI and Go even when a name overlaps their characters', () => {
     const result = minimizeRecruitingText(
       'Name: Go\nSkills: Go, Linux, Angular, Helm, OpenAI\n姓名：Li | TypeScript 后端',

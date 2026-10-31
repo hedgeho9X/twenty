@@ -74,19 +74,17 @@ const setup = () => {
     registry as unknown as AiModelRegistryService,
     locks as unknown as PostgresAdvisoryLockService,
   );
-  jest
-    .mocked(evaluate)
-    .mockResolvedValue({
-      answers: {
-        match: {
-          type: 'score',
-          score: 3.2,
-          probabilities: { '3': 0.8, '4': 0.2 },
-        },
+  jest.mocked(evaluate).mockResolvedValue({
+    answers: {
+      match: {
+        type: 'score',
+        score: 3.2,
+        probabilities: { '3': 0.8, '4': 0.2 },
       },
-      usage: { inputTokens: 100 },
-      response: { modelId: 'jev-resolved' },
-    } as never);
+    },
+    usage: { inputTokens: 100 },
+    response: { modelId: 'jev-resolved' },
+  } as never);
   return { evaluator, rows, records };
 };
 
@@ -157,7 +155,7 @@ describe('recruiting pair evaluator', () => {
           context,
           {
             id: 'large',
-            recruitingProfile: { sourceText: '职业经历'.repeat(20_000) },
+            recruitingProfile: { sourceText: '职业经历'.repeat(100_000) },
           },
           job,
           company,
@@ -167,15 +165,45 @@ describe('recruiting pair evaluator', () => {
     expect(evaluate).not.toHaveBeenCalled();
   });
 
-  it('persists an authorization failure without any upstream secret or zero score', async () => {
+  it('sends complete non-ASCII material above the old byte ceiling and lets Jev enforce its token window', async () => {
+    const { evaluator } = setup();
+    const text = '职业经历和具体项目。'.repeat(2000);
+    expect(Buffer.byteLength(text)).toBeGreaterThan(32000);
+    const result = await evaluator.run(
+      context,
+      { id: 'long', recruitingProfile: { sourceText: text } },
+      job,
+      company,
+    );
+    expect(result.status).toBe('SCORED');
+    const request = jest.mocked(evaluate).mock.calls[0][0];
+    expect(JSON.parse(request.state as string).resume.sourceText).toBe(text);
+  });
+
+  it('reports an actual provider context rejection as review-needed without a zero score or leaked response', async () => {
     const { evaluator, rows } = setup();
     jest
       .mocked(evaluate)
       .mockRejectedValue({
-        statusCode: 401,
-        message: 'secret upstream request',
-        headers: { Authorization: 'secret' },
+        statusCode: 400,
+        responseBody: 'context_length_exceeded: private material and secret',
       });
+    const result = await evaluator.run(context, candidate, job, company);
+    expect(result.status).toBe('NEEDS_REVIEW');
+    expect(result.score).toBeUndefined();
+    expect(JSON.stringify([...rows.values()])).not.toContain(
+      'private material',
+    );
+    expect(JSON.stringify([...rows.values()])).not.toContain('secret');
+  });
+
+  it('persists an authorization failure without any upstream secret or zero score', async () => {
+    const { evaluator, rows } = setup();
+    jest.mocked(evaluate).mockRejectedValue({
+      statusCode: 401,
+      message: 'secret upstream request',
+      headers: { Authorization: 'secret' },
+    });
     await expect(
       evaluator.run(context, candidate, job, company),
     ).rejects.toThrow(RecruitingEvaluationAuthError);

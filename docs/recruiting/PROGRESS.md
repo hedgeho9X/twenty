@@ -277,3 +277,10 @@
 
 - 发现全局按姓名字符串替换会误伤同名技术词片段：Li→Linux、An→Angular、He→Helm，以及Go/OpenAI。改为仅在明确姓名字段头部处理身份，联系方式和带凭据URL仍替换子串，职业技能完整保留。
 - 11项输入/约束回归通过，服务端TS/lint通过。输入版本会随实际修复后的上下文变化，旧评分不冒充新结果；最新代码尚待下一次重建生效。
+
+## Jev真实窗口与公司招聘状态
+
+- 客户端原把32k UTF8字节当32k token，造成中文误拒；现在只设1MB请求体积护栏，完整文本提交给Jev默认服务端窗口验证，不截断、不使用Danger-Zone长上下文头。真实上下文拒绝持久为NEEDS_REVIEW，失败不是0分、不保存provider原始错误内容。官方依据https://docs.typesafe.ai/models（64k/request、32k/question，单位token）。
+- 原先8位误拒候选人全部真实评分完成：bf87e31f-0af5-5230-b33e-4bf5fda49412，8/8、0失败，实际输入10046～16057 tokens。该验收只证明窗口与材料覆盖，不证明其岗位质量合适。旧规则未记版本的run显示legacy/unrecorded，新执行/重试存真实协议版本。
+- 公司PAUSED/CLOSED在模型前排除，未知公司状态不拒绝；公司状态修改进入原生增量监听。能力问题保持match-v0.1，保留历史能力缓存namespace，过滤/输入版本单独演进，避免无意义重复付费。当前有效岗公司44ACTIVE、2UNKNOWN、5fixture无状态，没有现有停招公司被误算。
+- 53项匹配/事件/规则重点测试、服务端TS/lint通过。正在另起完整反向回归，保留旧93166da1基线不覆盖，submission见full-reverse-v2-submission.json。

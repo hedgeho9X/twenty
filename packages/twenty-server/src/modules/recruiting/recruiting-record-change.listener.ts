@@ -17,9 +17,9 @@ import {
 } from './recruiting-records.service';
 import {
   buildCandidateMatchContext,
+  buildCompanyMatchContext,
   buildJobMatchContext,
   contentVersion,
-  recruitingText,
 } from './domain/match-context';
 
 /** Event snapshots stay in process; queues carry only source identities and actor references. */
@@ -72,11 +72,7 @@ export class RecruitingRecordChangeListener {
         );
       }
       const companyVersion = (record: RecruitingRecord) =>
-        contentVersion({
-          name: record.name,
-          description: recruitingText(record.recruitingDescription),
-          preferences: recruitingText(record.recruitmentPreferences),
-        });
+        contentVersion(buildCompanyMatchContext(record));
       return Boolean(
         before && companyVersion(before) !== companyVersion(after),
       );

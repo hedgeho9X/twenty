@@ -1,6 +1,8 @@
 /** Freezes the tested ability rubric; changes require a new protocol version and evaluation. */
 export const RECRUITING_MATCH_PROTOCOL = {
-  version: 'match-v0.1/context-v1/eligibility-v2',
+  version: 'match-v0.1/context-v2/eligibility-v3',
+  // The ability question is unchanged; filtering evolves independently from its existing paid-score cache namespace.
+  abilityCacheNamespace: 'match-v0.1/context-v1/eligibility-v2',
   question: {
     type: 'score' as const,
     instructions:

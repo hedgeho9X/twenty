@@ -50,6 +50,7 @@ export const recruitingMatchInputSchema = z
 /** Persistent progress and model evidence outlive Redis cleanup and worker restarts. */
 type MatchRunPayload = {
   version: 1;
+  protocolVersion?: string;
   input: z.infer<typeof recruitingMatchInputSchema>;
   inputHash: string;
   actor: RecruitingActor;
@@ -129,6 +130,7 @@ export class RecruitingMatchingService {
     }
     const payload: MatchRunPayload = {
       version: 1,
+      protocolVersion: RECRUITING_MATCH_PROTOCOL.version,
       input,
       inputHash,
       actor,
@@ -308,7 +310,7 @@ export class RecruitingMatchingService {
         !stale &&
         !inaccessible &&
         !poolChanged,
-      protocol: RECRUITING_MATCH_PROTOCOL.version,
+      protocol: payload.protocolVersion ?? 'legacy/unrecorded',
       notice:
         '相对前五仅表示能力排序；意向和未知条件需人工确认，不能直接作为录用或推荐决定。',
     };
@@ -420,6 +422,7 @@ export class RecruitingMatchingService {
       const results: RecruitingPairResult[] = [];
       let providerAuthorizationFailed = false;
       await save('PROCESSING', {
+        protocolVersion: RECRUITING_MATCH_PROTOCOL.version,
         targetIds: selected,
         results: [],
         startedAt: new Date().toISOString(),

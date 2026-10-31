@@ -18,6 +18,7 @@ export type CandidateEligibility = {
 /** Facts refer to the current job version; location IDs must be canonical city IDs. */
 export type JobEligibility = {
   status: 'RECRUITING' | 'CLOSED' | 'PAUSED' | 'NEEDS_DETAILS';
+  companyStatus?: 'CLOSED' | 'PAUSED';
   employmentTypes?: string[];
   workModes?: string[];
   locationIds?: string[];
@@ -64,6 +65,12 @@ export const evaluateRecruitingEligibility = (
   job: JobEligibility,
 ): EligibilityResult => {
   const reasons: EligibilityReason[] = [];
+  if (job.companyStatus)
+    reasons.push({
+      code: 'company_not_recruiting',
+      message: '公司当前已停止或暂停招聘',
+      blocking: true,
+    });
   if (job.status !== 'RECRUITING') {
     reasons.push({
       code: 'job_not_recruiting',
