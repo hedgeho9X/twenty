@@ -25,6 +25,8 @@ description: 操作本项目的招聘业务：公司与JD录入、候选人材�
 
 ## 恢复与边界
 
+- `draft greeting --candidate-id ID --job-id ID --note-file 说明.txt --key 唯一标识 --wait` 生成问候，岗位可省略；`draft publication --job-id ID --key 唯一标识 --wait` 生成岗位发布稿。用 `task get --kind draft --id ID`、`queue list --kind draft` 查询，`draft edit --id ID --items-file 文案.json` 保存 title/body。原生MCP对应draft_submit/draft_edit。API Key只能生成与编辑；直接用户会话可核对草稿，核对不代表已发送或发布。来源变更时需重新生成，重试不会覆盖已核对的人工正文。
+
 - 保留 intakeId/runId 继续 `task get` 或 `queue list`。队列丢失或失败可通过 `task retry`，不得直接编辑内部 result/payload；内部状态和评分缓存有完整性校验。
 - 原始文件、说明与邮件来源应完整保留。下载提示不等于已取得简历，不能声称模型理解了未获得的附件。
 - 匹配、问候、发布文案属于辅助结果。实际联系、推荐、发送、发布及候选人分享同意由相应的人确认；本技能不提供自动对外行动授权。

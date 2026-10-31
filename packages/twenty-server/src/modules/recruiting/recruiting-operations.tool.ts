@@ -19,10 +19,27 @@ import {
   recruitingMatchInputSchema,
 } from './recruiting-matching.service';
 import { intakeFileSchema, jobProfilesSchema } from './recruiting-schemas';
+import {
+  RecruitingDraftsService,
+  recruitingDraftInputSchema,
+} from './recruiting-drafts.service';
 
 const offset = z.number().int().nonnegative().default(0);
-const task = { taskId: z.string().uuid(), kind: z.enum(['intake', 'match']) };
+const task = {
+  taskId: z.string().uuid(),
+  kind: z.enum(['intake', 'match', 'draft']),
+};
 const operationsSchema = z.discriminatedUnion('operation', [
+  z.object({
+    operation: z.literal('draft_submit'),
+    request: recruitingDraftInputSchema,
+  }),
+  z.object({
+    operation: z.literal('draft_edit'),
+    draftId: z.string().uuid(),
+    title: z.string().max(1000),
+    body: z.string().min(1).max(100_000),
+  }),
   z.object({
     operation: z.literal('companies_search'),
     search: z.string().default(''),
@@ -97,7 +114,7 @@ const operationsSchema = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('task_retry'), ...task }),
   z.object({
     operation: z.literal('queue_list'),
-    kind: z.enum(['intake', 'match']),
+    kind: z.enum(['intake', 'match', 'draft']),
     offset,
   }),
   z.object({
@@ -125,6 +142,7 @@ export class RecruitingOperationsTool extends BaseTool<
     private readonly uploads: RecruitingUploadService,
     private readonly intakes: RecruitingIntakeService,
     private readonly matching: RecruitingMatchingService,
+    private readonly drafts: RecruitingDraftsService,
   ) {
     super();
   }
@@ -138,6 +156,15 @@ export class RecruitingOperationsTool extends BaseTool<
       const auth = await this.authorization.resolve(context);
       let result: object;
       switch (input.operation) {
+        case 'draft_submit':
+          result = await this.drafts.submit(auth, input.request);
+          break;
+        case 'draft_edit':
+          result = await this.drafts.review(auth, input.draftId, {
+            title: input.title,
+            body: input.body,
+          });
+          break;
         case 'companies_search':
           result = await this.directory.companies(
             auth,
@@ -197,19 +224,25 @@ export class RecruitingOperationsTool extends BaseTool<
           result =
             input.kind === 'intake'
               ? await this.intakes.one(auth, input.taskId)
-              : await this.matching.one(auth, input.taskId);
+              : input.kind === 'draft'
+                ? await this.drafts.one(auth, input.taskId)
+                : await this.matching.one(auth, input.taskId);
           break;
         case 'task_retry':
           result =
             input.kind === 'intake'
               ? await this.intakes.retry(auth, input.taskId)
-              : await this.matching.retry(auth, input.taskId);
+              : input.kind === 'draft'
+                ? await this.drafts.retry(auth, input.taskId)
+                : await this.matching.retry(auth, input.taskId);
           break;
         case 'queue_list':
           result =
             input.kind === 'intake'
               ? await this.intakes.list(auth, input.offset)
-              : await this.matching.list(auth, input.offset);
+              : input.kind === 'draft'
+                ? await this.drafts.list(auth, input.offset)
+                : await this.matching.list(auth, input.offset);
           break;
         case 'match_start':
           result = await this.matching.submit(auth, input.request);

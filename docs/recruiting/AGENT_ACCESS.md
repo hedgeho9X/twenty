@@ -25,3 +25,11 @@ JD 预览返回稳定 itemId。jobs_confirm 的 items 包含 itemId 与编辑后
 - CLI真实公司查询通过，5项客户端测试通过；工具身份与429边界8项测试通过。完整前端视觉验收及草稿/人工跟进入口仍未完成。
 
 详细请求与私有结果仅存于被忽略的 `.local/recruiting/`。以上都是本地合成验证，不代表生产验收，也不代表匹配质量评测完成。
+
+## 4. 问候与发布草稿
+
+`POST /recruiting/drafts` 接受 GREETING（candidateId必填，jobId可选）或 JOB_PUBLICATION（jobId必填）、note和idempotencyKey。返回draftId；GET列表/详情、POST retry/review共用同一服务。原生MCP新增draft_submit/draft_edit，并支持kind=draft的task_get/task_retry/queue_list；CLI新增draft greeting/publication/edit。
+
+模型输出先持久化checkpoint，再更新可读文案。写回失败可恢复，复用已保存的完整生成结果；来源职业内容/岗位/公司变化会标过期，核对时再次检查。人工编辑的已核对正文不会被普通retry覆盖。review默认只保存；approve要求直接用户会话，API Key、应用和带Agent委托的身份均不能确认。核对、实际发送、实际发布是独立行为，当前草稿接口没有消息或发布传输能力。
+
+本地已实测两种草稿均由真实订阅模型生成，重复提交同ID，Key核对403，直接会话核对成功，retry保留原文。来源变化、checkpoint恢复、权限丢失及正文完整性有9项测试。页面仍需浏览器验收。

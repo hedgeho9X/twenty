@@ -70,7 +70,7 @@ export const waitForRecruitingTask = async (
   const started = Date.now();
   while (Date.now() - started <= timeoutMs) {
     const value = await client.request(
-      `/recruiting/${kind === 'intake' ? 'resume-intakes' : 'match-runs'}/${encodeURIComponent(id)}`,
+      `/recruiting/${kind === 'intake' ? 'resume-intakes' : kind === 'draft' ? 'drafts' : 'match-runs'}/${encodeURIComponent(id)}`,
     );
     if (
       kind === 'intake'
@@ -118,7 +118,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   });
   if (values.help || !positionals.length) {
     console.log(
-      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; match candidate|job|pair; task get|retry; queue list. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
+      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; match candidate|job|pair; draft greeting|publication|edit; task get|retry; queue list. Task kind: intake|match|draft. Draft generation never sends or publishes. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
     );
     return;
   }
@@ -156,6 +156,21 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   else if (group === 'subjects' && ['candidates', 'jobs'].includes(action))
     result = await client.request(
       `/recruiting/${action}?search=${encodeURIComponent(values.query ?? '')}${values['company-id'] ? `&companyId=${encodeURIComponent(values['company-id'])}` : ''}`,
+    );
+  else if (group === 'draft' && ['greeting', 'publication'].includes(action)) {
+    result = await client.post('drafts', {
+      kind: action === 'greeting' ? 'GREETING' : 'JOB_PUBLICATION',
+      candidateId: action === 'greeting' ? required('candidate-id') : undefined,
+      jobId: action === 'publication' ? required('job-id') : values['job-id'],
+      note,
+      idempotencyKey: key,
+    });
+    taskKind = 'draft';
+    taskId = result.draftId;
+  } else if (group === 'draft' && action === 'edit')
+    result = await client.post(
+      `drafts/${encodeURIComponent(required('id'))}/review`,
+      JSON.parse(await readFile(resolve(required('items-file')), 'utf8')),
     );
   else if (group === 'resume' && action === 'upload') {
     if (values.file?.length !== 1)
@@ -240,9 +255,9 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     taskId = result.runId;
   } else if (group === 'task' && ['get', 'retry'].includes(action)) {
     const kind = values.kind;
-    if (!['intake', 'match'].includes(kind))
-      throw new Error('--kind must be intake or match');
-    const path = `${kind === 'intake' ? 'resume-intakes' : 'match-runs'}/${encodeURIComponent(required('id'))}`;
+    if (!['intake', 'match', 'draft'].includes(kind))
+      throw new Error('--kind must be intake, match or draft');
+    const path = `${kind === 'intake' ? 'resume-intakes' : kind === 'draft' ? 'drafts' : 'match-runs'}/${encodeURIComponent(required('id'))}`;
     result =
       action === 'retry'
         ? await client.post(`${path}/retry`, {})
@@ -251,7 +266,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     taskId = values.id;
   } else if (group === 'queue' && action === 'list')
     result = await client.request(
-      `/recruiting/${values.kind === 'match' ? 'match-runs' : 'resume-intakes'}?offset=${Number(values.offset) || 0}`,
+      `/recruiting/${values.kind === 'match' ? 'match-runs' : values.kind === 'draft' ? 'drafts' : 'resume-intakes'}?offset=${Number(values.offset) || 0}`,
     );
   else throw new Error('Unknown command; run with --help');
   if (values.wait && taskId)
