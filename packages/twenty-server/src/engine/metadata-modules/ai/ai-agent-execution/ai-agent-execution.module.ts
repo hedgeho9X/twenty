@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ApiKeyModule } from 'src/engine/core-modules/api-key/api-key.module';
 import { ApplicationLookupModule } from 'src/engine/core-modules/application/application-lookup/application-lookup.module';
 import { FileEntity } from 'src/engine/core-modules/file/entities/file.entity';
+import { FileModule } from 'src/engine/core-modules/file/file.module';
 import { FileUrlModule } from 'src/engine/core-modules/file/file-url/file-url.module';
 import { MetricsModule } from 'src/engine/core-modules/metrics/metrics.module';
 import { PendingWakeUpEntity } from 'src/engine/core-modules/pending-wake-up/entities/pending-wake-up.entity';
@@ -58,6 +59,7 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
     ApiKeyModule,
     ApplicationLookupModule,
     FileUrlModule,
+    FileModule,
     MetricsModule,
     PendingWakeUpModule,
     UserWorkspaceModule,
