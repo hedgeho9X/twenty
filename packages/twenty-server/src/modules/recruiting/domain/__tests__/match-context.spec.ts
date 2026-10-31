@@ -8,6 +8,26 @@ import {
 import { evaluateRecruitingEligibility } from '../match-policy';
 
 describe('recruiting match context', () => {
+  it('preserves Linux, Angular, Helm, OpenAI and Go even when a name overlaps their characters', () => {
+    const result = minimizeRecruitingText(
+      'Name: Go\nSkills: Go, Linux, Angular, Helm, OpenAI\n姓名：Li | TypeScript 后端',
+      ['Go', 'Li', 'An', 'He', 'AI'],
+    );
+    expect(result).toContain('Name: [候选人]');
+    expect(result).toContain('姓名：[候选人] | TypeScript 后端');
+    expect(result).toContain('Skills: Go, Linux, Angular, Helm, OpenAI');
+    expect(
+      buildCandidateMatchContext({
+        id: 'p',
+        name: { firstName: 'Li' },
+        recruitingProfile: {
+          summary: 'Linux 开发',
+          skills: ['Linux', 'OpenAI'],
+          experience: ['Go 与 Linux 服务'],
+        },
+      }).context.skills,
+    ).toEqual(['Linux', 'OpenAI']);
+  });
   it('preserves a complete technical line containing contact information', () => {
     const result = minimizeRecruitingText(
       '位情情：TypeScript 后端，mail@example.com，13812345678',

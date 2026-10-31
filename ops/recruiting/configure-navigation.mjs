@@ -12,6 +12,7 @@ const internalObjects = new Set([
   '00419050-26ce-41a8-80be-d797aa85a4bf',
   'b96479b9-0737-4a07-a697-30af6e255c71',
   '8d6c8cc7-d8e2-40cc-b3e8-df1c96b29f09',
+  '0e791f28-ea3c-4c92-adc9-d4b27b201af2',
 ]);
 const legacyLabels = new Set([
   '匹配跟进 · 复制话术',

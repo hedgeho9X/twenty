@@ -30,14 +30,27 @@ export const recruitingText = (value: unknown): string => {
   return typeof rich.markdown === 'string' ? rich.markdown : '';
 };
 
-/** Replaces contact substrings while preserving technical experience on the same line. */
+/** Redacts contact substrings and explicit name headers without treating matching skill fragments as identities. */
 export const minimizeRecruitingText = (
   text: string,
   names: string[] = [],
 ): string => {
-  let result = text;
-  for (const name of names.filter((entry) => entry.length >= 2))
-    result = result.split(name).join('[候选人]');
+  const identities = [
+    ...new Set(names.filter((entry) => entry.trim().length >= 2)),
+  ].sort((a, b) => b.length - a.length);
+  const result = text.replace(
+    /^([ \t]*(?:姓名|name)[ \t]*[:：][ \t]*)([^\r\n]*)/gim,
+    (_match, label: string, value: string) => {
+      const identity = identities.find(
+        (name) =>
+          value.startsWith(name) &&
+          (!value[name.length] || /[\s|｜,，;；]/u.test(value[name.length])),
+      );
+      return identity
+        ? `${label}[候选人]${value.slice(identity.length)}`
+        : `${label}${value}`;
+    },
+  );
   return result
     .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[邮箱]')
     .replace(/https?:\/\/[^\s<>"，。；（）)]+/giu, '[链接]')
