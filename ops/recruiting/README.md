@@ -4,6 +4,8 @@
 
 使用仓库要求的 Node 26。依赖安装使用仓库内固定的 `.yarn/releases/yarn-4.18.1.cjs`；CLI workspace 的 package name 是 `twenty`。
 
+以 `.nvmrc` 的 Node 26.12.1 为准。本地运行器会把 `ops/recruiting/bin/yarn` 加到子进程 PATH，使 Nx 使用仓库固定的 Yarn，而不要求修改系统全局安装。
+
 运行 `node ops/recruiting/local.mjs init` 创建私有配置，再运行 `node ops/recruiting/local.mjs up` 启动独立 PostgreSQL 和 Valkey。
 
 数据连接限定 `127.0.0.1:25432/recruiting`，缓存使用 `26379`；UI 预留 `http://localhost:23000`，源码 API 监听 `23001`。配置和文件放在 Git 忽略的 `.local/recruiting/`，不得提交。
@@ -23,3 +25,13 @@
 附件复制到独立本地存储，业务数量及隔离状态写入私有 `import-report.json`。旧记录内容和新版 schema 的兼容性、文件可下载性还需后续验证，不能仅凭导入退出码判断。
 
 以上是运行方式；真实启动、数据迁移与页面验收状态以 `docs/recruiting/PROGRESS.md` 为准。
+
+## 离线匹配评测
+
+`node ops/recruiting/evaluate-cache.mjs --source <实验work目录>` 校验完整输入哈希、模型缓存和覆盖率，输出到私有 `.local/recruiting/evaluations/cache-baseline/`。缺失、陈旧或重复评分不能冒充完整结果。
+
+可传 `--constraints <JSON>` 和 `--labels <JSON>`。条件格式为 `{candidates:{id:{employmentTypes:{values:["full_time"],certainty:"confirmed"}}},jobs:{id:{employmentTypes:["internship"]}}}`；只能输入从原话/人工确认核实的条件，未知不能猜成 confirmed。标签数组每项包含 candidateId、jobId、label、reviewerType、依据；未标注不是负样本。
+
+这只是缓存回放与规则验证，不发模型请求。历史 30 人的分组不是未见测试集，也不能把原有 Agent 审阅当用户确认的标准答案。新增协议需要独立材料复核和未见样本验证。
+
+回归命令：`node --test ops/recruiting/evaluate-cache.test.mjs`；领域规则使用仓库 twenty-server 的 Jest 配置执行 `match-policy.spec.ts`。
