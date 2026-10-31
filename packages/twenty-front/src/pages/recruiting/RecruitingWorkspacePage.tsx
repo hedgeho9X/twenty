@@ -12,6 +12,7 @@ import { RecruitingMatchResults } from '@/recruiting/components/RecruitingMatchR
 import { RecruitingCompanyJobs } from '@/recruiting/components/RecruitingCompanyJobs';
 import { RecruitingManualMatch } from '@/recruiting/components/RecruitingManualMatch';
 import { RecruitingDrafts } from '@/recruiting/components/RecruitingDrafts';
+import { RecruitingMailSources } from '@/recruiting/components/RecruitingMailSources';
 import {
   StyledRecruitingBody,
   StyledRecruitingWorkspace,
@@ -52,6 +53,7 @@ export const RecruitingWorkspacePage = () => {
           <Tabs.List aria-label={t`招聘工作区`}>
             <Tabs.Tab value="companies">{t`公司与岗位`}</Tabs.Tab>
             <Tabs.Tab value="resumes">{t`候选人入库`}</Tabs.Tab>
+            <Tabs.Tab value="mail">{t`邮件材料`}</Tabs.Tab>
             <Tabs.Tab value="matches">{t`匹配待查看`}</Tabs.Tab>
             <Tabs.Tab value="manual">{t`手动匹配`}</Tabs.Tab>
             <Tabs.Tab value="drafts">{t`问候与发布草稿`}</Tabs.Tab>
@@ -76,6 +78,12 @@ export const RecruitingWorkspacePage = () => {
             <RecruitingCandidateIntake
               key={candidateId ?? 'new'}
               existingCandidateId={candidateId}
+              onSubmitted={() => setHasNewTasks(true)}
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="mail" keepMounted>
+            <RecruitingMailSources
+              active={tab === 'mail'}
               onSubmitted={() => setHasNewTasks(true)}
             />
           </Tabs.Panel>

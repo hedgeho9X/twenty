@@ -3,12 +3,10 @@ import { SESSION_COOKIE_OPT_IN_HEADER_NAME } from 'twenty-shared/constants';
 import { REACT_APP_SERVER_BASE_URL } from '~/config';
 import { type RecruitingUpload } from '@/recruiting/types/RecruitingUpload';
 import { t } from '@lingui/core/macro';
+import { saveAs } from 'file-saver';
 
 /** Preserves server errors without exposing stack traces or transport headers. */
-export const recruitingRequest = async <T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> => {
+const recruitingResponse = async (path: string, options: RequestInit = {}) => {
   const headers = new Headers(options.headers);
   if (!(options.body instanceof FormData) && !headers.has('content-type'))
     headers.set('content-type', 'application/json');
@@ -17,6 +15,7 @@ export const recruitingRequest = async <T>(
     `${REACT_APP_SERVER_BASE_URL.replace(/\/$/, '')}/recruiting/${path}`,
     {
       ...options,
+      redirect: 'error',
       credentials: 'include',
       signal: options.signal
         ? AbortSignal.any([options.signal, AbortSignal.timeout(60_000)])
@@ -24,8 +23,8 @@ export const recruitingRequest = async <T>(
       headers,
     },
   );
-  const body: unknown = await response.json();
   if (!response.ok) {
+    const body: unknown = await response.json();
     const message =
       body && typeof body === 'object' && 'message' in body
         ? body.message
@@ -36,8 +35,24 @@ export const recruitingRequest = async <T>(
         : t`请求未完成，请检查权限或稍后重试`,
     );
   }
-  return body as T;
+  return response;
 };
+
+/** Reads JSON only after native session authorization and error handling succeed. */
+export const recruitingRequest = async <T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> => (await recruitingResponse(path, options)).json() as Promise<T>;
+
+/** Fetches private binary artifacts with the same cookie opt-in as ordinary recruiting API requests. */
+export const recruitingBlob = async (path: string): Promise<Blob> =>
+  (await recruitingResponse(path)).blob();
+
+/** Downloads untrusted source bytes without opening an executable HTML document in the CRM origin. */
+export const downloadRecruitingArtifact = async (
+  path: string,
+  filename: string,
+) => saveAs(await recruitingBlob(path), filename);
 
 /** Uses native upload targets and quarantine completion while retaining a caller-bound submission receipt. */
 export const uploadRecruitingFile = async (
