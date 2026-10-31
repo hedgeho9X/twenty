@@ -46,7 +46,7 @@
 
 ## 未完成的外部依赖
 
-- ChatGPT 订阅仍需 Jerry 本人登录授权；不以旧 sidecar 启动代替验收。
+- 新 SIWC 账号连接仍需本人授权；已发现可复用的本机 Codex ChatGPT 登录，并完成真实文本及 AI SDK 结构化验证。原 auth 文件只读且已验证内容不变，不复制/刷新原登录 Token，不使用旧 sidecar。
 - 旧临时火山 Key 在实验结束已删除。当前默认逐对 Jev 不依赖重新 embedding；后续若需要真实 Embedding 调用应使用明确授权的可用凭据。
 - 不向远程 GitHub 或生产提交任何改动。
 
@@ -73,3 +73,29 @@
 - `server-build.log` 记录官方源码构建，`parser-build.log` 记录解析镜像构建。CPU torch 2.15.0、CPU torchvision 0.29.1 已选定，避免引入无用 CUDA 依赖。
 - Docker Hub DNS 超时通过宿主机代理下载官方镜像再 docker load 处理；Python 基础镜像平台 digest 为 `sha256:e0b3f8d16a5ccfbe602d5c94297e5dbcda2ec256edca2b80fcd44e39e1ff6feb`。
 - 不把基础设施、解析单测或静态构建当应用验收；新 UI/API、升级、上传与 Agent 流程尚未打通。
+
+## 官方源码运行与升级
+
+- Nx 本机项目发现无输出等待；直接执行各包已提交 project.json 中的同一编译命令成功。`ops/recruiting/build-source.mjs` 复用这些目标，未维护另一套编译参数。
+- 9543 个服务端文件编译成功；共享包、客户端 SDK、邮件模板和 SDK assets 已构建。
+- 已为子进程提供仓库固定 Yarn 的本地 wrapper，无需全局安装。
+- 发现 internal bridge 不发布端口：HostConfig 有 25432 映射而 NetworkSettings 为 null。仅重建 B 的网络/容器并保留卷后，宿主机源码可连接；A 未改动。
+- 官方 instance 升级与 `upgrade --workspace-count-limit 1` 工作区升级均成功；10 个 deferred index 操作由仅启用 workspace-queue 的 worker 完成。
+- 源码 API `127.0.0.1:23001` 启动并通过原账号认证；GraphQL 实查公司 53、岗位 166、联系人 925。UI 尚未启动，不能称页面登录验收完成。
+- 原自动工作流仍为 0 ACTIVE。后台升级 worker 只启用了 workspace-queue。
+- 通过官方元数据 API 建立 3 个招聘内部对象及资料字段，见 `schema-bootstrap-report.json`；bootstrap 可恢复执行，不手写业务建表 SQL。
+
+## 解析容器验证
+
+- `twenty-recruiting-parser-1` Healthy，端口仅 `127.0.0.1:23003`，原件/模型只读挂载，输出独立，非 root 用户，6GB/4CPU 限额。
+- 使用 CPU torch 2.15.0 和 CPU torchvision 0.29.1，不含 CUDA 运行依赖。
+- 合成 DOCX 与 LibreOffice 生成的旧 DOC 均真实通过容器 HTTP：complete、各 2 页、中文和 TypeScript 文字可回读，预览无丢页。
+- TXT、长 Markdown 渲染与 HTML 主动内容隔离的 6 项测试通过；图片/PDF 本机 CPU 实测各 1 页成功。仍需完整中文扫描与真实格式样本回归及业务入口集成。
+
+## 订阅进程内实现
+
+- `chatgpt-subscription/subscription-fetch.ts` 已实现 Codex/SIWC 路由分离、SSE 终止校验、非流式 Responses JSON 聚合和 SOCKS 传输；8 项测试、独立 TS 检查通过。
+- 已扩展官方 Provider authType=chatgpt 和 subscriptionAccountId，SdkProviderFactory 直接生成 OpenAI Responses 模型，不另启代理服务。
+- 本机账号模型目录实际显示 gpt-5.6-sol/terra/luna；不能使用示例里的 gpt-6.1 代替账户可用模型。
+- 真实文本请求 response.completed，31 tokens；AI SDK Output.object 实测通过，211 tokens，category/expectedRoles 正确；原登录文件不变。
+- 模型注册、设置页、图片/工具调用、SIWC 新账号连接与刷新管理仍待完成；当前不能报告整个订阅功能已验收。

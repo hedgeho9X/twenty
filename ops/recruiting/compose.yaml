@@ -22,9 +22,32 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+  parser:
+    image: twenty-recruiting/parser:docling-2.145.0
+    profiles: [parser]
+    build: ./parser
+    user: "${RECRUITING_UID:-501}:${RECRUITING_GID:-20}"
+    env_file: ../../.local/recruiting/parser.env
+    environment:
+      HOME: /tmp
+    ports: ["127.0.0.1:23003:8000"]
+    volumes:
+      - ../../.local/recruiting/storage:/data/input:ro
+      - ../../.local/recruiting/parser-output:/data/output
+      - ../../.local/recruiting/models:/models:ro
+    read_only: true
+    tmpfs: ["/tmp:size=1g"]
+    shm_size: 256mb
+    mem_limit: 6g
+    cpus: 4
+    networks: [local]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz',timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
 networks:
-  local:
-    internal: true
+  local: {}
 volumes:
   database:
   cache:

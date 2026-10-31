@@ -1,7 +1,7 @@
 /** Runs the source checkout against a dedicated OrbStack database and cache. */
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -9,15 +9,29 @@ const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const privateDirectory = join(repository, '.local/recruiting');
 const environmentPath = join(privateDirectory, 'environment.json');
 const serverDirectory = join(repository, 'packages/twenty-server');
-const composeArguments = ['compose', '-f', join(repository, 'ops/recruiting/compose.yaml')];
+const composeArguments = [
+  'compose',
+  '-f',
+  join(repository, 'ops/recruiting/compose.yaml'),
+];
 
 /** Starts a foreground child without exposing environment credentials as arguments. */
-const run = (binary, arguments_, environment = process.env, cwd = repository) => {
+const run = (
+  binary,
+  arguments_,
+  environment = process.env,
+  cwd = repository,
+) => {
   const child = spawnSync(binary, arguments_, {
-    cwd, env: environment, stdio: 'inherit',
+    cwd,
+    env: environment,
+    stdio: 'inherit',
   });
   if (child.error) throw child.error;
-  if (child.status !== 0) throw new Error(`Command failed: ${binary} (${child.status ?? child.signal})`);
+  if (child.status !== 0)
+    throw new Error(
+      `Command failed: ${binary} (${child.status ?? child.signal})`,
+    );
 };
 
 /** Creates private configuration once; subsequent invocations retain all secrets. */
@@ -57,44 +71,166 @@ const initialize = async () => {
       DISABLE_WORKSPACE_CRON_JOBS_REGISTRATION: 'true',
       IS_WORKSPACE_CREATION_LIMITED_TO_SERVER_ADMINS: 'false',
     };
-    await writeFile(environmentPath, JSON.stringify(environment, null, 2), { mode: 0o600, flag: 'wx' });
+    await writeFile(environmentPath, JSON.stringify(environment, null, 2), {
+      mode: 0o600,
+      flag: 'wx',
+    });
   }
   const database = new URL(environment.PG_DATABASE_URL);
-  if (database.hostname !== '127.0.0.1' || database.port !== '25432' || database.pathname !== '/recruiting') {
-    throw new Error('Refusing a database outside the dedicated local recruiting environment');
+  if (
+    database.hostname !== '127.0.0.1' ||
+    database.port !== '25432' ||
+    database.pathname !== '/recruiting'
+  ) {
+    throw new Error(
+      'Refusing a database outside the dedicated local recruiting environment',
+    );
   }
-  await writeFile(join(privateDirectory, 'postgres.env'),
+  await writeFile(
+    join(privateDirectory, 'postgres.env'),
     `POSTGRES_USER=twenty\nPOSTGRES_DB=recruiting\nPOSTGRES_PASSWORD=${database.password}\n`,
-    { mode: 0o600 });
-  return { ...process.env, ...environment };
+    { mode: 0o600 },
+  );
+  const parserDefaults = {
+    RECRUITING_PARSER_TOKEN: randomBytes(32).toString('hex'),
+    RECRUITING_PARSER_URL: 'http://127.0.0.1:23003',
+    RECRUITING_UID: String(process.getuid()),
+    RECRUITING_GID: String(process.getgid()),
+  };
+  let changed = false;
+  for (const [key, value] of Object.entries(parserDefaults)) {
+    if (environment[key] === undefined) {
+      environment[key] = value;
+      changed = true;
+    }
+  }
+  if (changed)
+    await writeFile(environmentPath, JSON.stringify(environment, null, 2), {
+      mode: 0o600,
+    });
+  await mkdir(join(privateDirectory, 'parser-output'), {
+    recursive: true,
+    mode: 0o700,
+  });
+  await writeFile(
+    join(privateDirectory, 'parser.env'),
+    `RECRUITING_PARSER_TOKEN=${environment.RECRUITING_PARSER_TOKEN}\nHF_HUB_OFFLINE=1\nTRANSFORMERS_OFFLINE=1\n`,
+    { mode: 0o600 },
+  );
+  return {
+    ...process.env,
+    ...environment,
+    PATH: [
+      join(repository, 'ops/recruiting/bin'),
+      dirname(process.execPath),
+      process.env.PATH,
+    ].join(delimiter),
+  };
 };
 
 /** Refuses Docker mutations when another context is selected. */
 const assertOrbStack = () => {
   const result = spawnSync('docker', ['context', 'show'], { encoding: 'utf8' });
   if (result.status !== 0 || result.stdout.trim() !== 'orbstack') {
-    throw new Error('Select the local orbstack Docker context before continuing');
+    throw new Error(
+      'Select the local orbstack Docker context before continuing',
+    );
   }
 };
 
 const [action = 'help', ...arguments_] = process.argv.slice(2);
-if (['init', 'up', 'down', 'build', 'api', 'worker', 'front', 'command', 'database-init'].includes(action)) {
+if (
+  [
+    'init',
+    'up',
+    'down',
+    'parser-up',
+    'build',
+    'api',
+    'worker',
+    'front',
+    'command',
+    'database-init',
+  ].includes(action)
+) {
   const environment = await initialize();
-  if (action === 'init') console.log('Private recruiting configuration is ready');
+  if (action === 'init')
+    console.log('Private recruiting configuration is ready');
   if (action === 'up' || action === 'down') {
     assertOrbStack();
-    run('docker', [...composeArguments, action, ...(action === 'up' ? ['-d', '--wait'] : [])]);
+    run('docker', [
+      ...composeArguments,
+      action,
+      ...(action === 'up' ? ['-d', '--wait'] : []),
+    ]);
   }
-  if (action === 'build') run(process.execPath, ['node_modules/nx/bin/nx.js', 'run', 'twenty-server:build', '--skip-nx-cache'], environment);
-  if (action === 'api') run(process.execPath, ['dist/main.js'], environment, serverDirectory);
-  if (action === 'worker') run(process.execPath, ['dist/queue-worker/queue-worker.js'], environment, serverDirectory);
-  if (action === 'front') run(process.execPath, ['node_modules/vite/bin/vite.js', '--config', 'packages/twenty-front/vite.config.ts', '--strictPort'], environment);
-  if (action === 'command') run(process.execPath, ['dist/command/command.js', ...arguments_], environment, serverDirectory);
+  if (action === 'parser-up') {
+    assertOrbStack();
+    run(
+      'docker',
+      [
+        ...composeArguments,
+        '--profile',
+        'parser',
+        'up',
+        '-d',
+        '--wait',
+        'parser',
+      ],
+      environment,
+    );
+  }
+  if (action === 'build')
+    run(process.execPath, ['ops/recruiting/build-source.mjs'], environment);
+  if (action === 'api')
+    run(process.execPath, ['dist/main.js'], environment, serverDirectory);
+  if (action === 'worker')
+    run(
+      process.execPath,
+      ['dist/queue-worker/queue-worker.js'],
+      environment,
+      serverDirectory,
+    );
+  if (action === 'front')
+    run(
+      process.execPath,
+      [
+        'node_modules/.bin/vite',
+        '--config',
+        'packages/twenty-front/vite.config.ts',
+        '--strictPort',
+      ],
+      environment,
+    );
+  if (action === 'command')
+    run(
+      process.execPath,
+      ['dist/command/command.js', ...arguments_],
+      environment,
+      serverDirectory,
+    );
   if (action === 'database-init') {
-    run(process.execPath, ['dist/database/scripts/setup-db.js'], environment, serverDirectory);
-    run(process.execPath, ['dist/command/command.js', 'run-instance-commands', '--force', '--include-slow'], environment, serverDirectory);
+    run(
+      process.execPath,
+      ['dist/database/scripts/setup-db.js'],
+      environment,
+      serverDirectory,
+    );
+    run(
+      process.execPath,
+      [
+        'dist/command/command.js',
+        'run-instance-commands',
+        '--force',
+        '--include-slow',
+      ],
+      environment,
+      serverDirectory,
+    );
   }
 } else {
-  console.log('Usage: node ops/recruiting/local.mjs init|up|down|build|database-init|api|front|worker|command');
+  console.log(
+    'Usage: node ops/recruiting/local.mjs init|up|down|build|database-init|api|front|worker|command',
+  );
   if (action !== 'help') process.exitCode = 1;
 }
