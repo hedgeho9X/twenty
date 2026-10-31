@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>泛函招聘系统 · 数据链路</title>
+  <style>
+    :root{color-scheme:light;--bg:#f6f8f7;--paper:#fff;--ink:#192b24;--muted:#64776d;--line:#d9e3dd;--green:#226b4e;--tint:#edf5f0}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+    main{max-width:1200px;margin:auto;padding:40px 28px 70px}header{margin-bottom:28px}.eyebrow{font-size:12px;letter-spacing:.16em;color:var(--green)}h1{font-size:34px;line-height:1.25;margin:8px 0 14px;letter-spacing:-.04em}h2{font-size:20px;margin:0 0 12px}h3{font-size:16px;margin:0 0 6px}p{margin:0 0 12px}.muted{color:var(--muted)}
+    .lanes{display:grid;grid-template-columns:1fr 1fr;gap:16px}.panel{padding:24px;background:var(--paper);border:1px solid var(--line);border-radius:16px}.lane{display:flex;flex-direction:column;gap:10px}.step{font:inherit;text-align:left;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);cursor:pointer}.step strong,.step small{display:block}.step small{color:var(--muted)}.step:hover,.step[aria-pressed=true]{background:var(--tint);border-color:var(--green)}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var(--green);outline-offset:3px}.arrow{text-align:center;color:var(--muted);font-size:12px}
+    .shared{margin-top:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.detail{margin-top:20px;border-left:4px solid var(--green)}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px}ul{padding-left:20px;margin:8px 0 0}li{margin:4px 0}.tag{font-size:12px;color:var(--green)}.boundary{margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:16px}details{margin-top:12px}summary{cursor:pointer;font-weight:600}code{font-size:12px;background:var(--tint);padding:2px 5px;border-radius:4px}footer{margin-top:26px;color:var(--muted);font-size:12px}a{color:var(--green)}
+    @media(max-width:760px){main{padding:24px 16px}.lanes,.shared,.boundary,.detail-grid{grid-template-columns:1fr}h1{font-size:28px}}
+    @media print{body{background:white}.panel{break-inside:avoid}.detail{display:none}.step{cursor:default}main{padding:0}}
+  </style>
+</head>
+<body><main>
+  <header><p class="eyebrow">TWENTY · RECRUITING / 本地重建</p><h1>两类材料，一套处理与匹配链路</h1><p class="muted">先保留原件，再整理为业务记录；匹配独立排队，最后由运营确认行动。点击节点查看输入、输出和失败处理。</p></header>
+  <section class="lanes" aria-label="两条材料入口">
+    <article class="panel lane"><h2>公司与岗位</h2>
+      <button class="step" data-step="company" aria-pressed="false"><strong>① 搜索公司，必要时就地创建</strong><small>名称、域名、公司简介与招聘偏好</small></button>
+      <div class="arrow">↓ 选定同一家公司，可批量提交</div>
+      <button class="step" data-step="jd" aria-pressed="false"><strong>② 上传 / 粘贴 JD ＋可选说明</strong><small>统一岗位接口，保留每项来源与稳定 itemId</small></button>
+      <div class="arrow">↓ 文件解析 → 结构化预览</div>
+      <button class="step" data-step="confirm" aria-pressed="false"><strong>③ 编辑预览，逐项确认岗位</strong><small>改名、补充、忽略；部分失败单独恢复</small></button>
+    </article>
+    <article class="panel lane"><h2>候选人与邮件</h2>
+      <button class="step" data-step="sources" aria-pressed="false"><strong>① 运营上传 / API / 本人邮箱</strong><small>文件＋可选说明；邮件保留全部原始信息</small></button>
+      <div class="arrow">↓ 原生文件生命周期与双层去重</div>
+      <button class="step" data-step="parse" aria-pressed="false"><strong>② Docling 解析文字＋全部页图</strong><small>图片、PDF、Word、TXT、HTML、Markdown</small></button>
+      <div class="arrow">↓ 官方模型配置 → AI SDK 结构化输出</div>
+      <button class="step" data-step="candidate" aria-pressed="false"><strong>③ 候选人入库与处理队列</strong><small>职业事实、预期岗位、category、明确求职条件</small></button>
+    </article>
+  </section>
+  <section class="shared" aria-label="共享后续流程">
+    <button class="step" data-step="match" aria-pressed="false"><strong>④ 独立双向匹配</strong><small>明确条件过滤 → 一人一岗 Jev → 排序</small></button>
+    <button class="step" data-step="review" aria-pressed="false"><strong>⑤ 待查看与手动匹配</strong><small>最多前五、覆盖状态、未知条件、来源跳转</small></button>
+    <button class="step" data-step="human" aria-pressed="false"><strong>⑥ 草稿、分享与人工跟进</strong><small>候选人确认 / 撤回；人确认联系、推荐及发布</small></button>
+  </section>
+  <section class="panel detail" aria-live="polite" aria-atomic="true">
+    <p class="tag" id="detail-tag">数据从哪里来，到哪里去</p><h2 id="detail-title">选择一个节点查看细节</h2>
+    <div class="detail-grid"><div><h3>输入与处理</h3><ul id="detail-input"><li>运营界面、HTTP、原生MCP与CLI调用相同业务服务。</li><li>202受理与真正处理完成分开。</li></ul></div><div><h3>输出与失败处理</h3><ul id="detail-output"><li>原件、业务记录和任务状态分开保存。</li><li>状态持久化，重试复用成功的checkpoint。</li></ul></div></div>
+  </section>
+  <section class="boundary">
+    <article class="panel"><h2>模型管理</h2><p>官方 Provider 与模型管理统一选择模型。ChatGPT授权、加密连接、刷新和 Responses 转换位于 Twenty 进程内；没有额外代理服务。</p><p>材料整理使用 AI SDK 结构化对象；Jev负责固定协议的人岗评分，两者是不同任务与配置。Embedding保留为实验或扩容时的召回，不是当前默认前置分类。</p><details><summary>当前订阅验收边界</summary><p>现有只读本机订阅已实测文本、图片、对象和工具；新SIWC账号管理已实现及离线验证，仍需Jerry本人完成新授权和真实刷新验收。</p></details></article>
+    <article class="panel"><h2>可调用接口与权限</h2><p>HTTP <code>/recruiting</code>、官方 <code>/mcp</code> 的 <code>recruiting_operations</code>、项目CLI与skill共用领域服务、原生角色、记录和字段权限。</p><p>Agent可上传、建JD、等待进度、双向或指定匹配、取结果、起草与写备注；不能替人声明已经联系、推荐或发布，也不能冒用邮箱所有者。</p><details><summary>本地与生产的边界</summary><p>新环境localhost:23000，旧对照localhost:13000保留。旧工作流、原生收信/日历同步与外发队列仍关闭；自动招聘收信当前也已恢复关闭。</p></details></article>
+  </section>
+  <footer>2026-11-01 · 数据链路说明，不含个人简历或凭据。接口与合成链路已验证；页面视觉验收、新SIWC本人授权及自然新邮件实收仍待完成。详细目标见同目录 <a href="DELIVERY_GOAL.md">DELIVERY_GOAL.md</a>。</footer>
+</main>
+<script>
+/** Describes the shared service boundaries without embedding any private data. */
+const stages={
+ company:{title:'搜索与创建公司',tag:'原生 company 记录',input:['先以名称或域名查找，展示已有岗位供实习生确认。','没有对应公司时就地创建，避免丢失待提交JD。'],output:['公司记录ID作为一批JD的共同绑定。','近似名称只给提示，不能自动合并不同公司。']},
+ jd:{title:'统一岗位材料接口',tag:'持久 intake · 每项稳定 itemId',input:['粘贴文本或上传多个JD文件，附可选说明。','文件走原生上传授权、字节上传及完成，再交给同一服务。'],output:['先保存原件与来源，返回任务ID。','相同幂等键重试复用任务，材料变动则明确冲突。']},
+ confirm:{title:'预览编辑与确认',tag:'AWAITING_CONFIRMATION → 原生岗位记录',input:['整理出岗位名称、JD、岗位偏好、缺失提示。','实习生逐项修改、确认或忽略，不靠数组顺序辨认岗位。'],output:['成功项绑定公司并创建岗位，失败项单独恢复。','重试不覆盖已创建岗位或人工编辑；公司/岗位上下文变更让相关匹配过期。']},
+ sources:{title:'全部输入共用材料入口',tag:'文件＋note＋来源 · 邮件完整归档',input:['运营上传与鉴权Agent提交同一接口。','本人邮箱显式开启后，先建立当前INBOX基线，再约每分钟只读检查新UID。','邮件先完整保存EML、text/html、headers、地址、全部附件及inline资源，再选择简历材料。'],output:['事件身份与材料提交分别幂等；不只依赖Message-ID。','归档接受后才推进招聘进度；不改已读、原生同步游标或文件夹。','自动接入当前关闭；真实单封与定时空轮询已通过，尚无自然新邮件到达观测。']},
+ parse:{title:'文字与可视上下文',tag:'Docling · 全页覆盖 · 原件不丢弃',input:['图片保留原图；PDF逐页截图；Word先渲染PDF再逐页截图。','HTML/Markdown隔离渲染长页，禁脚本、外网和任意本地资源；TXT保存完整文字。'],output:['保留文本、页图、版本、摘要、覆盖状态。','损坏/加密/超限明确失败或待核对，不静默截断。','complete表示自动处理完成，不等于OCR逐字准确或人工核对通过。']},
+ candidate:{title:'结构化资料与候选人入库',tag:'ResumeIngestJob · 并发10',input:['AI SDK输入文字、说明及必要页图，生成职业事实与求职约束。','expectedRoles是投递时预期岗位；category是可空enum，不是八问分类任务。'],output:['职业资料写入Twenty候选人记录，队列提供进度、错误、重试及跳行。','明显JD误投简历进入待核对；更新已有候选人以本次完整职业材料为准，保留历史原件与人工偏好。','入库成功后独立排队匹配，评分失败不撤回候选人。']},
+ match:{title:'同一人岗对，共用评估与缓存',tag:'明确约束 → Jev 1:1 → 独立排序',input:['停招、明确拒绝的雇佣类型等先由程序过滤，未知进入待确认。','输入完整相关职业资料、一个JD、岗位偏好、公司简介与招聘偏好，不把所有岗位塞进一次请求。'],output:['按双方资料/公司上下文/协议/模型版本缓存，两个匹配方向复用同一分数。','每对独立状态，失败不是零分；上下文超限明确待处理，不截断。','Jev输出固定能力分，不生成自由文本理由。']},
+ review:{title:'运营待查看与指定匹配',tag:'最多前五 · 不足五个或无合适结果均有效',input:['展示能力、意向、明确冲突和未知条件，保留原记录跳转。','可以候选人找岗、岗位找人，或指定一人一岗单独尝试。'],output:['展示成功覆盖量、失败/待核对量与过期标识，部分结果不冒充完整全库排名。','独立评测冻结输入和标签；机器初审一致性不是招聘准确率。']},
+ human:{title:'从辅助结果到人工行动',tag:'草稿 ≠ 已发送 · 同意可撤回',input:['生成问候和JD发布草稿，允许人工编辑、核对。','候选人门户支持资料、附件、意向与逐岗分享确认；公司只看当前授权快照。'],output:['撤回后企业读取与下载被拒，新确认不会复活旧链接。','实际联系、推荐、发布由本人确认，Agent仅可写备注和草稿。','合同保留五字段、内部提醒和负责人手动确认，未连接外部签约平台。']}
+};
+/** Changes only explanatory text; no requests, model calls or business writes occur. */
+document.querySelectorAll('[data-step]').forEach(button=>button.addEventListener('click',()=>{
+ const data=stages[button.dataset.step];
+ document.querySelectorAll('[data-step]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+ document.getElementById('detail-tag').textContent=data.tag;
+ document.getElementById('detail-title').textContent=data.title;
+ for(const name of ['input','output']){const list=document.getElementById('detail-'+name);list.replaceChildren(...data[name].map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));}
+}));
+</script></body></html>
