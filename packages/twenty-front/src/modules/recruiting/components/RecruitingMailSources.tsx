@@ -5,6 +5,7 @@ import { Button } from 'twenty-ui/primitives/input';
 import { type RecruitingMailArchive } from '@/recruiting/types/RecruitingMailArchive';
 import { type RecruitingPage } from '@/recruiting/types/RecruitingPage';
 import { RecruitingMailSelection } from '@/recruiting/components/RecruitingMailSelection';
+import { RecruitingMailboxSettings } from '@/recruiting/components/RecruitingMailboxSettings';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
 import {
@@ -77,6 +78,13 @@ export const RecruitingMailSources = ({
   const mail = detail.data;
   return (
     <StyledRecruitingStack>
+      <RecruitingMailboxSettings
+        active={active}
+        onReceived={(id) => {
+          setArchiveId(id);
+          void list.reload();
+        }}
+      />
       <StyledRecruitingPanel>
         <StyledRecruitingTitle>{t`邮件材料`}</StyledRecruitingTitle>
         <StyledRecruitingMuted>{t`导入完整EML后，原文、正文、附件和内嵌资源一起保存。先核对属于候选人的材料，再交给统一处理队列。`}</StyledRecruitingMuted>
