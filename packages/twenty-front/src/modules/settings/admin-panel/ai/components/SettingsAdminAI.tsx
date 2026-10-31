@@ -15,6 +15,7 @@ import { currentWorkspaceState } from '@/auth/states/currentWorkspaceState';
 import { useClientConfig } from '@/client-config/hooks/useClientConfig';
 import { billingState } from '@/client-config/states/billingState';
 import { SettingsAdminAiProviderListCard } from '@/settings/admin-panel/ai/components/SettingsAdminAiProviderListCard';
+import { SettingsChatgptSubscriptions } from '@/settings/admin-panel/ai/components/SettingsChatgptSubscriptions';
 import { AI_PROVIDER_SOURCE } from '@/settings/admin-panel/ai/constants/AiProviderSource';
 import { SET_ADMIN_DEFAULT_AI_MODEL } from '@/settings/admin-panel/ai/graphql/mutations/setAdminDefaultAiModel';
 import { GET_ADMIN_AI_MODELS } from '@/settings/admin-panel/ai/graphql/queries/getAdminAiModels';
@@ -159,6 +160,11 @@ export const SettingsAdminAI = () => {
 
   return (
     <>
+      <SettingsChatgptSubscriptions
+        providers={providersData?.getAiProviders ?? {}}
+        models={data?.getAdminAiModels.models ?? []}
+        canAddProvider={hasCustomAiProviderAccess}
+      />
       <Section.Root>
         <Section.Header
           title={t`Providers`}

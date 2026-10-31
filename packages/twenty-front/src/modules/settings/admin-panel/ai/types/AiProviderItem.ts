@@ -13,6 +13,7 @@ export type AiProviderItem = {
   name?: string;
   label?: string;
   authType?: AiProviderAuthType;
+  subscriptionConnectionId?: string;
   source?: AiProviderSource;
   baseUrl?: string;
   region?: string;

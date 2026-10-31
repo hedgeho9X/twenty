@@ -76,6 +76,9 @@ export class AdminPanelAiProviderService {
         label: config.label ?? key,
         source: isCatalog ? 'catalog' : 'custom',
         ...(config.authType && { authType: config.authType }),
+        ...(config.subscriptionConnectionId && {
+          subscriptionConnectionId: config.subscriptionConnectionId,
+        }),
         ...(config.name && { name: config.name }),
         ...(config.baseUrl && { baseUrl: config.baseUrl }),
         ...(config.region && { region: config.region }),

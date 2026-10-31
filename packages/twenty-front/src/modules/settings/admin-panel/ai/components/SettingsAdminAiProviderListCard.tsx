@@ -28,7 +28,9 @@ const getProviderDescription = (provider: AiProviderItem): string => {
     parts.push(provider.baseUrl);
   }
 
-  if (provider.authType === 'role') {
+  if (provider.authType === 'chatgpt') {
+    parts.push(t`ChatGPT subscription`);
+  } else if (provider.authType === 'role') {
     parts.push(t`IAM role`);
   } else if (provider.apiKey) {
     parts.push(t`API key configured`);
