@@ -13,3 +13,7 @@
 本地已验证：账户模型目录、真实文本、AI SDK Output.object、图片结构化输出；适配器和私有账号读取的 12 项测试通过。当前 API 账号可用 gpt-5.6-sol，不根据全局示例或其他账号猜测模型 ID。
 
 必要协议行为参考 CLIProxyAPI v8.0.48，来源和 MIT 许可见 `THIRD_PARTY_NOTICES.md`。
+
+新增siwc-protocol实现官方开源公共客户端协议：动态注册、PKCE、签名ID token的issuer/audience/nonce/到期校验、账号模型目录、刷新和会话撤销。9项合成协议测试通过；当前尚未接入账号存储及设置页，也没有本人新授权，不能标为SIWC真实验收。原机Codex来源保持只读。
+
+协议依据：[注册与登录](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)、[账号与会话](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)、[实时OIDC发现](https://auth.openai.com/.well-known/openid-configuration)。本轮已核对官方RS256、公有端点和无客户端密钥的动态注册流程；不是把旧Codex Token混用到公共SIWC API。
