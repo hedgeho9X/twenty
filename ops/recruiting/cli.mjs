@@ -4,6 +4,7 @@ import { basename, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { submitJobMaterials } from './cli-job-upload.mjs';
 
 /** Keeps task paths explicit and rejects unsupported kinds rather than silently selecting a different resource. */
 const taskResource = (kind) => {
@@ -289,38 +290,21 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     taskKind = 'intake';
     taskId = result.intakeId;
   } else if (group === 'jobs' && action === 'submit') {
-    const files = [];
-    for (const filename of values.file ?? []) {
-      const bytes = await readFile(resolve(filename));
-      const target = await client.post('uploads/targets', {
-        filename: basename(filename),
-        size: bytes.length,
-      });
-      const uploadUrl = new URL(target.uploadUrl);
-      if (!['https:', 'http:'].includes(uploadUrl.protocol))
-        throw new Error('Invalid upload target');
-      const uploaded = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: bytes,
-        headers: { 'content-type': target.contentType },
-        redirect: 'error',
-        signal: AbortSignal.timeout(120_000),
-      });
-      if (!uploaded.ok) throw new Error(`Upload failed (${uploaded.status})`);
-      files.push(
-        await client.post('uploads/complete', {
-          uploadReceipt: target.uploadReceipt,
-        }),
-      );
-    }
-    result = await client.post('job-intakes', {
-      companyId: required('company-id'),
-      files,
-      text,
-      note,
-      source: 'api',
-      idempotencyKey: key,
-      batchId: values['batch-id'],
+    result = await submitJobMaterials({
+      client,
+      filenames: values.file ?? [],
+      baseUrl:
+        values.base ?? process.env.TWENTY_BASE_URL ?? 'http://localhost:23001',
+      token: process.env.TWENTY_API_KEY,
+      persistent: Boolean(values.key),
+      request: {
+        companyId: required('company-id'),
+        text,
+        note,
+        source: 'api',
+        idempotencyKey: key,
+        batchId: values['batch-id'],
+      },
     });
     taskKind = 'intake';
     taskId = result.intakeId;

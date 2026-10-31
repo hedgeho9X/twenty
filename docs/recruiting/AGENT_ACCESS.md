@@ -14,7 +14,7 @@ JD 预览返回稳定 itemId。jobs_confirm 的 items 包含 itemId 与编辑后
 
 薄客户端为 `ops/recruiting/cli.mjs`，帮助入口为 `node ops/recruiting/cli.mjs --help`。凭据只从 TWENTY_API_KEY 环境变量读取，实例用 TWENTY_BASE_URL 指定；默认指向本地 B。远程要求 HTTPS，不跟随请求重定向。普通结果输出 JSON，业务失败/部分失败使用不同退出码。项目 skill 位于 `.agents/skills/recruiting/SKILL.md`，没有全局安装。
 
-文件从运行 CLI 的 Agent 自己的文件系统上传。恢复时优先用已取得的任务 ID，避免重新上传相同 JD 文件产生新的上传引用；跨进程文件上传 checkpoint 尚待补齐。单简历 multipart 可用原 key 重发，同材料返回原任务，修改材料后复用 key 返回冲突。
+文件从运行 CLI 的 Agent 自己的文件系统上传。恢复时优先用已取得的任务 ID。JD多文件上传在明确传--key时保存跨进程checkpoint，按实例/凭据/提交标识隔离；重跑复用成功文件，提交响应丢失时保持相同文件引用，已存任务ID则向服务器重新鉴权查询。材料或说明改变却复用原key会在上传前拒绝；并发调用用原子不可变slot选择同一文件引用。缓存默认~/.cache/twenty-recruiting，或TWENTY_CLI_STATE_DIR指定，700/600，不存API Key或材料全文，上传能力仍受服务器24小时有效期约束。单简历 multipart 可用原 key 重发，同材料返回原任务，修改材料后复用 key 返回冲突。
 
 ## 3. 已验证的本地场景
 
