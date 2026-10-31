@@ -76,3 +76,31 @@
 - 官方docs live确认https://docs.typesafe.ai/models默认64k/request/32k/question，单位token；未启用Danger-Zone长上下文。别用豆包/tiktoken冒充Jev精确tokenizer。8个旧误拒candidate IDs可从93166da1...的results中error LIKE上下文读出，已在tool输出；需要在新运行版本下对原fixtureJD发限定反向run实际测，复用其他缓存。
 - 原reverse旧77review仍是老证据；当前还有输入源增补、正式RSI独立holdout评测、门户资料/附件/意向/分享/撤回、人工跟进/发布回执、完整SIWC管理/nativeAgent/tools、合同兼容盘点、数据链路HTML/交付/个人Feishu文档。不要停下或缩范围。
 - 下一步先接续新build、跑8位原窗口拒绝的真实Jev，提交匹配修正，再尽快完成剩余业务。精简分析，多实际执行；不要反复空转扩大可选范围。Ego恢复许可仍未回复，不得创建新TaskSpace或绕其他浏览器验收。
+
+## 2026-11-01 06:21 最新恢复点
+
+- HEAD新提交8c117449非简历审核，f8647540门户/同意/人工回执后端，dc3ca70b公共门户及原生工作台UI，另有刚提交native Agent viaApplication权限修复。DELIVERY_GOAL范围不变，仍active，不能complete。
+- API27/session14090/PID33914、worker22/session20375/PID33926（以日志核实），临时AI-only worker2/session16650/PID33937。三个都来自本checkout；常驻worker仍只有招聘两队列，临时ai-queue启动前全状态0。结束验收需停临时AIworker；不要启动其他queue。
+- 门户HTTP与简历上传/入库、分享撤回、重新确认旧链接不复活、源入口撤销均已实测；见PORTAL.md和PROGRESS。ad90cc91...合成入库COMPLETED/STORED关联原fixture；7e7f6832...明显JD误投材料进入MATERIAL_REVIEW，无覆盖。空JSON映射被原生存储删除导致MAC失配已修。
+- NOTE可Agent写，实际联系/推荐/发布仅直接本人；新签名回执抵抗普通CRUD改后伪确认，历史记录保留待核对。MCP/CLI备注与门户查询真实成功，Key实际联系403、未同意推荐403。界面未浏览器QA，Ego恢复许可仍未收到，不能新开TaskSpace绕过。
+- 官方runAgent文本与平面object通过，原生learn_tools→execute_tool已真实成功（thread615c28e4...输出1、tool success=true）。只读公司角色60b0f2d9...，native验收Agent d9391784...，无triggers。native JSON输出仅顶层primitive，复杂profile提取已有独立AI SDK链，别改官方约束冒充完整JSONSchema。
+- 已新增ops/recruiting/prepare-rsi.mjs并执行成功，尚未commit；8位candidate按hash抽样，旧30、69输入调参样本、8窗口case及fixture排除，4dev+4holdout固定后没有看标签。46真岗位沿用冻结ID但后续需读取当前JD/公司版本。manifest .local/recruiting/evaluations/rsi-v1/manifest.json，hash1c6712cb449c46f309ef52498138f4daf57be736c0707758f61ed1389845cc32。
+- 8位全部原件已通过本人nativeURL授权下载并Docling解析，9份文件、18页（其中1TXT无截图），全部complete。source.json含原生签名URL与PII，仅私有600文件，不打印/提交。materials.json包含requestId、sha、完整text/全部页面名。只打印aggregate，不查看holdout文本调参。
+- 下一步提交8个candidate→46真岗位匹配，固定targetIds/idempotency，复用cache。blind judge使用独立无工具Agent，只给原件解析文字+随机打乱的Jev前五及2hash对照JD，不提供Jev分数/排名。先freeze判定prompt/schema，机器silver不是human gold，样本选择偏差不能称全库召回。输出能力/意向/硬约束/unknown/证据保真/前五可沟通率/一致性/成本延迟，dev/holdout分别报告，不看holdout后继续调参还称unseen。
+- 仍未完成完整SIWC连接管理/刷新UI、全格式长图扫描损坏回归、合同兼容、HTML链路与飞书需求/交付、浏览器验收。继续独立工作，不缩目标，不停在总结。
+
+## 2026-11-01 06:33 最新恢复点
+
+- 关键新commits：c6f3ecf6修复原生Agent本地图片，2d13e886冻结独立原件评测样本，502cd677冻结盲评与报告，最新SIWC纯协议模块见git log（已commit）。HEAD之前8c600539已修nativeAgent viaApplication角色交集；旧门户和回执已commit。
+- 当前API28/session65369/PID35217，worker23/session61164/PID35228，均本checkout。临时AI-only worker3/PID35239已在验收后SIGTERM；无ai-queue worker正在运行。B前端仍Vite23000/parser23003。新SIWC协议纯模块尚未注册DI，不影响现有运行。
+- 原生图片真实失败根因：把localhost私有URL交上游下载407。现在RunAgentAttachmentService对验证过的本工作区AgentChat UPLOADED图片读FileService字节，20MB/图50MB总量，真实读取再次限量。原生runAgent识别96px合成绿色成功。12项附件/消息测试、TS/lint通过。材料Extractor本来直接字节不受该旧链影响。
+- RSI第一轮已完成，8人×46真岗368score/0fail，Jev实际费用0.108646524USD、2,586,822输入tokens、6256输出。9原件18页全部parser complete（不等于OCR人工合格）。盲评8人56对：前五38/40值得沟通，调优/保留各19/20；非平局排序124/130一致，MAE.423。自由文本引用仅12/54逐字相符，不能信作证据或Jev理由。详见docs/recruiting/EVALUATION.md与私有report.json。
+- 保留组唯一机器硬冲突是“偏好远程vs线下”；原件只写岗位类型远程，未明确拒线下，pipeline正确列needs_confirmation。原始silver不改，另存audit-decisions.json，非human gold。没有程序排除观测，误拒率unknown非0。看过这轮结果后，8人未来只能叫回归集，不能再称新holdout。
+- 评测代码prepare-rsi/run-rsi-matches/judge-rsi/report-rsi.mjs已commit并真实跑过。judge Agent无角色/工具/触发器，仅内置引擎finalize；任务输入slot打乱、不含Jev分数/排名，文本原件全部传入，截图未输入本轮judge，必须明确限制。私有nativeAgent tokens尚可从agentTurn按8个silver.threadId聚合；报告不能把内部0credits当订阅免费。尚需评测HTML与必要更明确回归验收。
+- SIWC已新读并核对官方：https://developers.openai.com/siwc/token-sharing-open-source/sign-in，profiles-and-sessions，models-and-inference，token-reference，https://auth.openai.com/.well-known/openid-configuration。重要：开源公共客户端首次client_id=dynamic_agent_client+agent_name_hint Twenty Recruiting+稳定ext_agent_host_id，回调返回issued oaiapp_...才用来exchange，无clientsecret。127.0.0.1随机端口/auth/callback，state+nonce+PKCE。scope openid profile email offline_access resource.invoke chatgpt.tokens.use.direct，resource https://api.openai.com/v1；SIWC只公共Responses/models，Codex保持另一协议。
+- 新src/engine/core-modules/chatgpt-subscription/siwc-protocol.ts为纯可注入transport类，使用现有直接依赖jsonwebtoken9.0.2+Node createPublicKey JWK，RS256严格issuer/aud/exp/iat/nonce/optional at_hash。官方discovery已实时验证RS256和exact endpoints。JWKS5min缓存陌生kid重取；refresh不带scope保留grant；list visibility=list；revoke调用发现revocation_endpoint。9项合成测试及TS/lint过，尚无新SIWC真实授权。
+- 下一步必须完成SIWC加密存储/loopback登录管理/跨进程刷新单飞/管理员设置UI/Provider接入，不能仅纯协议停工。现有SDKfactory仍只loadLocalCodexCredential（只读原auth.json，不复制不刷新），应加subscriptionConnectionId区分新SIWC连接并保留旧localfallback。官方SecretEncryptionService.encryptVersioned/decryptVersionedOrThrow使用AESGCM原生密钥；连接放私有700/600目录，加密所有Token，原子写替换整套tokens。Native PostgresAdvisoryLockService由TypeORMModule导出，可串行同connection刷新。API/worker同一目录、同secret。
+- SIWC模块计划：store.service加密连接与refresh；login.service临时127.0.0.1 listener/stateowner/10min单次尝试；controller JWT仅本人superadmin（AdminPanelGuard仅支持GraphQL，REST需自己检查userIsFullAdmin+无impersonation+AuthPrincipalGuard仅standarduser）；AiModelsModule导入新模块并SDKfactory注入store。新授权本人最后操作，当前睡觉不启动授权、不弹浏览器。
+- 纯协议helper支持初始/已注册client重登、注册返回必须issued ID、identity-onlygrant与plan permission分开；新授权不能替换旧活动账号直到验证身份；refresh如果id_token有返回要验证同sub，缺省可保留原tokenhint；若无refresh或plan scope，不得当可用模型连接。退出按发现endpoint先revoke refresh，再清本地，失败明确remoteRevocationConfirmed=false。retainclient/accountmapping与hostId；不修改Codex原登录。
+- 官方模型管理前端SettingsAdminAI.tsx，provider schema AiProviderConfig+subscriptionAccountId已有，authType=chatgpt已有；当前publicSIWC连接UI未做。models catalog按账号，不猜5.6/6.1名。oauthURL不带id_token_hint以免ID token回到前端JS，允许账户选择器。
+- 仍未做：SIWC完整以上、全格式长图中文扫描损坏/加密回归、合同必要兼容盘点/可用入口、数据链路HTML与交付文档/个人飞书需求、实际UI浏览器验收。Ego恢复许可未收到，不能新建TaskSpace或绕浏览器。不要停止或缩目标，全部完成前goal保持active。
