@@ -99,3 +99,17 @@
 - 本机账号模型目录实际显示 gpt-5.6-sol/terra/luna；不能使用示例里的 gpt-6.1 代替账户可用模型。
 - 真实文本请求 response.completed，31 tokens；AI SDK Output.object 实测通过，211 tokens，category/expectedRoles 正确；原登录文件不变。
 - 模型注册、设置页、图片/工具调用、SIWC 新账号连接与刷新管理仍待完成；当前不能报告整个订阅功能已验收。
+
+## 已打通的业务入口检查点
+
+- 订阅模型已通过官方 addAiProvider 管理接口注册，保留席位门槛与管理权限：seatCount=2、seatThreshold=25、hasAccess=true。
+- 图片 + Output.object 真实验证通过（合成红图返回 red，59 tokens）；订阅模块现在共 12 项测试通过。旧独立代理容器已停止。
+- 招聘功能模块已接入原生 REST 权限、当前调用者重建、工作区隔离仓库和独立 recruiting-queue；全局及单 worker 并发均为 10。
+- 公司查询、名称搜索、创建合成公司实测通过；未鉴权返回 403。队列与详情接口不在列表中泄露完整 OCR 文本。
+- 简历完整后端链路实测通过：原生上传 DOCX → 真实 durable job → 两页文字/截图 → 订阅 SDK 结构化 → 原生 person 创建 → 原生 REST 回读 200。
+- 合成候选人 `926eee86-1b7f-5085-82a1-50f164e09124`，intake `2c631dc4-8e24-53e6-93a5-779e8b6fbdb7`。相同输入重复提交返回同一候选人，无重复创建。
+- 公司/JD 后端链路实测通过：先建/选公司 → 文字 JD 提交 → AWAITING_CONFIRMATION → 确认 → recruitmentJob 创建 → 原生 REST 回读 200。合成岗位 `3aafb953-d524-5ee4-868e-6b246920adf1`。
+- 附件不能直接跨 FILES 字段引用，已使用官方 copyFileIntoFilesField，候选人目标文件引用写入 checkpoint；重试复用解析与模型结果。
+- 发现旧定制富文本缺 Tiptap 列，使原生 people REST 本身返回 500；通过官方 2.51 迁移重跑修复并转换 4769 个值，保留原 Blocknote/Markdown，REST 恢复 200。
+- 最新全包 TypeScript 检查通过；招聘入口 lint 无警告/错误；intake 契约 6 项测试通过。仍应在后续改动后重新核对。
+- 当前仅后端基础闭环，未实现匹配 Job2、完整 UI、招聘 MCP/CLI、邮件适配、问候、门户和独立 SIWC 管理；下一步详见 NEXT_ACTIONS.md，目标不缩减。

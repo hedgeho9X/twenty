@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { RecruitingModule } from 'src/modules/recruiting/recruiting.module';
+
 import { MessagingQueryHookModule } from 'src/modules/messaging/common/query-hooks/messaging-query-hook.module';
 import { CalendarQueryHookModule } from 'src/modules/calendar/common/query-hooks/calendar-query-hook.module';
 import { CallRecordingQueryHookModule } from 'src/modules/call-recording/query-hooks/call-recording-query-hook.module';
@@ -26,6 +28,7 @@ import { WorkspaceMemberModule } from 'src/modules/workspace-member/workspace-me
 
 @Module({
   imports: [
+    RecruitingModule,
     MessagingModule,
     CalendarModule,
     ConnectedAccountModule,

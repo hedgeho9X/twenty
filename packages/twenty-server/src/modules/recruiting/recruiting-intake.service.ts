@@ -1,0 +1,487 @@
+/** Archives unified submissions and coordinates resumable parsing, extraction and native record writes. */
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+
+import { createHash } from 'node:crypto';
+import { v4, v5 } from 'uuid';
+import { isPlainObject } from 'twenty-shared/utils';
+
+import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
+import { InjectMessageQueue } from 'src/engine/core-modules/message-queue/decorators/message-queue.decorator';
+import { MessageQueue } from 'src/engine/core-modules/message-queue/message-queue.constants';
+import { MessageQueueService } from 'src/engine/core-modules/message-queue/services/message-queue.service';
+import {
+  RecruitingActorService,
+  type RecruitingActor,
+} from './recruiting-actor.service';
+import {
+  RecruitingRecordsService,
+  type RecruitingRecord,
+} from './recruiting-records.service';
+import {
+  RecruitingParserService,
+  type ParsedRecruitingMaterial,
+} from './recruiting-parser.service';
+import { RecruitingExtractorService } from './recruiting-extractor.service';
+import {
+  candidateProfileSchema,
+  intakeInputSchema,
+  jobProfilesSchema,
+  type RecruitingIntakeInput,
+} from './recruiting-schemas';
+
+/** Queue data contains no login token and fixes the record target before any model runs. */
+export type RecruitingIntakeJobData = {
+  intakeId: string;
+  actor: RecruitingActor;
+};
+
+/** Processing state lives in the CRM even after queue entries expire. */
+type IntakeEnvelope = {
+  schemaVersion: 2;
+  input: RecruitingIntakeInput;
+  inputHash: string;
+  actor: RecruitingActor;
+  stage: string;
+  materials?: ParsedRecruitingMaterial[];
+  candidateFiles?: { sourceFileId: string; fileId: string; label: string }[];
+  extraction?: Record<string, unknown>;
+  candidateId?: string;
+  jobIds?: string[];
+  recordUrl?: string;
+  error?: string;
+};
+
+@Injectable()
+/** Makes ingestion independent from later matching failures. */
+export class RecruitingIntakeService {
+  constructor(
+    private readonly records: RecruitingRecordsService,
+    private readonly actors: RecruitingActorService,
+    private readonly parser: RecruitingParserService,
+    private readonly extractor: RecruitingExtractorService,
+    @InjectMessageQueue(MessageQueue.recruitingQueue)
+    private readonly queue: MessageQueueService,
+  ) {}
+
+  /** Accepts completed file references once; retries must reuse the same payload and key. */
+  async submit(context: WorkspaceAuthContext, value: unknown) {
+    const parsed = intakeInputSchema.safeParse(value);
+    if (!parsed.success)
+      throw new BadRequestException(
+        parsed.error.issues.map((issue) => issue.message).join('；'),
+      );
+    const input = { ...parsed.data, note: parsed.data.note ?? '' };
+    const actor = this.actors.capture(context);
+    if (input.companyId)
+      await this.records.one(context, 'company', input.companyId);
+    if (input.candidateId)
+      await this.records.one(context, 'person', input.candidateId);
+    for (const file of input.files) await this.parser.file(actor, file.fileId);
+    const inputHash = createHash('sha256')
+      .update(JSON.stringify(input))
+      .digest('hex');
+    const key = input.idempotencyKey ?? input.sourceId;
+    const id = key
+      ? v5(`${actor.workspaceId}:${input.kind}:${input.source}:${key}`, v5.URL)
+      : v4();
+    let record = await this.optional(context, 'recruitingIntake', id);
+    if (record) {
+      const envelope = this.envelope(record);
+      if (envelope.inputHash !== inputHash)
+        throw new ConflictException(
+          '同一提交标识已对应另一份材料，请使用新的提交标识',
+        );
+      if (['COMPLETED', 'NEEDS_REVIEW'].includes(String(record.state)))
+        return this.receipt(record);
+    } else {
+      const envelope: IntakeEnvelope = {
+        schemaVersion: 2,
+        input,
+        inputHash,
+        actor,
+        stage: 'QUEUED',
+      };
+      try {
+        record = await this.records.create(context, 'recruitingIntake', {
+          id,
+          name: `[recruiting-v2] ${input.files[0]?.label ?? '岗位文字'}`,
+          kind: input.kind,
+          rawText: input.note ?? '',
+          files: input.files.map((file) => ({
+            fileId: file.fileId,
+            label: file.label,
+          })),
+          state: 'READY',
+          result: envelope,
+        });
+      } catch (error) {
+        const concurrent = await this.optional(context, 'recruitingIntake', id);
+        if (!concurrent || this.envelope(concurrent).inputHash !== inputHash)
+          throw error;
+        record = concurrent;
+      }
+    }
+    await this.enqueue(id, actor);
+    return this.receipt(record);
+  }
+
+  /** Lists submission summaries without returning every resume's OCR text to the queue popup. */
+  async list(context: WorkspaceAuthContext, offset = 0) {
+    const page = await this.records.list(context, 'recruitingIntake', {
+      filter: { name: { ilike: '[recruiting-v2]%' } },
+      offset,
+      limit: 50,
+    });
+    return {
+      ...page,
+      count: Number(page.count),
+      records: page.records.map((record) =>
+        this.receipt(record as RecruitingRecord),
+      ),
+    };
+  }
+
+  /** Returns the full authorized material state for a detail/preview view. */
+  async one(context: WorkspaceAuthContext, id: string) {
+    const record = await this.records.one(context, 'recruitingIntake', id);
+    return { ...this.receipt(record), detail: this.envelope(record) };
+  }
+
+  /** Reuses successful material and extraction stages while binding the retry to its current caller. */
+  async retry(context: WorkspaceAuthContext, id: string) {
+    const record = await this.records.one(context, 'recruitingIntake', id);
+    const envelope = this.envelope(record);
+    if (record.state === 'COMPLETED') return this.receipt(record);
+    if (
+      ['READY', 'PROCESSING'].includes(String(record.state)) ||
+      envelope.stage === 'AWAITING_CONFIRMATION'
+    )
+      return this.receipt(record);
+    const actor = this.actors.capture(context);
+    await this.records.update(context, 'recruitingIntake', id, {
+      state: 'READY',
+      error: null,
+      result: { ...envelope, actor, stage: 'QUEUED', error: undefined },
+    });
+    await this.queue.add(
+      'ResumeIngestJob',
+      { intakeId: id, actor },
+      {
+        id: `recruiting-retry-${id}-${v4()}`,
+        isWorkspaceJob: true,
+        workspaceId: actor.workspaceId,
+        retryLimit: 1,
+        broadcastTo: {
+          workspaceId: actor.workspaceId,
+          userWorkspaceId: actor.userWorkspaceId,
+        },
+        deduplication: { id: `recruiting-intake-${id}` },
+      },
+    );
+    return { intakeId: id, jobId: id, stage: 'QUEUED', state: 'READY' };
+  }
+
+  /** The queue handler validates current access before reading or mutating any business record. */
+  async process(data: RecruitingIntakeJobData) {
+    const context = await this.actors.resolve(data.actor);
+    const record = await this.records.one(
+      context,
+      'recruitingIntake',
+      data.intakeId,
+    );
+    let envelope = this.envelope(record);
+    if (record.state === 'COMPLETED') return;
+    const update = async (
+      stage: string,
+      patch: Partial<IntakeEnvelope> = {},
+    ) => {
+      envelope = { ...envelope, ...patch, stage };
+      await this.records.update(context, 'recruitingIntake', record.id, {
+        state: 'PROCESSING',
+        result: envelope,
+        error: null,
+      });
+    };
+    try {
+      const materials = envelope.materials ?? [];
+      await update('PARSING');
+      for (const file of envelope.input.files.filter(
+        (entry) => entry.role !== 'archive',
+      )) {
+        if (materials.some((material) => material.fileId === file.fileId))
+          continue;
+        materials.push(
+          await this.parser.parse(data.actor, file.fileId, file.label),
+        );
+        await update('PARSING', { materials });
+      }
+      await update('EXTRACTING');
+      let extraction = envelope.extraction;
+      if (!extraction) {
+        if (envelope.input.kind === 'CANDIDATE')
+          extraction = await this.extractor.candidate(
+            materials,
+            envelope.input.note ?? '',
+          );
+        else {
+          const company = await this.records.one(
+            context,
+            'company',
+            envelope.input.companyId!,
+          );
+          extraction = await this.extractor.jobs(
+            materials,
+            envelope.input.text ?? '',
+            envelope.input.note ?? '',
+            JSON.stringify({
+              name: company.name,
+              description: company.recruitingDescription,
+              preferences: company.recruitmentPreferences,
+            }),
+          );
+        }
+        await update('EXTRACTED', { extraction });
+      }
+      if (envelope.input.kind === 'JOB') {
+        await this.records.update(context, 'recruitingIntake', record.id, {
+          state: 'NEEDS_REVIEW',
+          result: { ...envelope, stage: 'AWAITING_CONFIRMATION' },
+        });
+        return;
+      }
+      const profile = candidateProfileSchema.parse(extraction.profile);
+      if (profile.identityConflict) {
+        await this.records.update(context, 'recruitingIntake', record.id, {
+          state: 'NEEDS_REVIEW',
+          result: { ...envelope, stage: 'IDENTITY_REVIEW' },
+          error: '材料身份存在冲突，请拆分或核对后重新提交',
+        });
+        return;
+      }
+      const candidateId =
+        envelope.input.candidateId ?? v5(`${record.id}:candidate`, v5.URL);
+      const existing = envelope.input.candidateId
+        ? await this.records.one(context, 'person', candidateId)
+        : await this.optional(context, 'person', candidateId);
+      const candidateFiles = envelope.candidateFiles ?? [];
+      for (const file of envelope.input.files.filter(
+        (entry) => entry.role !== 'archive',
+      )) {
+        if (candidateFiles.some((entry) => entry.sourceFileId === file.fileId))
+          continue;
+        const copy = await this.parser.copyResumeAttachment(
+          data.actor,
+          file.fileId,
+        );
+        candidateFiles.push({
+          sourceFileId: file.fileId,
+          fileId: copy.id,
+          label: file.label,
+        });
+        await update('COPYING_FILES', { candidateFiles });
+      }
+      const files = candidateFiles.map((file) => ({
+        fileId: file.fileId,
+        label: file.label,
+      }));
+      const recruitingProfile = {
+        ...profile,
+        sourceIntakeId: record.id,
+        sourceHash: envelope.inputHash,
+        sourceText: materials.map((material) => material.text).join('\n\n'),
+        note: envelope.input.note ?? '',
+        modelId: extraction.modelId,
+        generatedAt: new Date().toISOString(),
+      };
+      if (existing) {
+        const previous = Array.isArray(existing.candidateResumes)
+          ? existing.candidateResumes
+          : [];
+        await this.records.update(context, 'person', candidateId, {
+          recruitingProfile,
+          candidateResumes: [
+            ...previous.filter(
+              (old) =>
+                !files.some(
+                  (file) => isPlainObject(old) && old.fileId === file.fileId,
+                ),
+            ),
+            ...files,
+          ],
+        });
+      } else {
+        await this.records.create(context, 'person', {
+          id: candidateId,
+          name: { firstName: profile.name || '待补全姓名', lastName: '' },
+          contactRoles: ['CANDIDATE'],
+          ...(profile.email && /.+@.+\..+/.test(profile.email)
+            ? { emails: { primaryEmail: profile.email, additionalEmails: [] } }
+            : {}),
+          recruitingProfile,
+          candidateResumes: files,
+          ...(envelope.input.note
+            ? {
+                candidatePreferences: {
+                  markdown: envelope.input.note,
+                  blocknote: null,
+                },
+              }
+            : {}),
+        });
+      }
+      await this.records.update(context, 'recruitingIntake', record.id, {
+        state: 'COMPLETED',
+        targetId: candidateId,
+        result: {
+          ...envelope,
+          stage: 'STORED',
+          candidateId,
+          recordUrl: `/object/person/${candidateId}`,
+          needsReview:
+            profile.needsReview ||
+            materials.some((material) => material.status !== 'complete'),
+          matchingStatus: 'PENDING',
+        },
+      });
+    } catch (error) {
+      const message =
+        error instanceof BadRequestException
+          ? String(error.message)
+          : '处理失败，请查看材料后重试';
+      await this.records.update(context, 'recruitingIntake', record.id, {
+        state: 'NEEDS_REVIEW',
+        error: message,
+        result: { ...envelope, stage: 'FAILED', error: message },
+      });
+    }
+  }
+
+  /** Publishes only the operator-confirmed JD preview, preserving the selected company relation. */
+  async confirmJobs(context: WorkspaceAuthContext, id: string, value: unknown) {
+    const record = await this.records.one(context, 'recruitingIntake', id);
+    const envelope = this.envelope(record);
+    if (envelope.input.kind !== 'JOB' || !envelope.input.companyId)
+      throw new BadRequestException('这不是岗位导入任务');
+    if (record.state === 'COMPLETED') return this.receipt(record);
+    const jobs = jobProfilesSchema.parse(value).jobs;
+    if (!jobs.length) throw new BadRequestException('请至少确认一个岗位');
+    await this.records.one(context, 'company', envelope.input.companyId);
+    const jobIds = [];
+    for (const [index, job] of jobs.entries()) {
+      const jobId = v5(`${record.id}:job:${index}`, v5.URL);
+      if (!(await this.optional(context, 'recruitmentJob', jobId)))
+        await this.records.create(context, 'recruitmentJob', {
+          id: jobId,
+          name: job.title,
+          companyId: envelope.input.companyId,
+          jobStatus: 'RECRUITING',
+          jobDescription: { markdown: job.description, blocknote: null },
+          jobRecruitmentPreferences: {
+            markdown: job.preferences,
+            blocknote: null,
+          },
+          jobAttributes: [
+            ...job.employmentTypes.map((entry) => entry.toUpperCase()),
+            ...job.workModes.map((entry) => entry.toUpperCase()),
+          ],
+          recruitingProfile: {
+            ...job,
+            sourceIntakeId: id,
+            sourceHash: envelope.inputHash,
+          },
+        });
+      jobIds.push(jobId);
+    }
+    const result = await this.records.update(context, 'recruitingIntake', id, {
+      state: 'COMPLETED',
+      targetId: jobIds[0],
+      result: {
+        ...envelope,
+        stage: 'STORED',
+        jobIds,
+        recordUrl: `/object/recruitmentJob/${jobIds[0]}`,
+      },
+    });
+    return this.receipt(result);
+  }
+
+  /** Resolves preview authorization from its parent intake rather than accepting a storage path. */
+  async preview(
+    context: WorkspaceAuthContext,
+    id: string,
+    requestId: string,
+    name: string,
+  ) {
+    const record = await this.records.one(context, 'recruitingIntake', id);
+    const material = this.envelope(record).materials?.find(
+      (entry) => entry.requestId === requestId,
+    );
+    if (!material) throw new NotFoundException('预览不存在');
+    return this.parser.preview(material, name);
+  }
+
+  /** Queues an actual durable job before returning an accepted receipt. */
+  private enqueue(intakeId: string, actor: RecruitingActor) {
+    return this.queue.add(
+      'ResumeIngestJob',
+      { intakeId, actor },
+      {
+        id: `recruiting-intake-${intakeId}`,
+        isWorkspaceJob: true,
+        workspaceId: actor.workspaceId,
+        retryLimit: 1,
+        deduplication: { id: `recruiting-intake-${intakeId}` },
+        broadcastTo: {
+          workspaceId: actor.workspaceId,
+          userWorkspaceId: actor.userWorkspaceId,
+        },
+      },
+    );
+  }
+
+  /** Refuses legacy envelopes so archived intake rows cannot restart the former execution chain. */
+  private envelope(record: RecruitingRecord): IntakeEnvelope {
+    if (!isPlainObject(record.result) || record.result.schemaVersion !== 2)
+      throw new BadRequestException('该记录属于历史流程，请重新提交材料');
+    return record.result as unknown as IntakeEnvelope;
+  }
+
+  /** Keeps queue receipts small while exposing links only after their target record exists. */
+  private receipt(record: RecruitingRecord) {
+    const envelope = this.envelope(record);
+    return {
+      intakeId: record.id,
+      jobId: record.id,
+      name: record.name,
+      kind: record.kind,
+      state: record.state,
+      stage: envelope.stage,
+      error: record.error,
+      createdAt: record.createdAt,
+      candidateId: envelope.candidateId,
+      jobIds: envelope.jobIds,
+      recordUrl: envelope.recordUrl,
+      batchId: envelope.input.batchId,
+      files: record.files,
+    };
+  }
+
+  /** Uses only not-found as absence; validation and authorization errors retain their meaning. */
+  private async optional(
+    context: WorkspaceAuthContext,
+    objectName: string,
+    id: string,
+  ) {
+    try {
+      return await this.records.one(context, objectName, id);
+    } catch (error) {
+      if (error instanceof NotFoundException) return undefined;
+      throw error;
+    }
+  }
+}

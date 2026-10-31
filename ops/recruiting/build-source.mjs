@@ -53,10 +53,15 @@ const runTarget = async (packageName, targetName) => {
   }
 };
 
-await runTarget('twenty-shared', 'generateBarrels');
-await runTarget('twenty-shared', 'build');
-await runTarget('twenty-client-sdk', 'build');
-await runTarget('twenty-emails', 'lingui:compile');
-await runTarget('twenty-emails', 'build');
-await runTarget('twenty-server', 'lingui:compile');
-await runTarget('twenty-server', 'build');
+const [packageName, targetName] = process.argv.slice(2);
+if (packageName) {
+  await runTarget(packageName, targetName ?? 'build');
+} else {
+  await runTarget('twenty-shared', 'generateBarrels');
+  await runTarget('twenty-shared', 'build');
+  await runTarget('twenty-client-sdk', 'build');
+  await runTarget('twenty-emails', 'lingui:compile');
+  await runTarget('twenty-emails', 'build');
+  await runTarget('twenty-server', 'lingui:compile');
+  await runTarget('twenty-server', 'build');
+}

@@ -135,6 +135,18 @@ export class FindRecordsService {
       };
     } catch (error) {
       this.logger.error(`Failed to find records: ${error}`);
+      const cause =
+        error instanceof Error &&
+        'cause' in error &&
+        error.cause instanceof Error
+          ? error.cause
+          : undefined;
+      const code = cause && 'code' in cause ? String(cause.code) : undefined;
+      if (code === '42703' || code === '42P01') {
+        this.logger.error(
+          `Record schema mismatch for ${objectName}: ${cause?.message}`,
+        );
+      }
 
       return {
         success: false,

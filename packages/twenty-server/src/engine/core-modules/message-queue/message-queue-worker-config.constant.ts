@@ -26,6 +26,15 @@ export const MESSAGE_QUEUE_WORKER_CONFIG: Record<
   MessageQueue,
   MessageQueueWorkerConfig
 > = {
+  [MessageQueue.recruitingQueue]: {
+    workerOptions: {
+      concurrency: 10,
+      globalConcurrency: 10,
+      lockDuration: 240_000,
+      maxStalledCount: 1,
+      boundedShutdownDrain: true,
+    },
+  },
   [MessageQueue.recordExportQueue]: {
     workerOptions: {
       concurrency: 1,

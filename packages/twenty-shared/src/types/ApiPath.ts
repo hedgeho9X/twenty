@@ -19,6 +19,7 @@ export enum ApiPath {
   OAuth = 'oauth',
   OpenApi = 'open-api',
   PublicAssets = 'public-assets',
+  Recruiting = 'recruiting',
   Rest = 'rest',
   RouteTrigger = 's',
   Webhooks = 'webhooks',
