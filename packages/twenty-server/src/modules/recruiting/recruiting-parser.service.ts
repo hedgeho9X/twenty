@@ -95,6 +95,12 @@ export class RecruitingParserService {
     fileId: string,
     label: string,
   ): Promise<ParsedRecruitingMaterial> {
+    const bytes = await this.original(actor, fileId);
+    return this.parseBytes(actor, fileId, label, bytes);
+  }
+
+  /** Reads only a completed native archive attachment after its parent business record has authorized the reference. */
+  async original(actor: RecruitingActor, fileId: string) {
     await this.file(actor, fileId);
     const original = await this.fileService.getFileStreamById({
       fileId,
@@ -116,6 +122,16 @@ export class RecruitingParserService {
       chunks.push(bytes);
     }
     const bytes = Buffer.concat(chunks);
+    return bytes;
+  }
+
+  /** Keeps archive-byte access independent from document conversion and screenshot generation. */
+  private async parseBytes(
+    actor: RecruitingActor,
+    fileId: string,
+    label: string,
+    bytes: Buffer,
+  ): Promise<ParsedRecruitingMaterial> {
     const hash = createHash('sha256').update(bytes).digest('hex');
     const requestId = randomUUID();
     const root = resolve(this.config.get('STORAGE_LOCAL_PATH'));

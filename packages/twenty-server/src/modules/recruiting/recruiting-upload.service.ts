@@ -16,6 +16,7 @@ import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twent
 import { PermissionsService } from 'src/engine/metadata-modules/permissions/permissions.service';
 import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/workspace-cache.service';
 import { RecruitingActorService } from './recruiting-actor.service';
+import { RecruitingRecordsService } from './recruiting-records.service';
 import { contentVersion } from './domain/match-context';
 import {
   signRecruitingUploadReceipt,
@@ -42,7 +43,45 @@ export class RecruitingUploadService {
     private readonly permissions: PermissionsService,
     private readonly workspaceCache: WorkspaceCacheService,
     private readonly config: TwentyConfigService,
+    private readonly records: RecruitingRecordsService,
   ) {}
+
+  /** Rebinds only signed archive-owned artifacts after the caller can read that parent, never arbitrary file IDs. */
+  async fromMailArchive(
+    context: WorkspaceAuthContext,
+    archiveId: string,
+    keys: string[],
+  ) {
+    const archive = await this.records.one(
+      context,
+      'recruitingMailArchive',
+      archiveId,
+    );
+    const payload = archive.payload as {
+      artifacts: { key: string; fileId: string; label: string }[];
+    };
+    const principal = await this.assertUploadPermission(context);
+    return keys.map((key) => {
+      const file = payload.artifacts.find((entry) => entry.key === key);
+      if (!file) throw new BadRequestException('所选材料不属于这封归档邮件');
+      return {
+        fileId: file.fileId,
+        label: file.label,
+        role: 'primary' as const,
+        uploadReceipt: signRecruitingUploadReceipt(
+          {
+            version: 1,
+            workspaceId: context.workspace.id,
+            principalHash: contentVersion(principal),
+            fileId: file.fileId,
+            label: file.label,
+            expiresAt: Date.now() + 24 * 60 * 60_000,
+          },
+          this.config.get('APP_SECRET'),
+        ),
+      };
+    });
+  }
 
   /** Keeps single-request uploads on native quarantine, MIME detection and immutable completion. */
   async buffer(

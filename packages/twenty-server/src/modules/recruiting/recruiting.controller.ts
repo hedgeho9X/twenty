@@ -31,6 +31,7 @@ import { NoPermissionGuard } from 'src/engine/guards/no-permission.guard';
 import { RecruitingDirectoryService } from './recruiting-directory.service';
 import { RecruitingRequestLimitGuard } from './recruiting-request-limit.guard';
 import { RecruitingDraftsService } from './recruiting-drafts.service';
+import { RecruitingMailService } from './recruiting-mail.service';
 import { RecruitingRecordsService } from './recruiting-records.service';
 import { RecruitingIntakeService } from './recruiting-intake.service';
 import { RecruitingMatchingService } from './recruiting-matching.service';
@@ -66,7 +67,84 @@ export class RecruitingController {
     private readonly matching: RecruitingMatchingService,
     private readonly uploads: RecruitingUploadService,
     private readonly drafts: RecruitingDraftsService,
+    private readonly mail: RecruitingMailService,
   ) {}
+  /** Archives imported EML before MIME expansion; no mailbox is connected by this upload. */
+  @Post('mail-archives/upload')
+  @HttpCode(202)
+  @UseGuards(RecruitingUploadPermissionGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { files: 1, fileSize: 50 * 1024 * 1024, fields: 0, parts: 1 },
+    }),
+  )
+  uploadMail(
+    @Req() request: Request,
+    @UploadedFile() file: { buffer: Buffer; originalname: string } | undefined,
+  ) {
+    if (!file) throw new BadRequestException('请上传完整EML邮件原文');
+    return this.mail.receive(
+      buildWorkspaceAuthContextFromRequest(request),
+      file.buffer,
+      { transport: 'EML_UPLOAD' },
+    );
+  }
+  /** Lists compact complete-mail receipts independently of candidate parsing. */
+  @Get('mail-archives')
+  mails(@Req() request: Request, @Query('offset') offset = '0') {
+    return this.mail.list(
+      buildWorkspaceAuthContextFromRequest(request),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+    );
+  }
+  /** Opens complete source metadata and artifact references under native parent permissions. */
+  @Get('mail-archives/:id')
+  mailDetail(@Req() request: Request, @Param('id') id: string) {
+    return this.mail.one(buildWorkspaceAuthContextFromRequest(request), id);
+  }
+
+  /** Forces untrusted HTML and MIME assets to download instead of executing in the CRM origin. */
+  @Get('mail-archives/:id/artifacts/:key')
+  async mailArtifact(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Param('key') key: string,
+    @Res() response: Response,
+  ) {
+    const artifact = await this.mail.artifact(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      key,
+    );
+    response.setHeader('Content-Type', 'application/octet-stream');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(artifact.label)}`,
+    );
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.send(artifact.bytes);
+  }
+  /** Resumes incomplete MIME expansion, preserving uploaded originals and assets. */
+  @Post('mail-archives/:id/retry')
+  @HttpCode(202)
+  mailRetry(@Req() request: Request, @Param('id') id: string) {
+    return this.mail.retry(buildWorkspaceAuthContextFromRequest(request), id);
+  }
+  /** Sends chosen resume assets plus complete mail context to the ordinary intake service. */
+  @Post('mail-archives/:id/intakes')
+  @HttpCode(202)
+  mailIntake(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.mail.submitIntake(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      body,
+    );
+  }
   /** Resolves a linked candidate label through the same directory permissions. */
   @Get('candidates/:id')
   candidate(@Req() request: Request, @Param('id') id: string) {

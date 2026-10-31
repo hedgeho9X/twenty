@@ -11,6 +11,7 @@ import {
   type RecruitingActor,
 } from './recruiting-actor.service';
 import { RecruitingUploadService } from './recruiting-upload.service';
+import { type RecruitingRecordsService } from './recruiting-records.service';
 
 const context = { workspace: { id: 'workspace' } } as WorkspaceAuthContext;
 
@@ -54,17 +55,42 @@ const setup = () => {
       },
     }),
   };
+  const records = { one: jest.fn() };
   const service = new RecruitingUploadService(
     native as unknown as FileUploadService,
     actors as unknown as RecruitingActorService,
     permissions as unknown as PermissionsService,
     cache as unknown as WorkspaceCacheService,
     { get: () => 'test-only-secret' } as unknown as TwentyConfigService,
+    records as unknown as RecruitingRecordsService,
   );
-  return { service, native, actors, permissions };
+  return { service, native, actors, permissions, records };
 };
 
 describe('recruiting native upload boundary', () => {
+  it('rebinds only artifacts of a readable signed archive, never a supplied foreign file ID', async () => {
+    const { service, records } = setup();
+    records.one.mockResolvedValue({
+      payload: {
+        artifacts: [
+          { key: 'owned', fileId: 'owned-file', label: 'resume.pdf' },
+        ],
+      },
+    });
+    const refs = await service.fromMailArchive(context, 'mail', ['owned']);
+    expect(refs[0]).toMatchObject({
+      fileId: 'owned-file',
+      label: 'resume.pdf',
+    });
+    expect(() => service.authorize(context, refs[0])).not.toThrow();
+    await expect(
+      service.fromMailArchive(context, 'mail', ['foreign-file']),
+    ).rejects.toThrow('不属于');
+    records.one.mockRejectedValue(new ForbiddenException());
+    await expect(
+      service.fromMailArchive(context, 'mail', ['owned']),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
   it('requires upload permission before creating a pending file', async () => {
     const { service, permissions, native } = setup();
     permissions.userHasWorkspaceSettingPermission.mockResolvedValue(false);

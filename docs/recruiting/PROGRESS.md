@@ -230,3 +230,11 @@
 - 官方元数据新增草稿表与字段。发现workspace-queue未启用使10项deferred schema action阻塞，确认该队列仅有本地schema任务后临时运行metadata worker，全部完成再停止；未启用旧邮件/工作流队列。bootstrap只对明确的前置deferred guard有限重试，不盲重试未知写入。
 - MCP新增draft_submit/draft_edit及kind=draft查询/重试/列表；CLI新增draft greeting/publication/edit，真实MCP与CLI回读APPROVED均成功。项目skill已同步。
 - 前端新增问候/发布草稿页、来源记录链接、失败重试、编辑/核对，匹配行可带入人岗组合；全包前端TS/lint通过。实际页面验收仍待Ego恢复许可，人工联系/推荐/发布回执和门户尚未实现。
+
+## 完整邮件原文归档与统一材料交接
+
+- 新recruitingMailArchive/recruitingMailEvent受内部状态签名保护；EML先经原生上传生命周期归档，再招聘队列展开完整MIME。保存完整text/HTML/headers/地址/附件/inline资源，逐项checkpoint；源事件与业务材料各自幂等，相同UID不同原文拒绝合并。
+- POST mail-archives/upload、列表/详情/retry、强制下载artifact、选材料进intake已实现。父归档权限校验后才能重绑其文件凭据，不提供任意fileId授权；简历/完整正文/可选说明/邮件来源进入既有解析与模型链。
+- 实际合成archive f2c854b0-0bf5-5fc1-979a-2440dced6e04，6份材料下载SHA256均相符，inline图片保留。重复原文/材料提交复用ID；intake ead17ffe-3cf0-572f-b4d3-56995621ee0e COMPLETED/STORED，expectedRoles后端工程师，自动run59d966ea-cef7-53be-a47d-dc10474559b7。没有新建人，仅更新原fixture。smoke-mail.mjs可复现。
+- 首次连续上传第二次碰到展开锁返回400，已加受理后快速回执路径及回归测试，尚未重启验证最新修正。当前API16/PID22596/session86569，worker12/PID22607/session64658；metadata worker2/PID22242已停。恢复先核对。
+- 10项MIME/恢复/权限测试已通过，新增快速回执测试正在mail-archive-tests-3运行；服务端TS/lint通过。新增表的官方schema任务已由临时workspace worker执行完再关闭。原生IMAP事件接入、实际收信、邮件UI/MCP/CLI仍未完成，不能将上传EML称实际收信。

@@ -49,6 +49,20 @@ let metadata = inspect();
 const created = [];
 for (const object of [
   {
+    nameSingular: 'recruitingMailEvent',
+    namePlural: 'recruitingMailEvents',
+    labelSingular: '邮件来源事件',
+    labelPlural: '邮件来源事件',
+    icon: 'IconMail',
+  },
+  {
+    nameSingular: 'recruitingMailArchive',
+    namePlural: 'recruitingMailArchives',
+    labelSingular: '招聘邮件归档',
+    labelPlural: '招聘邮件归档',
+    icon: 'IconMail',
+  },
+  {
     nameSingular: 'recruitingDraft',
     namePlural: 'recruitingDrafts',
     labelSingular: '招聘草稿',
@@ -88,6 +102,14 @@ for (const object of [
 }
 
 const fields = [
+  ['recruitingMailEvent', 'sourceKey', 'TEXT', '接收事件'],
+  ['recruitingMailEvent', 'sourceHash', 'TEXT', '原文摘要'],
+  ['recruitingMailEvent', 'archiveId', 'UUID', '归档记录'],
+  ['recruitingMailEvent', 'payload', 'RAW_JSON', '可信来源'],
+  ['recruitingMailArchive', 'status', 'TEXT', '归档状态'],
+  ['recruitingMailArchive', 'sourceHash', 'TEXT', '原文摘要'],
+  ['recruitingMailArchive', 'payload', 'RAW_JSON', '完整来源与材料'],
+  ['recruitingMailArchive', 'error', 'TEXT', '处理说明'],
   ['recruitingDraft', 'kind', 'TEXT', '草稿类型'],
   ['recruitingDraft', 'candidateId', 'UUID', '候选人记录'],
   ['recruitingDraft', 'jobId', 'UUID', '岗位记录'],

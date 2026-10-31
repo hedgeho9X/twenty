@@ -39,6 +39,8 @@ import { UsageLimitModule } from 'src/engine/core-modules/usage-limit/usage-limi
 import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspace-scoped-repository/provide-workspace-scoped-repository';
 import { RecruitingDraftsService } from './recruiting-drafts.service';
 import { RecruitingDraftJob } from './recruiting-draft.job';
+import { RecruitingMailService } from './recruiting-mail.service';
+import { RecruitingMailJob } from './recruiting-mail.job';
 
 @Module({
   imports: [
@@ -74,6 +76,8 @@ import { RecruitingDraftJob } from './recruiting-draft.job';
     RecruitingRequestLimitGuard,
     RecruitingDraftsService,
     RecruitingDraftJob,
+    RecruitingMailService,
+    RecruitingMailJob,
     ResumeIngestJob,
     RecruitingMatchingService,
     RecruitingPairEvaluatorService,

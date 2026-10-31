@@ -53,3 +53,12 @@
 8. UI视觉与运营完整交互、需求与数据链路HTML、启动/停止/迁移/回退/证据文档；个人飞书若授权可用写personal文档，不发消息/不发布网站。
 
 完整范围以DELIVERY_GOAL为准。未完成项不能为结束任务勾选完成。恢复后直接继续有独立进展的工作，不停在状态总结。
+
+## 最新邮件归档检查点（覆盖上面的旧进程号）
+
+- 详读MAIL_SOURCES.md与PROGRESS最后一节。邮件归档/选择/统一入库已经实现并实测，不重做；原生IMAP事件与受控实收尚未接。
+- 当前API16，session86569/PID22596；worker12，session64658/PID22607；metadata2/PID22242已停止。最新快速重复回执修正尚未重启，API16是该修正前版本。
+- 归档f2c854b0-0bf5-5fc1-979a-2440dced6e04；intake ead17ffe-3cf0-572f-b4d3-56995621ee0e完成；6个artifact下载SHA一致，包含inline；expectedRoles后端工程师，独立匹配59d966ea-cef7-53be-a47d-dc10474559b7。没有额外candidate。11项邮件/权限测试通过。
+- 新recruitingMailArchive与MailEvent的对象/字段已由官方metadata创建，deferred indexes已完成，两个内部表导航已隐藏。MailUploadService新增fromMailArchive，只允许从可读且签名通过的父记录重绑其artifact，不允许任意fileID。
+- 下一步：原生ImapMessageParser结果保留rawSource→GetMessages边界发受控source事件→绑定原connected account owner的捕获配置；先验单封收取，不开启旧历史同步/工作流，不发邮件。目标需要邮件UI和MCP/CLI。默认capture关闭，不能凭workspaceID升为system身份。
+- 其余完整目标仍按上面第5节和DELIVERY_GOAL执行，不停在归档API。
