@@ -28,6 +28,8 @@ const stageLabel = (intake: RecruitingIntake) => {
     STORED: t`已入库`,
     AWAITING_CONFIRMATION: t`待确认岗位`,
     FAILED: t`需要处理`,
+    IDENTITY_REVIEW: t`需要核对候选人身份`,
+    MATERIAL_REVIEW: t`需要核对材料类型`,
     CONFIRMATION_PARTIAL: t`部分岗位待修正`,
     DISCARDED: t`已结束，未导入`,
   };

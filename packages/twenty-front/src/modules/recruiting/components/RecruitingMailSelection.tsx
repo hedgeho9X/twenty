@@ -163,7 +163,7 @@ export const RecruitingMailSelection = ({
       />
       <StyledRecruitingMuted>
         {candidate
-          ? t`将补充已选候选人的材料，不按姓名自动合并。`
+          ? t`将以本次材料更新已选候选人的职业资料，历史原件及人工偏好保留。`
           : t`默认建立新候选人；补充已有资料时请先选择对应记录。`}
       </StyledRecruitingMuted>
       {candidate && (

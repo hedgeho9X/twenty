@@ -139,6 +139,9 @@ export const RecruitingCandidateIntake = ({
     <StyledRecruitingStack>
       <StyledRecruitingPanel>
         <StyledRecruitingTitle>{t`候选人材料`}</StyledRecruitingTitle>
+        {existingCandidateId && (
+          <StyledRecruitingMuted>{t`正在更新已有候选人。职业资料以本次上传的完整材料为准；历史原件及人工姓名、求职偏好保留。`}</StyledRecruitingMuted>
+        )}
         <StyledRecruitingMuted>{t`上传简历并补充自我介绍，系统会整理资料、写入候选人列表，再独立安排岗位匹配。`}</StyledRecruitingMuted>
         {!locked && (
           <StyledRecruitingDrop>

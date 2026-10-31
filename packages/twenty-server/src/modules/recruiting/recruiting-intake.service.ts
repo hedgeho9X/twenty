@@ -344,6 +344,28 @@ export class RecruitingIntakeService {
         return;
       }
       const profile = candidateProfileSchema.parse(extraction.profile);
+      const materialKind = isPlainObject(extraction.profile)
+        ? extraction.profile.materialKind
+        : undefined;
+      if (
+        materialKind === 'job' ||
+        materialKind === 'other' ||
+        (profile.needsReview &&
+          profile.skills.length +
+            profile.experience.length +
+            profile.education.length ===
+            0)
+      ) {
+        await this.records.update(context, 'recruitingIntake', record.id, {
+          state: 'NEEDS_REVIEW',
+          result: { ...envelope, stage: 'MATERIAL_REVIEW' },
+          error:
+            materialKind === 'job'
+              ? '这些材料更像岗位JD，请在公司与岗位入口提交；原件已保留'
+              : '尚未识别到足够的候选人职业资料，请核对材料后重新提交',
+        });
+        return;
+      }
       if (profile.identityConflict) {
         await this.records.update(context, 'recruitingIntake', record.id, {
           state: 'NEEDS_REVIEW',
