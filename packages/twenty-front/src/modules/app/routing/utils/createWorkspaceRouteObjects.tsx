@@ -69,6 +69,12 @@ const NotFound = lazy(() =>
   })),
 );
 
+const RecruitingWorkspacePage = lazy(() =>
+  import('~/pages/recruiting/RecruitingWorkspacePage').then((module) => ({
+    default: module.RecruitingWorkspacePage,
+  })),
+);
+
 type CreateWorkspaceRouteObjectsArgs = {
   isAdminPageEnabled?: boolean;
 };
@@ -84,6 +90,14 @@ export const createWorkspaceRouteObjects = ({
   });
 
   return [
+    {
+      path: '/recruiting-workspace',
+      element: (
+        <LazyRoute>
+          <RecruitingWorkspacePage />
+        </LazyRoute>
+      ),
+    },
     {
       path: AppPath.WorkflowCoreShowPage,
       element: (
