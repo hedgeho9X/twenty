@@ -266,3 +266,9 @@
 - 真实本人连接1个；只读取得最新一封并完整归档9719d751-6805-5477-86d4-12ead6b69719，6份artifact，EML回读SHA相符，有稳定UIDVALIDITY。autoSubmit=false，intakeIds=0，没有建候选人或发消息。API Key查询邮箱连接403。
 - 本地原生IMAP协议入口已重新启用以验证本人连接；启用前后所有messageChannel自动同步仍0，旧ACTIVE工作流0，worker允许列表仍只有招聘两队列，cron仍关。没有启用历史同步。原生ImapFlow使用BODY.PEEK与readOnly文件夹锁，接口无发送/移动/标记/游标写入调用。
 - 8项所有权、只读读取、限额、协议开关、历史边界及失败传播测试通过；前后端TS/lint通过。所有权UI提供本人连接、明确接入开关、原件核对与单封读取，尚待实际浏览器验收。
+
+## 并发任务的数据库锁连接隔离
+
+- 官方core池默认10连接，而招聘队列可同时持有最多10个长任务锁，加上6个评分锁，存在锁占满查询池后等待自身CRUD的风险。保留官方PostgresAdvisoryLockService，在同进程内为招聘锁配置独立18连接池，普通CRUD仍用原池；没有新增外部服务。
+- 锁池无实体、迁移、订阅器，禁止synchronize/dropSchema/installExtensions，由Nest管理启停。API和worker已实际启动并完成依赖注入。
+- 真实本地PG验证：18个同时持锁的回调，在普通查询池仅2连接时全部完成SELECT1，48ms；验证连接隔离与进度，不把它称完整LLM吞吐压测。相关6套/28项测试、服务端TS/lint通过。

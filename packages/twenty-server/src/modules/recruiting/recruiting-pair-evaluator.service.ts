@@ -1,9 +1,11 @@
 /** Evaluates one versioned candidate/job pair and persists reusable native records. */
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { RECRUITING_ADVISORY_LOCK } from './recruiting-advisory-lock.constant';
 
 import { experimental_evaluate as evaluate } from 'ai';
 import { v5 } from 'uuid';
@@ -68,6 +70,7 @@ export class RecruitingPairEvaluatorService {
   constructor(
     private readonly records: RecruitingRecordsService,
     private readonly registry: AiModelRegistryService,
+    @Inject(RECRUITING_ADVISORY_LOCK)
     private readonly locks: PostgresAdvisoryLockService,
   ) {}
 

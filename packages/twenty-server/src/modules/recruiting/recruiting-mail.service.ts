@@ -2,9 +2,11 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { RECRUITING_ADVISORY_LOCK } from './recruiting-advisory-lock.constant';
 import { createHash } from 'node:crypto';
 import { v4, v5 } from 'uuid';
 import { z } from 'zod';
@@ -84,6 +86,7 @@ export class RecruitingMailService {
     private readonly uploads: RecruitingUploadService,
     private readonly parser: RecruitingParserService,
     private readonly intakes: RecruitingIntakeService,
+    @Inject(RECRUITING_ADVISORY_LOCK)
     private readonly locks: PostgresAdvisoryLockService,
     @InjectMessageQueue(MessageQueue.recruitingQueue)
     private readonly queue: MessageQueueService,

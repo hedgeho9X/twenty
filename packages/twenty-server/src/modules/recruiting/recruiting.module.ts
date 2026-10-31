@@ -44,10 +44,12 @@ import { RecruitingMailJob } from './recruiting-mail.job';
 import { RecruitingMailboxService } from './recruiting-mailbox.service';
 import { ConnectedAccountEntity } from 'src/engine/metadata-modules/connected-account/entities/connected-account.entity';
 import { MessagingIMAPDriverModule } from 'src/modules/messaging/message-import-manager/drivers/imap/messaging-imap-driver.module';
+import { RecruitingLockModule } from './recruiting-lock.module';
 
 @Module({
   imports: [
     TypeORMModule,
+    RecruitingLockModule,
     RecordCrudModule,
     ApiKeyModule,
     TokenModule,
