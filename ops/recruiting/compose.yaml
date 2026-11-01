@@ -46,6 +46,15 @@ services:
       interval: 5s
       timeout: 4s
       retries: 12
+  minio:
+    image: twenty-recruiting/minio:7aac2a2c5b7c
+    profiles: [minio]
+    env_file: ../../.local/recruiting/minio.env
+    ports: ["127.0.0.1:23004:9000", "127.0.0.1:23005:9001"]
+    volumes: ["object-storage:/data"]
+    networks: [local]
+    mem_limit: 2g
+    cpus: 2
   mail-test:
     image: greenmail/standalone:2.1.15@sha256:309ba544ea482e5d4265d09921cdab07c8dad2cc4481d715c9b8ff5d3f0a149f
     profiles: [mail-test]
@@ -64,3 +73,4 @@ networks:
 volumes:
   database:
   cache:
+  object-storage:

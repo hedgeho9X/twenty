@@ -14,6 +14,7 @@ test('accepts only the dedicated local environment', () =>
     '4cb349cd-5765-4826-a2cb-73e5c5c2d564',
   ));
 for (const patch of [
+  { STORAGE_TYPE: 's3' },
   { PG_DATABASE_URL: 'postgres://remote.example:25432/recruiting' },
   { PG_DATABASE_URL: 'postgres://127.0.0.1:15432/recruiting' },
   { PG_DATABASE_URL: 'postgres://127.0.0.1:25432/production' },

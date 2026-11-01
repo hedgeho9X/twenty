@@ -3,6 +3,10 @@ import { resolve } from 'node:path';
 
 /** Rejects any environment that could target a remote service, the old local copy or unrelated storage. */
 export const assertLocalResetTarget = (environment, repository) => {
+  if (environment.STORAGE_TYPE && environment.STORAGE_TYPE !== 'local')
+    throw new Error(
+      'S3 storage requires a bucket snapshot before business reset',
+    );
   const database = new URL(environment.PG_DATABASE_URL);
   const cache = new URL(environment.REDIS_URL);
   if (
