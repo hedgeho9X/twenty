@@ -160,10 +160,11 @@ export class RecruitingJobConfirmationService {
     context: WorkspaceAuthContext,
     intakeId: string,
     value: unknown,
+    automatic = false,
   ) {
     const locked = await this.locks.tryWithLock(
       `recruiting-confirm:${context.workspace.id}:${intakeId}`,
-      async () => this.confirmLocked(context, intakeId, value),
+      async () => this.confirmLocked(context, intakeId, value, automatic),
     );
     if (!locked.acquired)
       throw new ConflictException('这一批岗位正在确认，请稍后刷新');
@@ -175,6 +176,7 @@ export class RecruitingJobConfirmationService {
     context: WorkspaceAuthContext,
     id: string,
     value: unknown,
+    automatic: boolean,
   ) {
     const record = await this.records.one(context, 'recruitingIntake', id);
     const envelope = record.result as IntakeEnvelope;
@@ -222,7 +224,11 @@ export class RecruitingJobConfirmationService {
         item.matchingRunId ? [item.matchingRunId] : [],
       );
       return this.records.update(context, 'recruitingIntake', id, {
-        state: done ? 'COMPLETED' : 'NEEDS_REVIEW',
+        state: done
+          ? 'COMPLETED'
+          : failed || !automatic
+            ? 'NEEDS_REVIEW'
+            : 'PROCESSING',
         targetId: created[0]?.jobId ?? null,
         error: failed ? '部分岗位未创建，请修正后单独重试' : null,
         result: {
@@ -235,7 +241,9 @@ export class RecruitingJobConfirmationService {
               : 'DISCARDED'
             : failed
               ? 'CONFIRMATION_PARTIAL'
-              : 'AWAITING_CONFIRMATION',
+              : automatic
+                ? 'SAVING_JOBS'
+                : 'AWAITING_CONFIRMATION',
           recordUrl: created[0]
             ? `/object/recruitmentJob/${created[0].jobId}`
             : undefined,

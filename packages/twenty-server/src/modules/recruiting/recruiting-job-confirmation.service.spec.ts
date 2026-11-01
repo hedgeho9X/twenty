@@ -213,3 +213,29 @@ describe('company-bound job confirmation', () => {
     });
   });
 });
+
+it('keeps automatic creation in processing until the reviewed item checkpoints are stored', async () => {
+  const { service, envelope, records } = setup();
+  const [item, ...rest] = service.preview('intake', envelope);
+  const result = await service.confirm(
+    context,
+    'intake',
+    {
+      items: [{ itemId: item.itemId, draft: item.draft }],
+      discardedItemIds: rest.map((row) => row.itemId),
+    },
+    true,
+  );
+  expect(records.update).toHaveBeenNthCalledWith(
+    1,
+    context,
+    'recruitingIntake',
+    'intake',
+    expect.objectContaining({
+      state: 'PROCESSING',
+      result: expect.objectContaining({ stage: 'SAVING_JOBS' }),
+    }),
+  );
+  expect(result.state).toBe('COMPLETED');
+  expect((result.result as IntakeEnvelope).stage).toBe('STORED');
+});

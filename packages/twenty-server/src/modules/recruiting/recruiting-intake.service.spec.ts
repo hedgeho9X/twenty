@@ -292,3 +292,57 @@ it('stops after inference when queued API authority expires or is revoked, inclu
   expect(candidates.replaceProfile).not.toHaveBeenCalled();
   expect(records.create).not.toHaveBeenCalled();
 });
+
+it('creates extracted job items in the worker without a separate operator confirmation', async () => {
+  const context = { workspace: { id: 'workspace' } } as WorkspaceAuthContext;
+  const actor = { workspaceId: 'workspace' };
+  const draft = { title: '后端工程师', description: '完整职责与要求' };
+  const record = {
+    id: 'intake',
+    state: 'READY',
+    result: {
+      schemaVersion: 2,
+      input: { kind: 'JOB', source: 'manual', companyId: 'company', files: [] },
+      actor,
+      inputHash: 'hash',
+      stage: 'EXTRACTED',
+      extraction: { profile: { jobs: [draft] } },
+    },
+  };
+  const records = {
+    one: jest.fn(async () => structuredClone(record)),
+    update: jest.fn(async () => record),
+  };
+  const jobs = {
+    preview: jest.fn(() => [
+      { itemId: 'item', jobId: 'job', status: 'DRAFT', draft },
+    ]),
+    confirm: jest.fn(async () => record),
+  };
+  const service = new RecruitingIntakeService(
+    records as never,
+    { resolve: async () => context } as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    jobs as never,
+    {} as never,
+    {} as never,
+  );
+  await service.process({ intakeId: 'intake', actor });
+  expect(jobs.confirm).toHaveBeenCalledWith(
+    context,
+    'intake',
+    {
+      items: [{ itemId: 'item', draft }],
+    },
+    true,
+  );
+  expect(records.update).not.toHaveBeenCalledWith(
+    expect.anything(),
+    expect.anything(),
+    expect.anything(),
+    expect.objectContaining({ state: 'NEEDS_REVIEW' }),
+  );
+});

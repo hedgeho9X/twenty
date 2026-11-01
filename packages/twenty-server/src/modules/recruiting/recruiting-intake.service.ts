@@ -282,7 +282,11 @@ export class RecruitingIntakeService {
     const record = await this.records.one(context, 'recruitingIntake', id);
     const envelope = this.envelope(record);
     if (record.state === 'COMPLETED') return this.receipt(record);
-    if (envelope.stage === 'AWAITING_CONFIRMATION') return this.receipt(record);
+    if (
+      envelope.stage === 'AWAITING_CONFIRMATION' &&
+      envelope.input.kind !== 'JOB'
+    )
+      return this.receipt(record);
     if (['READY', 'PROCESSING'].includes(String(record.state))) {
       const active =
         await this.queue.getInFlightJobs<RecruitingIntakeJobData>();
@@ -392,10 +396,21 @@ export class RecruitingIntakeService {
         await update('EXTRACTED', { extraction });
       }
       if (envelope.input.kind === 'JOB') {
-        await this.records.update(context, 'recruitingIntake', record.id, {
-          state: 'NEEDS_REVIEW',
-          result: { ...envelope, stage: 'AWAITING_CONFIRMATION' },
-        });
+        context = await this.actors.resolve(data.actor);
+        await update('SAVING_JOBS');
+        const items = this.jobs
+          .preview(record.id, envelope)
+          .filter((item) => !['CREATED', 'DISCARDED'].includes(item.status))
+          .map((item) => ({ itemId: item.itemId, draft: item.draft }));
+        try {
+          await this.jobs.confirm(context, record.id, { items }, true);
+        } catch (error) {
+          // Preserve per-item creation checkpoints if a later external operation failed.
+          envelope = this.envelope(
+            await this.records.one(context, 'recruitingIntake', record.id),
+          );
+          throw error;
+        }
         return;
       }
       const profile = candidateProfileSchema.parse(extraction.profile);
@@ -521,7 +536,10 @@ export class RecruitingIntakeService {
         error instanceof BadRequestException ||
         error instanceof ConflictException
           ? String(error.message)
-          : '处理失败，请查看材料后重试';
+          : error instanceof Error &&
+              error.message.includes('ChatGPT subscription is unavailable')
+            ? '资料整理模型的账号连接已失效，请在AI设置更新连接后重试'
+            : '处理失败，请查看材料后重试';
       await this.records.update(context, 'recruitingIntake', record.id, {
         state: 'NEEDS_REVIEW',
         error: message,

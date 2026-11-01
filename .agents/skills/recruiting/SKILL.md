@@ -13,7 +13,7 @@ description: 操作本项目的招聘业务：公司与JD录入、候选人材�
 
 - 先 `companies search --query 名称`，确认公司身份；无对应记录再 `companies create --name 名称`，不按相似名称自动合并。
 - `jobs submit --company-id ID --text-file JD.txt --note-file 说明.txt --key 唯一标识 --wait`。可重复 `--file`，一批只绑定一家公司。
-- AWAITING_CONFIRMATION 表示待确认预览。通过 `task get --kind intake --id ID` 获取稳定 itemId、完整 draft 和缺失提示，再准备 items JSON，执行 `jobs confirm --id ID --items-file 路径`。
+- JOB提交后在后台完成解析、岗位创建和匹配排队；通过 `task get --kind intake --id ID` 查看状态、解析数据和岗位链接。运营界面为多条JD原文独立入队，没有第三个确认步骤。旧AWAITING_CONFIRMATION任务可用task retry恢复自动创建；jobs confirm仅用于显式修正或兼容旧客户端。
 - 有文件的jobs submit应明确传--key；CLI在700/600本地缓存保存上传checkpoint，重跑复用成功文件及原任务，修改材料或说明必须换key。缓存按实例和凭据隔离，可由TWENTY_CLI_STATE_DIR指定，不得公开其中的上传能力。
 - 修改、删除、重排必须保留 itemId。只重试失败项；已有岗位不能靠再次确认覆盖人工修改。忽略预览不会删除已创建岗位。
 

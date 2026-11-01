@@ -66,3 +66,7 @@ node ops/recruiting/smoke-intake-materials.mjs 只读复验已有合成邮件PDF
 ## 10. 队列来源与完成结果
 
 材料任务回执包含source（manual/api/email）。新匹配任务包含source（manual/api/email/system），缺失的历史来源保持未记录；自动记录变更创建的任务显示自动，不推断为人工或邮件。GET /recruiting/match-runs可用completed=true只读取COMPLETED记录，该条件与direction在分页前合并；默认查询仍包含所有队列状态。材料入库、匹配入队和匹配完成是不同状态，检查关联matchingRunIds的当前回执判断是否真正完成。
+
+## 11. JD自动入库流程更新
+
+最新运营流程为选公司后提交多条JD文字，每条独立任务及幂等键，处理结果在队列中查看。JOB的ResumeIngestJob在结构化解析后直接调用共用的岗位保存逻辑，以原itemId进行逐项落库与匹配排队，不再默认停于AWAITING_CONFIRMATION。自动保存期间保持PROCESSING/SAVING_JOBS，避免轮询提前误认为需人工确认。已有完整成功记录不会重做；旧待确认任务可通过task retry恢复，已有解析checkpoint复用。job-intakes/:id/confirm保留给显式修正和旧客户端兼容，运营前台不再将它作为必经步骤。
