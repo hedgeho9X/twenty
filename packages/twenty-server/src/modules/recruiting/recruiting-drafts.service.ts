@@ -126,6 +126,7 @@ export class RecruitingDraftsService {
       ...this.receipt(record),
       title: record.title,
       body: record.body,
+      note: payload.input.note,
       stale: payload.sourceVersion !== source.version,
       generation: payload.generation,
       approvedAt: payload.approvedAt,
@@ -152,33 +153,58 @@ export class RecruitingDraftsService {
     return { ...page, records: visible };
   }
 
-  /** Retries failed generation under the current caller; changed sources invalidate generated checkpoints. */
+  /** Retries generation under current authority while preserving approved human text despite source changes. */
   async retry(context: WorkspaceAuthContext, id: string) {
-    const record = await this.records.one(context, 'recruitingDraft', id);
-    const payload = this.payload(record);
-    const source = await this.source(context, payload.input);
-    if (
-      ['READY', 'APPROVED'].includes(String(record.status)) &&
-      source.version === payload.sourceVersion
-    )
-      return this.receipt(record);
     const actor = this.actors.capture(context);
-    const updated = await this.records.update(context, 'recruitingDraft', id, {
-      status: 'QUEUED',
-      error: '',
-      payload: {
-        ...payload,
-        actor,
-        approvedAt: undefined,
-        sourceVersion: source.version,
-        generation:
-          source.version === payload.sourceVersion
-            ? payload.generation
-            : undefined,
+    const locked = await this.locks.tryWithLock(
+      `recruiting-draft:${context.workspace.id}:${id}`,
+      async () => {
+        const record = await this.records.one(context, 'recruitingDraft', id);
+        const payload = this.payload(record);
+        const source = await this.source(context, payload.input);
+        if (
+          record.status === 'APPROVED' ||
+          (record.status === 'READY' &&
+            source.version === payload.sourceVersion)
+        )
+          return { record, enqueue: false };
+        const active =
+          await this.queue.getInFlightJobs<RecruitingDraftJobData>();
+        if (
+          active.some(
+            (entry) =>
+              entry.data.draftId === id &&
+              entry.data.actor.workspaceId === context.workspace.id,
+          )
+        )
+          return { record, enqueue: false };
+        const authorized = await this.actors.resolve(actor);
+        const updated = await this.records.update(
+          authorized,
+          'recruitingDraft',
+          id,
+          {
+            status: 'QUEUED',
+            error: '',
+            payload: {
+              ...payload,
+              actor,
+              approvedAt: undefined,
+              sourceVersion: source.version,
+              generation:
+                source.version === payload.sourceVersion
+                  ? payload.generation
+                  : undefined,
+            },
+          },
+        );
+        return { record: updated, enqueue: true };
       },
-    });
-    await this.enqueue(id, actor);
-    return this.receipt(updated);
+    );
+    if (!locked.acquired)
+      throw new ConflictException('草稿正在处理，请稍后重试');
+    if (locked.value.enqueue) await this.enqueue(id, actor);
+    return this.receipt(locked.value.record);
   }
 
   /** Allows editable approval without changing publication, consent, recommendation or sent state. */
@@ -215,10 +241,10 @@ export class RecruitingDraftsService {
 
   /** Executes once per lock, checkpoints successful model output before writing display fields, and never sends messages. */
   async process(data: RecruitingDraftJobData) {
-    await this.locks.tryWithLock(
+    const locked = await this.locks.tryWithLock(
       `recruiting-draft:${data.actor.workspaceId}:${data.draftId}`,
       async () => {
-        const context = await this.actors.resolve(data.actor);
+        let context = await this.actors.resolve(data.actor);
         const record = await this.records.one(
           context,
           'recruitingDraft',
@@ -226,7 +252,17 @@ export class RecruitingDraftsService {
         );
         if (['READY', 'APPROVED'].includes(String(record.status))) return;
         let payload = this.payload(record);
-        await this.records.update(context, 'recruitingDraft', record.id, {
+        /** Rebuilds current authority after long operations, including failure-state persistence. */
+        const update = async (patch: Record<string, unknown>) => {
+          context = await this.actors.resolve(data.actor);
+          return this.records.update(
+            context,
+            'recruitingDraft',
+            record.id,
+            patch,
+          );
+        };
+        await update({
           status: 'PROCESSING',
           error: '',
         });
@@ -241,14 +277,14 @@ export class RecruitingDraftsService {
               payload.input.note,
             );
             payload = { ...payload, generation };
-            await this.records.update(context, 'recruitingDraft', record.id, {
+            await update({
               payload,
             });
           }
           const current = await this.source(context, payload.input);
           const stale = current.version !== payload.sourceVersion;
           const profile = payload.generation!.profile;
-          await this.records.update(context, 'recruitingDraft', record.id, {
+          await update({
             status: stale || profile.needsReview ? 'NEEDS_REVIEW' : 'READY',
             title: profile.title,
             body: profile.body,
@@ -256,7 +292,7 @@ export class RecruitingDraftsService {
             payload,
           });
         } catch (error) {
-          await this.records.update(context, 'recruitingDraft', record.id, {
+          await update({
             status: 'FAILED',
             error:
               error instanceof ConflictException
@@ -267,6 +303,8 @@ export class RecruitingDraftsService {
         }
       },
     );
+    if (!locked.acquired)
+      throw new ConflictException('草稿正在处理，稍后自动重试');
   }
 
   /** Rejects API keys, apps and agent-delegated sessions for declarations that a real-world action happened. */
@@ -365,7 +403,11 @@ export class RecruitingDraftsService {
         id: `recruiting-draft-${id}-${v4()}`,
         isWorkspaceJob: true,
         workspaceId: actor.workspaceId,
-        retryLimit: 1,
+        retryLimit: 6,
+        backoff: {
+          strategy: 'exponential',
+          initialDelayMilliseconds: 5_000,
+        },
         deduplication: { id: `recruiting-draft-${id}` },
       },
     );
