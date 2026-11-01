@@ -100,6 +100,12 @@ it('defaults to five selections, expands to ten and saves/copies the selected dr
       .getAllByRole('checkbox')
       .filter((box) => (box as HTMLInputElement).checked),
   ).toHaveLength(5);
+  const toggle = screen.getByRole('button', { name: '取消全选' });
+  expect(toggle.closest('th')).not.toBeNull();
+  fireEvent.click(toggle);
+  expect(screen.getByText('已选 0 项')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '全选当前结果' }));
+  expect(screen.getByText('已选 5 项')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: '加载更多' }));
   expect(screen.getAllByRole('checkbox')).toHaveLength(10);
   fireEvent.click(screen.getByRole('button', { name: '全选当前结果' }));

@@ -113,7 +113,8 @@ export const MatchSelection = ({
       !active ||
       !autoCopy ||
       draft?.draftId !== autoCopy ||
-      draft.status !== 'READY' ||
+      !['READY', 'NEEDS_REVIEW'].includes(draft.status) ||
+      draft.stale ||
       !draft.body
     )
       return;
@@ -121,7 +122,14 @@ export const MatchSelection = ({
     void copyText(draft.body)
       .then(() => setMessage(t`文案已生成并复制`))
       .catch(() => setMessage(t`文案已保存，请点击复制文案`));
-  }, [active, autoCopy, draft?.draftId, draft?.status, draft?.body]);
+  }, [
+    active,
+    autoCopy,
+    draft?.draftId,
+    draft?.status,
+    draft?.body,
+    draft?.stale,
+  ]);
   const generate = async () => {
     setBusy(true);
     setMessage('');
@@ -153,23 +161,28 @@ export const MatchSelection = ({
   };
   return (
     <StyledRecruitingStack>
-      <StyledRecruitingRow>
-        <Button
-          variant="ghost"
-          onClick={() =>
-            select(new Set(pairs.slice(0, visibleCount).map(identifier)))
-          }
-        >{t`全选当前结果`}</Button>
-        <Button
-          variant="ghost"
-          onClick={() => select(new Set())}
-        >{t`取消全选`}</Button>
-        <span>{t`已选 ${selected.size} 项`}</span>
-      </StyledRecruitingRow>
       <StyledRecruitingTable>
         <thead>
           <tr>
-            <th />
+            <th>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  const visible = pairs.slice(0, visibleCount).map(identifier);
+                  const all =
+                    visible.length > 0 &&
+                    visible.every((id) => selected.has(id));
+                  select(all ? new Set() : new Set(visible));
+                }}
+              >
+                {pairs
+                  .slice(0, visibleCount)
+                  .every((pair) => selected.has(identifier(pair)))
+                  ? t`取消全选`
+                  : t`全选当前结果`}
+              </Button>
+              <span>{t`已选 ${selected.size} 项`}</span>
+            </th>
             <th>{run.direction === 'JOB_TO_CANDIDATES' ? t`姓名` : t`岗位`}</th>
             <th>{t`公司`}</th>
             <th>{t`匹配值`}</th>
@@ -237,7 +250,11 @@ export const MatchSelection = ({
       {draft?.error && (
         <StyledRecruitingError>{draft.error}</StyledRecruitingError>
       )}
+      {draft?.stale && (
+        <StyledRecruitingMuted>{t`资料或文案规则已更新，请重新生成文案。`}</StyledRecruitingMuted>
+      )}
       {draft &&
+        !draft.stale &&
         ['READY', 'APPROVED', 'NEEDS_REVIEW'].includes(draft.status) && (
           <DraftText key={draft.draftId} draft={draft} />
         )}

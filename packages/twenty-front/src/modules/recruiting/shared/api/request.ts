@@ -24,7 +24,7 @@ const recruitingResponse = async (path: string, options: RequestInit = {}) => {
     },
   );
   if (!response.ok) {
-    const body: unknown = await response.json();
+    const body: unknown = await response.json().catch(() => undefined);
     const message =
       body && typeof body === 'object' && 'message' in body
         ? body.message
@@ -42,7 +42,14 @@ const recruitingResponse = async (path: string, options: RequestInit = {}) => {
 export const recruitingRequest = async <T>(
   path: string,
   options: RequestInit = {},
-): Promise<T> => (await recruitingResponse(path, options)).json() as Promise<T>;
+): Promise<T> => {
+  const response = await recruitingResponse(path, options);
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new Error(t`服务器返回的数据不完整，请刷新后重试`);
+  }
+};
 
 /** Fetches private binary artifacts with the same cookie opt-in as ordinary recruiting API requests. */
 export const recruitingBlob = async (path: string): Promise<Blob> =>

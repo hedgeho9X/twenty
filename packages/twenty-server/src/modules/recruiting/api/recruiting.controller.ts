@@ -508,10 +508,16 @@ export class RecruitingController {
   /** Reuses valid pair caches and retries only the necessary scoring work. */
   /** Loads the last editable communication draft for this authorized matching result. */
   @Get('match-runs/:id/draft')
-  matchDraft(@Req() request: Request, @Param('id') id: string) {
-    return this.drafts.latestForMatch(
-      buildWorkspaceAuthContextFromRequest(request),
-      id,
+  async matchDraft(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Res() response: Response,
+  ) {
+    response.json(
+      await this.drafts.latestForMatch(
+        buildWorkspaceAuthContextFromRequest(request),
+        id,
+      ),
     );
   }
 
