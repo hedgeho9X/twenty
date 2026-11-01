@@ -88,6 +88,56 @@ export class RecruitingIntakeService {
     private readonly queue: MessageQueueService,
   ) {}
 
+  /** Reuses the same candidate on an exact email match and on concurrent first-time submissions. */
+  private async storeCandidate(
+    context: WorkspaceAuthContext,
+    input: {
+      proposedId: string;
+      explicitId?: string;
+      email?: string | null;
+      profile: Record<string, unknown>;
+      files: { fileId: string; label: string }[];
+      createData: Record<string, unknown>;
+    },
+  ): Promise<string> {
+    const findExisting = async () => {
+      if (!input.email) return undefined;
+      const page = await this.records.list(context, 'person', {
+        filter: { emails: { primaryEmail: { eq: input.email.trim() } } },
+        limit: 1,
+      });
+      const record = page.records[0];
+      return isPlainObject(record) && typeof record.id === 'string'
+        ? record.id
+        : undefined;
+    };
+    const existingId = input.explicitId ?? (await findExisting());
+    const id = existingId ?? input.proposedId;
+    const update = async (target: string) => {
+      await this.candidates.replaceProfile(
+        context,
+        target,
+        input.profile,
+        input.files,
+      );
+      return target;
+    };
+    try {
+      return await update(id);
+    } catch (error) {
+      if (!(error instanceof NotFoundException) || existingId) throw error;
+    }
+    try {
+      await this.records.create(context, 'person', { ...input.createData, id });
+      return id;
+    } catch (error) {
+      // A parallel submission can win the unique-email insertion after our first lookup.
+      const winner = await findExisting();
+      if (!winner) throw error;
+      return update(winner);
+    }
+  }
+
   /** Accepts completed file references once; retries must reuse the same payload and key. */
   async submit(
     context: WorkspaceAuthContext,
@@ -445,8 +495,7 @@ export class RecruitingIntakeService {
         });
         return;
       }
-      const candidateId =
-        envelope.input.candidateId ?? v5(`${record.id}:candidate`, v5.URL);
+      const proposedId = v5(`${record.id}:candidate`, v5.URL);
       const candidateFiles = envelope.candidateFiles ?? [];
       for (const file of envelope.input.files.filter(
         (entry) => entry.role !== 'archive',
@@ -478,28 +527,13 @@ export class RecruitingIntakeService {
         generatedAt: new Date().toISOString(),
       };
       context = await this.actors.resolve(data.actor);
-      try {
-        await this.candidates.replaceProfile(
-          context,
-          candidateId,
-          recruitingProfile,
-          files,
-        );
-      } catch (error) {
-        if (!(error instanceof NotFoundException) || envelope.input.candidateId)
-          throw error;
-        if (profile.email) {
-          const duplicate = await this.records.list(context, 'person', {
-            filter: { emails: { primaryEmail: { eq: profile.email } } },
-            limit: 1,
-          });
-          if (duplicate.records.length)
-            throw new BadRequestException(
-              '候选人邮箱已存在，请在已有候选人记录中更新简历',
-            );
-        }
-        await this.records.create(context, 'person', {
-          id: candidateId,
+      const candidateId = await this.storeCandidate(context, {
+        proposedId,
+        explicitId: envelope.input.candidateId,
+        email: profile.email,
+        profile: recruitingProfile,
+        files,
+        createData: {
           name: { firstName: profile.name || '待补全姓名', lastName: '' },
           contactRoles: ['CANDIDATE'],
           ...(profile.email && /.+@.+\..+/.test(profile.email)
@@ -515,8 +549,8 @@ export class RecruitingIntakeService {
                 },
               }
             : {}),
-        });
-      }
+        },
+      });
       await this.records.update(context, 'recruitingIntake', record.id, {
         state: 'COMPLETED',
         targetId: candidateId,
