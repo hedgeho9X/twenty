@@ -55,3 +55,9 @@ canonical 邮件资源现在绑定同一归档记录的九个原生 FILES 槽：
 新邮件intake `51b6e6ea-a3e6-555f-9f8f-427aa6a1aa4c` 与 `d1d131fb-8a21-515b-825f-80aa9cc83e9e` 已另行通过本地GET回读为 `COMPLETED / STORED`，各4份文件，所选简历TXT和正文均为 `complete / text_only`，结构化模型为 `chatgpt-subscription/gpt-5.6-sol`。smoke使用external-native-worker模式，`parsingAcceptedOnly=true` 只限定验收脚本本身没有直接执行intake处理；后台实际解析/匹配的模型用量未测量，不能写成零模型或免费。
 
 这些结果证明完整合成邮件和文件归属链路通过，仍没有自然新邮件到达的观测；不得将合成EML、旧单封读取或空轮询当作自然新投递验收。
+
+## 8. 用户改定的本地协议验收
+
+用户明确要求自行启动本地邮件服务后，已中止真实邮箱的有限观察并恢复原开关；该窗口9次正常轮询无新邮件，不能记为实收成功。本轮完成的是GreenMail SMTP新投递→Twenty原生IMAP定时任务→完整六资源归档→PDF两页与说明解析→候选人入库→46岗Jev匹配，非直接调用mail.receive或导入EML。
+
+旧UID1未补拉，新UID2进入原生统一入口；相同原文经IMAP再次投递为UID3，原归档/intake/matchRun复用，未读标志保持。测试后两个邮箱招聘接入及原生历史同步均关闭，重复scheduler0。此本地端到端范围按用户最新要求满足邮件门槛，不外推为外部生产邮箱自然投递验收。具体ID、用量、原件摘要与复验命令见LOCAL_MAIL_TEST.md。

@@ -408,3 +408,15 @@
 - 本轮4套35项组件/恢复回归、前端tsgo全包、10文件type-aware lint/格式和模块翻译检查通过。两合成公司的真实API分别回读8停招岗与0岗，companyId范围与接口字段形状正确。Vite三个相关模块实际编译200；以上不代替新界面的浏览器验收。私有company-context-api-evidence.json、company-context-vite-evidence.json。
 - 本轮只读回查新SIWC连接0、pendingAttempt无、Codex只读来源可用；未新发授权或读取/操作已交给用户的浏览器。此前p2/p3已关闭，p1保留订阅设置页并已handOff。需要用户完成授权或明确交回控制后，在同空间复验两处展示，不另起浏览器绕过。
 - 当前未完成事项为新增展示页面复验、新SIWC本人授权及真实调用/续期、新邮件自然实收、业务质量核对；完整目标仍active。本轮不再启动子Agent，遵守最新developer的非主动委派规则。没有push、生产写入或外发消息。
+
+## 用户改定的本地邮件服务验收（2026-11-01）
+
+- 上轮完成两处展示补充，属于progress。本轮先启动15分钟真实邮箱观察，实际9次正常poll无新邮件；用户随后明确要求自行起本地邮件服务，已SIGINT精确观察进程72186，finally确认configurationRestored=true/finalEnabled=false，没有继续等待或自动重启真实邮箱窗口。邮件验收门槛按该明确要求改为本地SMTP/IMAP端到端，而非假称观察到外部自然来信。
+- GreenMail 2.1.15 ARM64固定digest已在OrbStack的twenty-recruiting-mail-test-1运行，loopback SMTP23025/IMAP23143/配置API23080均就绪。可选profile、私有随机凭据、up/status/down已实现；精确本地host allowlist保留安全模式，没有使用通配符或停旧A环境。
+- 通过原生saveImapSmtpCaldavAccount注册独立测试连接69bdf809-59e0-4570-9f4e-2afb40f0fbbd，加密凭据仍由官方服务管理。原生历史同步与联系人自动创建通过updateMessageChannel关闭；已有业务邮箱未修改。本地SMTP/IMAP由独立Python标准库客户端投递/核对，应用仍使用自身ImapFlow与RecruitingMailboxPollJob，未直调mail.receive或EML上传来代替协议接入。
+- f2b1416d修复官方TipTap/旧BlockNote输入读取和清空时不恢复旧profile，3套35项回归、服务端tsgo/lint通过。API39/PID75721/session25966、worker33/PID75720/session93957、AI9/PID75719/session87782已实际重建9604文件并加载新host配置；原生偏好与空JD编译模块回查为真。构建前确认无PENDING授权和三队列空闲。
+- 11:22:41～11:24:43，旧SMTP邮件UID1先于接入基线，新邮件UID2被正常定时任务收取，归档5d7c0e94-5443-53a6-869c-1f5c286d603e六份资源，独立IMAP原文SHA一致、正文引用保留。intake448f5f2c-fe82-5822-a6f7-d172c1f08920已STORED，两页PDF/all_pages与正文/text_only回读完整；候选人b6b09df5-3bba-505e-84af-6b3a6d3e4f94入库。
+- 自动run cdc1ec42-73d0-588d-99c4-3fdc786f9829在本轮新版本46/46评分、0失败、0缓存、complete=true、前五5条。gateway报告cost合计0.006314952，订阅提取消耗另计。重复原文经IMAP APPEND成为UID3，复用同一archive/intake/matchRun；旧UID1未归档，原邮件仍未读。全部12个断言通过，没有对外发送或联系。
+- finally关闭测试接入，回读两邮箱enabled=false，三队列waiting/active/delayed/prioritized及scheduler0，原生邮件/日历同步和旧ACTIVEworkflow0；929联系人/501候选人（本轮增加一位合成样例）。默认重跑命令已只读复验原任务成功，新投递/新模型请求0；--new-case显式新建场景并保留旧状态/原件。证据在私有mail-test/reception-evidence-v1.json、reception-supplement-v1.json、final-health-v1.json。
+- 最初汇总使用pageCount而实际接口为pages，原证据materialPages为空；已另存独立API补充证据确认pages2/all_pages，没有改写原报告。后续脚本已修正并加入两页断言。
+- 可复现工具及说明已本地提交c08c4e6b、e44938cb、dc849ae7；本地邮件门槛已勾完成。GreenMail继续运行便于开发，自动接入保持关闭。本人ChatGPT新授权、两处新增展示的页面验收和业务质量核对仍未完成；已异步请求用户交回空间15，尚无回复，不擅自恢复浏览器控制。

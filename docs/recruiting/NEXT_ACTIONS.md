@@ -1,6 +1,6 @@
 # 恢复执行入口
 
-更新时间：2026-11-01 11:00，Asia/Shanghai。先读DELIVERY_GOAL.md与PROGRESS.md，再核对本文件和实时进程。完整目标仍active，未缩小范围。用户已经醒来，明确要求代理恢复本地登录；不得沿用旧的“浏览器恢复未获准”结论。
+更新时间：2026-11-01 11:33，Asia/Shanghai。先读DELIVERY_GOAL.md与PROGRESS.md。完整目标active；用户已明确改为本地邮件服务验收，原真实邮箱观察已中止并恢复关闭。
 
 ## 1. 固定底座和边界
 
@@ -11,8 +11,8 @@
 
 ## 2. 运行版本
 
-- 已运行API38，PID65513/session33051；招聘worker32，PID65514/session51380；AI-only worker8，PID65515/session76984；front11915。这些仅为恢复定位，停止前必须lsof/ps/cwd重新核对。
-- 最新9604源码文件构建已加载邮件canonical ownership与96c9335d明确autoMatch=false修复；B保持true。55d7643e本地门户/订阅代理修复也已生效，正常页面可读。
+- 已运行API39，PID75721/session25966；招聘worker33，PID75720/session93957；AI-only worker9，PID75719/session87782；front11915。这些仅为恢复定位，停止前必须lsof/ps/cwd重新核对。
+- 最新9604源码文件构建已加载邮件canonical ownership、明确autoMatch=false和f2b1416d原生TipTap/清空语义修复，B保持true；本地邮件host允许配置已加载。55d7643e本地门户/订阅代理修复也已生效，正常页面可读。
 - 10:30已完成idle后精确停止/构建/重启与健康核对，前端/API/parser200。今后只有新服务端变化才重复构建；只招聘两队列+ai-queue，无旧同步/工作流/发送队列或cron。
 - .git写、精确SIGTERM及Ego操作需require_escalated；本地repo写与network权限须按当前turn核对；本轮已request_permissions授权。普通sandbox EPERM不等于自动审核拒绝。曾一条代理只读输出过宽遭审核拒绝，收窄为聚合及固定合成ID后已允许，无剩余阻塞。
 
@@ -46,14 +46,14 @@
 2. 最后回读新队列与旧同步/工作流/邮箱开关；本轮API38/两worker已重建并健康，无需重复。官方聊天单字段升级已dry-run/apply并验证原API读成功；不改guard或workspace版本，不将单项当整链升级完成。
 3. 核心页面、Shadcn报告和数据链路HTML均已实际验收，不重复制造fixture；八个合成岗CLOSED，活跃集合46与manifest一致。55公司/174岗/928联系人/500候选人为最终含fixture数量，迁移原基线另记。三队列空闲、旧同步/工作流/收信开启0，私有delivery-health-final.json。
 4. 个人飞书文档H0sld6jFuosjIMxd1TWc4PcanPb已personal/user精准更新至revision8，核心UI摘要已修正并回读检查通过，三大章保留；后续按新证据定向更新，不改对方原文、不发IM。
-5. 新SIWC本人授权、自然新邮件到达观测、业务方质量核对仍是完整交付gate。自然收信若做，autoSubmit=false、仅新邮件、首封即关或15分钟截止、最后恢复原配置；不能把旧读取/空poll当自然到达。
+5. 新SIWC本人授权、两处新增展示页面复验及业务方质量仍待完成。用户已改定本地SMTP/IMAP服务验收，该链路已完整通过，外部业务邮箱自然来信不再是必需gate；不要重新启动旧真实邮箱观察或再要求用户发邮件。
 6. 保存最终本地commits及运行版本证据，不推送。目标未全部满足不能mark complete；连续三goal轮同一阻塞且无可做工作时才按工具规则blocked，不把压缩次数当轮数。
 
 ## 7. 最后完成的独立工作
 
 - 官方聊天缺mentionsResolvedAt已单workspace dry-run/apply并实测原API摘要成功，metadataVersion184、deferred0；未修改版本/状态/guard，未冒称完整升级链通过。
 - 公司重复example.invalid触发原生唯一域名保护，改独立测试子域正常UI创建通过，未改源代码或权限；通用重复提示仍可后续改善，但不是创建链路失败。
-- 最终仍需新SIWC本人授权、真实新邮件和业务质量确认。根接下来只处理本人就绪后的具体步骤，不重复空poll/重跑模型/伪造刷新，不以等待或预算标完成。
+- 最终仍需新SIWC本人授权、两处新增展示页面复验和业务质量确认；本地新邮件链路已按用户最新要求通过。根接下来只处理本人就绪后的具体步骤，不重复空poll/重跑模型/伪造刷新，不以等待或预算标完成。
 
 ## 8. 最近逐项审计后的当前恢复点
 
@@ -61,3 +61,13 @@
 - UI总验收勾选已经重新打开，新增展示尚无浏览器点击证据；不要用旧核心闭环截图宣称新面板已过。后续只需原空间15：公司搜索域名/已有岗位、匹配行展开当前公司简介偏好、关闭展开和记录链接。权限失败不应展示旧缓存。
 - 本轮新SIWC状态只读确认为连接0/pendingAttempt无。授权窗口已交用户，不再反复生成OAuth、轮询未启动的会话或拿旧Codex来源当新授权。
 - 前轮为progress，本轮也完成两行为切片与实证；并非连续三轮同阻塞，不能标blocked/complete。只有在后续无独立工作且同一授权/外部事件阻塞连续三goal轮时，再按原规则审计blocked。
+
+## 9. 用户改定后的本地邮件恢复点（覆盖旧真实来信待办）
+
+- 用户明确“自己本地起一个邮件服务，然后监测我们的邮件服务”，已中止观察进程72186并确认原邮箱开关恢复。原15分钟观察9poll无新邮件，不算成功；不是当前运行进程，不要重启或反复poll它。
+- GreenMail容器twenty-recruiting-mail-test-1正在运行，SMTP23025/IMAP23143/API23080，全部127.0.0.1。node ops/recruiting/local-mail.mjs status可读状态；up/down仅操作该profile。私有mail-test/account.json含随机密码不可打印/提交。
+- 本地协议验收已终态VERIFIED：旧UID1跳过，新UID2收取，UID3相同原文别名复用同archive/intake/matchRun；六资源、两页PDF、STORED、46/46 Jev、0fail、未读保留。reception-evidence-v1.json与补充/final-health见LOCAL_MAIL_TEST.md。默认smoke-local-mail.mjs只读复验已完成原任务；--new-case才新投递/调用模型。不要盲跑新场景增加fixture。
+- 两邮箱自动接入均false；原生历史同步、旧workflow、三队列所有运行/等待/延迟/优先及repeat scheduler为0。GreenMail保持运行便于开发，原A保留。
+- 当前原生IMAP测试连接69bdf809…仅用于本地，不改原75b3ee21…；native连接经官方API加密，测试连接历史同步/自动联系人关闭。929联系人/501候选人为最新含fixture计数，原497人未全量重解析。
+- 最新服务端build加载f2b1416d并已重启API39/worker33/AI9（见上方PID），固定源码构建9604files。已证明原生TipTap偏好读取/清空JD不会复活旧profile，且本轮邮件全部运行于新版本。
+- 用户交回Ego空间15的异步问题尚未回复；p1已交用户、p2/p3关闭。不能自行takeOver或新空间恢复；新ChatGPT授权仍0。只有两处展示页面复验、本人订阅授权和业务质量核对尚待完成，不把本地邮件误记为外部自然邮件成功。
