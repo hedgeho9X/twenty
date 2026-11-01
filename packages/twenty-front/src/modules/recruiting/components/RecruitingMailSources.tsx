@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
+import { Dialog } from 'twenty-ui/primitives/surfaces';
 import { type RecruitingMailArchive } from '@/recruiting/types/RecruitingMailArchive';
 import { type RecruitingPage } from '@/recruiting/types/RecruitingPage';
 import { RecruitingMailSelection } from '@/recruiting/components/RecruitingMailSelection';
@@ -9,6 +10,7 @@ import { RecruitingMailboxSettings } from '@/recruiting/components/RecruitingMai
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
 import {
+  recruitingDialogClass,
   StyledRecruitingError,
   StyledRecruitingMuted,
   StyledRecruitingPanel,
@@ -37,6 +39,7 @@ export const RecruitingMailSources = ({
   active?: boolean;
   onSubmitted: () => void;
 }) => {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [file, setFile] = useState<File>();
   const [archiveId, setArchiveId] = useState<string>();
   const [offset, setOffset] = useState(0);
@@ -99,13 +102,41 @@ export const RecruitingMailSources = ({
   };
   return (
     <StyledRecruitingStack>
-      <RecruitingMailboxSettings
-        active={active}
-        onReceived={(id) => {
-          setArchiveId(id);
-          void list.reload();
-        }}
-      />
+      <StyledRecruitingRow style={{ justifyContent: 'flex-end' }}>
+        <Button variant="ghost" onClick={() => setSettingsOpen(!settingsOpen)}>
+          {settingsOpen ? t`关闭邮箱设置` : t`邮箱设置`}
+        </Button>
+      </StyledRecruitingRow>
+      {settingsOpen && (
+        <Dialog.Root open onOpenChange={setSettingsOpen}>
+          <Dialog.Portal>
+            <Dialog.Backdrop />
+            <Dialog.Viewport>
+              <div className={recruitingDialogClass}>
+                <Dialog.Popup size="lg">
+                  <Dialog.Header>
+                    <Dialog.Title>{t`邮箱设置`}</Dialog.Title>
+                  </Dialog.Header>
+                  <Dialog.Body>
+                    <RecruitingMailboxSettings
+                      active={active}
+                      onReceived={(id) => {
+                        setArchiveId(id);
+                        void list.reload();
+                      }}
+                    />
+                  </Dialog.Body>
+                  <Dialog.Footer>
+                    <Button
+                      onClick={() => setSettingsOpen(false)}
+                    >{t`完成`}</Button>
+                  </Dialog.Footer>
+                </Dialog.Popup>
+              </div>
+            </Dialog.Viewport>
+          </Dialog.Portal>
+        </Dialog.Root>
+      )}
       <StyledRecruitingPanel>
         <StyledRecruitingTitle>{t`邮件材料`}</StyledRecruitingTitle>
         <StyledRecruitingMuted>{t`导入完整EML后，原文、正文、附件和内嵌资源一起保存。先核对属于候选人的材料，再交给统一处理队列。`}</StyledRecruitingMuted>

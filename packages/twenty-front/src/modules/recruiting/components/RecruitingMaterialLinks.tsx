@@ -1,4 +1,5 @@
 /** Downloads intake-bound originals through native authorization instead of opening untrusted source URLs. */
+import { RecruitingFilePreview } from './RecruitingFilePreview';
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
@@ -21,6 +22,8 @@ export const RecruitingMaterialLinks = ({
   intakeId,
   files = [],
 }: RecruitingMaterialLinksProps) => {
+  const [preview, setPreview] =
+    useState<NonNullable<RecruitingIntake['files']>[number]>();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState('');
   /** Serializes downloads for this list and presents authorization or transport failures without retrying ingestion. */
@@ -50,6 +53,11 @@ export const RecruitingMaterialLinks = ({
           <span>{file.label}</span>
           <Button
             size="sm"
+            variant="ghost"
+            onClick={() => setPreview(file)}
+          >{t`查看`}</Button>
+          <Button
+            size="sm"
             disabled={Boolean(busy)}
             loading={busy === file.fileId}
             onClick={() => {
@@ -58,6 +66,16 @@ export const RecruitingMaterialLinks = ({
           >{t`下载`}</Button>
         </StyledRecruitingRow>
       ))}
+      {preview && (
+        <RecruitingFilePreview
+          key={preview.fileId}
+          path={`resume-intakes/${intakeId}/files/${preview.fileId}`}
+          label={preview.label}
+          intakeId={intakeId}
+          fileId={preview.fileId}
+          onClose={() => setPreview(undefined)}
+        />
+      )}
       {error && (
         <StyledRecruitingError role="alert">{error}</StyledRecruitingError>
       )}

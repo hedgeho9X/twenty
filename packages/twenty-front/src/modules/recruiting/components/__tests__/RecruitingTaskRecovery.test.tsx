@@ -20,6 +20,11 @@ import { type RecruitingDraft } from '@/recruiting/types/RecruitingDraft';
 jest.mock('@/recruiting/hooks/useRecruitingQuery');
 jest.mock('@/recruiting/utils/recruitingRequest');
 jest.mock('@/recruiting/components/recruitingStyles', () => ({
+  StyledRecruitingForm: 'div',
+  StyledRecruitingSteps: 'nav',
+  StyledRecruitingChoices: 'div',
+  StyledRecruitingStatus: 'span',
+  StyledRecruitingJobHover: 'div',
   StyledRecruitingError: 'div',
   StyledRecruitingMuted: 'p',
   StyledRecruitingPanel: 'section',

@@ -1,4 +1,5 @@
 /** Shows complete archived assets and lets the operator explicitly choose candidate material. */
+import { RecruitingFilePreview } from './RecruitingFilePreview';
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button, Checkbox, Field, Textarea } from 'twenty-ui/primitives/input';
@@ -29,6 +30,10 @@ export const RecruitingMailSelection = ({
   onSubmitted: () => void;
 }) => {
   const artifacts = archive.detail?.artifacts ?? [];
+  const [filePreview, setFilePreview] = useState<{
+    path: string;
+    label: string;
+  }>();
   const [selected, setSelected] = useState(
     () =>
       new Set(
@@ -76,6 +81,14 @@ export const RecruitingMailSelection = ({
   };
   return (
     <StyledRecruitingPanel>
+      {filePreview && (
+        <RecruitingFilePreview
+          key={filePreview.path}
+          path={filePreview.path}
+          label={filePreview.label}
+          onClose={() => setFilePreview(undefined)}
+        />
+      )}
       <StyledRecruitingTitle>{t`选择候选人材料`}</StyledRecruitingTitle>
       <StyledRecruitingMuted>{t`完整原文、正文和所有内嵌资源均已保留。默认选择普通简历附件；签名图保留为归档，可按实际情况手动选择。完整邮件正文会自动加入资料整理。`}</StyledRecruitingMuted>
       <StyledRecruitingTable>
@@ -120,6 +133,16 @@ export const RecruitingMailSelection = ({
                         : t`完整正文`}
               </td>
               <td>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    setFilePreview({
+                      path: artifactPath(file.key),
+                      label: file.label,
+                    })
+                  }
+                >{t`查看`}</Button>
                 <Button
                   size="sm"
                   onClick={() => {
