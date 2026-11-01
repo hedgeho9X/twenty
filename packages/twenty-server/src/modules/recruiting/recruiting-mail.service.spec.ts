@@ -118,6 +118,12 @@ const setup = () => {
   };
   const parser = { original: jest.fn(async () => raw) };
   const intakes = {
+    one: jest.fn(async () => ({
+      state: 'COMPLETED',
+      stage: 'STORED',
+      error: '',
+      detail: { materials: [] },
+    })),
     mailBinding: jest.fn(async () => ({
       intakeId: 'legacy-intake',
       state: 'COMPLETED',
@@ -353,7 +359,7 @@ it('recovers a stopped archive under a new authorized caller and reuses complete
   });
   await service.retry(recoveryContext, archive.archiveId);
   const final = await service.one(recoveryContext, archive.archiveId);
-  expect(final.status).toBe('NEEDS_SELECTION');
+  expect(final.status).toBe('READY');
   expect(
     uploads.buffer.mock.calls.filter(
       (call) => call[1].originalname === 'mail-metadata.json',
@@ -430,7 +436,7 @@ it('retains the original EML and completed assets when expansion fails, then res
   await service.retry(context, archive.archiveId);
   await service.process({ archiveId: archive.archiveId, actor });
   const final = await service.one(context, archive.archiveId);
-  expect(final.status).toBe('NEEDS_SELECTION');
+  expect(final.status).toBe('READY');
   expect(final.detail.artifacts.map((file) => file.kind)).toEqual([
     'raw',
     'metadata',
@@ -710,4 +716,71 @@ it('accepts a body-only candidate email without requiring a resume attachment', 
     0,
   );
   expect(intakes.submit).toHaveBeenCalledTimes(1);
+});
+
+it('resumes a legacy archived email as an automatic intake without duplicate files or submissions', async () => {
+  const { service, intakes, uploads, queue } = setup();
+  const archive = await service.receive(
+    context,
+    raw,
+    { transport: 'EML_UPLOAD' },
+    false,
+  );
+  await service.process({ archiveId: archive.archiveId, actor });
+  expect((await service.one(context, archive.archiveId)).status).toBe(
+    'NEEDS_SELECTION',
+  );
+  const uploadedCount = uploads.buffer.mock.calls.length;
+  await service.retry(context, archive.archiveId);
+  await service.process({ archiveId: archive.archiveId, actor });
+  expect(intakes.submit).toHaveBeenCalledTimes(1);
+  expect(uploads.buffer.mock.calls.length).toBe(uploadedCount);
+  const queuedCount = queue.add.mock.calls.length;
+  await service.retry(context, archive.archiveId);
+  expect(queue.add.mock.calls.length).toBe(queuedCount);
+});
+
+it('reports an oversized automatic email as failed rather than awaiting manual submission', async () => {
+  const { service, parser, intakes } = setup();
+  const message = Buffer.from(
+    [
+      'Subject: Capacity test',
+      'Content-Type: multipart/mixed; boundary="capacity"',
+      '',
+      ...Array.from({ length: 29 }, (_, i) =>
+        [
+          '--capacity',
+          'Content-Type: text/plain',
+          `Content-Disposition: attachment; filename="resume-${i}.txt"`,
+          '',
+          'Synthetic resume',
+        ].join('\r\n'),
+      ),
+      '--capacity--',
+      '',
+    ].join('\r\n'),
+  );
+  parser.original.mockResolvedValue(message);
+  const archive = await service.receive(context, message, source);
+  await service.process({ archiveId: archive.archiveId, actor });
+  const result = await service.one(context, archive.archiveId);
+  expect(result.status).toBe('FAILED');
+  expect(result.error).toContain('超过单封邮件处理上限');
+  expect(result.attachmentCount).toBe(29);
+  expect(intakes.submit).not.toHaveBeenCalled();
+});
+
+it('shows the linked intake failure on the mail detail instead of a generic review state', async () => {
+  const { service, intakes } = setup();
+  const archive = await service.receive(context, raw, source);
+  await service.process({ archiveId: archive.archiveId, actor });
+  intakes.one.mockResolvedValue({
+    state: 'NEEDS_REVIEW',
+    stage: 'FAILED',
+    error: '附件图片损坏',
+    detail: { materials: [] },
+  });
+  const result = await service.one(context, archive.archiveId);
+  expect(result.processingStatus).toBe('FAILED');
+  expect(result.error).toBe('附件图片损坏');
 });

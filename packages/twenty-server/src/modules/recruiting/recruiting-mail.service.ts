@@ -119,7 +119,7 @@ export class RecruitingMailService {
       context,
       raw,
       { transport: 'EML_UPLOAD' },
-      false,
+      true,
       parsed.data,
     );
   }
@@ -238,9 +238,11 @@ export class RecruitingMailService {
     const record = await this.records.one(context, 'recruitingMailArchive', id);
     const payload = this.payload(record);
     const previews = new Map<string, { intakeId: string; fileId: string }>();
+    let processingError = '';
     for (const intakeId of payload.intakeIds) {
       try {
         const intake = await this.intakes.one(context, intakeId);
+        if (typeof intake.error === 'string') processingError ||= intake.error;
         for (const material of intake.detail.materials ?? []) {
           const original = Object.values(payload.intakeCopies ?? {})
             .flat()
@@ -254,6 +256,7 @@ export class RecruitingMailService {
     }
     return {
       ...this.receipt(record),
+      error: record.error || processingError,
       processingStatus: await this.processingStatus(context, record),
       detail: {
         sources: payload.sources,
@@ -321,11 +324,7 @@ export class RecruitingMailService {
           throw new BadRequestException(
             '原文尚未上传完成，请重新提交同一封EML',
           );
-        if (
-          ['READY', 'NEEDS_SELECTION'].includes(String(record.status)) &&
-          (!payload.autoSubmit || payload.intakeIds.length > 0)
-        )
-          return { record, enqueue: false };
+        if (payload.intakeIds.length > 0) return { record, enqueue: false };
         const active =
           await this.queue.getInFlightJobs<RecruitingMailJobData>();
         if (
@@ -344,7 +343,7 @@ export class RecruitingMailService {
           {
             status: 'QUEUED',
             error: '',
-            payload: { ...payload, actor },
+            payload: { ...payload, actor, autoSubmit: true },
           },
         );
         return { record: updated, enqueue: true };
@@ -550,12 +549,20 @@ export class RecruitingMailService {
             payload.autoSubmit &&
             materials.length > 0 &&
             materials.length <= 28;
-          await update({
-            status: automatic ? 'READY' : 'NEEDS_SELECTION',
-            error:
-              payload.autoSubmit && materials.length > 28
+          const admissionError = !payload.autoSubmit
+            ? ''
+            : materials.length === 0
+              ? '邮件没有可解析的正文或附件，原始邮件已保留'
+              : materials.length > 28
                 ? '附件和正文超过单封邮件处理上限，全部原件已保留，请拆分后处理'
-                : '',
+                : '';
+          await update({
+            status: admissionError
+              ? 'FAILED'
+              : automatic
+                ? 'READY'
+                : 'NEEDS_SELECTION',
+            error: admissionError,
             payload,
           });
           if (automatic) {
@@ -657,7 +664,9 @@ export class RecruitingMailService {
           intake.state === 'COMPLETED'
             ? 'COMPLETED'
             : intake.state === 'NEEDS_REVIEW'
-              ? 'NEEDS_REVIEW'
+              ? intake.stage === 'FAILED'
+                ? 'FAILED'
+                : 'NEEDS_REVIEW'
               : intake.stage,
         );
       } catch {

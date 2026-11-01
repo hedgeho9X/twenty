@@ -203,6 +203,7 @@ it.each([
   ['intake', 'PROCESSING'],
   ['mail', 'QUEUED'],
   ['mail', 'EXPANDING'],
+  ['mail', 'NEEDS_SELECTION'],
   ['draft', 'QUEUED'],
   ['draft', 'PROCESSING'],
 ] as const)(
@@ -226,7 +227,6 @@ it.each([
   ['intake', 'COMPLETED'],
   ['intake', 'AWAITING_CONFIRMATION'],
   ['mail', 'READY'],
-  ['mail', 'NEEDS_SELECTION'],
   ['draft', 'READY'],
   ['draft', 'APPROVED'],
   ['draft', 'NEEDS_REVIEW'],

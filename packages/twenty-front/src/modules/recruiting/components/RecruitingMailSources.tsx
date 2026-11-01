@@ -34,7 +34,10 @@ const mailLabel = (status: string) =>
     EXPANDING: t`整理附件`,
     READY: t`等待解析`,
     NEEDS_SELECTION: t`待处理`,
-    FAILED: t`需要处理`,
+    FAILED: t`解析失败`,
+    COMPLETED: t`已入库`,
+    NEEDS_REVIEW: t`待核对资料`,
+    UNAVAILABLE: t`状态不可用`,
   })[status] ?? recruitingTaskLabel(status);
 
 /** Browses received mail separately from its material-selection detail; reception is configured in mailbox settings. */
@@ -62,7 +65,9 @@ export const RecruitingMailSources = ({
   const mail = archiveId && !detail.error ? detail.data : undefined;
   const canResume = Boolean(
     mail &&
-    (['QUEUED', 'EXPANDING'].includes(mail.status) || Boolean(mail.error)),
+    !mail.intakeIds.length &&
+    (['QUEUED', 'EXPANDING', 'NEEDS_SELECTION'].includes(mail.status) ||
+      Boolean(mail.error)),
   );
   /** Reuses archive checkpoints; the server keeps an in-flight task waiting instead of starting it twice. */
   const retry = async () => {
