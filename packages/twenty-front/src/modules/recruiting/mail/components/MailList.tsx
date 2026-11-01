@@ -152,6 +152,7 @@ export const RecruitingMailSources = ({
             <thead>
               <tr>
                 <th>{t`邮件主题`}</th>
+                <th>{t`接收时间`}</th>
                 <th>{t`附件数量`}</th>
                 <th>{t`处理进度`}</th>
                 <th>{t`操作`}</th>
@@ -161,6 +162,32 @@ export const RecruitingMailSources = ({
               {list.data?.records.map((item) => (
                 <tr key={item.archiveId}>
                   <td>{item.name}</td>
+                  <td
+                    style={{ whiteSpace: 'nowrap' }}
+                    title={
+                      item.receivedAtSource === 'archive'
+                        ? t`本地归档时间`
+                        : t`邮箱接收时间`
+                    }
+                  >
+                    {item.receivedAt || item.createdAt ? (
+                      <time dateTime={item.receivedAt ?? item.createdAt}>
+                        {new Date(
+                          (item.receivedAt ?? item.createdAt)!,
+                        ).toLocaleString('zh-CN', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: false,
+                        })}
+                      </time>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td>{item.attachmentCount ?? '—'}</td>
                   <td>
                     <StyledRecruitingStatus

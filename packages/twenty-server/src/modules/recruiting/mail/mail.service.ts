@@ -682,12 +682,23 @@ export class RecruitingMailService {
   /** Omits full email text and addresses from polling rows. */
   private receipt(record: RecruitingRecord) {
     const payload = this.payload(record);
+    const received = payload.sources
+      .flatMap((source) =>
+        source.transport === 'IMAP' &&
+        source.internalDate &&
+        Number.isFinite(Date.parse(source.internalDate))
+          ? [source.internalDate]
+          : [],
+      )
+      .sort((a, b) => Date.parse(a) - Date.parse(b));
     return {
       archiveId: record.id,
       name: record.name,
       status: record.status,
       error: record.error,
       createdAt: record.createdAt,
+      receivedAt: received[0] ?? record.createdAt,
+      receivedAtSource: received.length ? 'mailbox' : 'archive',
       sourceHash: record.sourceHash,
       artifactCount: payload.artifacts.length,
       attachmentCount: payload.artifacts.filter(

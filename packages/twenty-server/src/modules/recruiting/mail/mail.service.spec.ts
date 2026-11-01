@@ -784,3 +784,26 @@ it('shows the linked intake failure on the mail detail instead of a generic revi
   expect(result.processingStatus).toBe('FAILED');
   expect(result.error).toBe('附件图片损坏');
 });
+
+it('reports the mailbox receipt timestamp separately from local archival time', async () => {
+  const { service } = setup();
+  const result = await service.receive(context, raw, {
+    ...source,
+    internalDate: '2026-10-31T20:46:37.000Z',
+  });
+  expect(result.receivedAt).toBe('2026-10-31T20:46:37.000Z');
+  expect(result.receivedAtSource).toBe('mailbox');
+});
+
+it('uses archival time only when the mailbox timestamp is unavailable', async () => {
+  const { service, records } = setup();
+  const result = await service.receive(context, raw, {
+    transport: 'EML_UPLOAD',
+  });
+  await records.update(context, 'recruitingMailArchive', result.archiveId, {
+    createdAt: '2026-11-01T08:00:00.000Z',
+  });
+  const detail = await service.one(context, result.archiveId);
+  expect(detail.receivedAt).toBe('2026-11-01T08:00:00.000Z');
+  expect(detail.receivedAtSource).toBe('archive');
+});

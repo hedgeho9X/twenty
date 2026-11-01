@@ -3,6 +3,9 @@ export type RecruitingMailArchive = {
   archiveId: string;
   name: string;
   status: string;
+  createdAt?: string;
+  receivedAt?: string;
+  receivedAtSource?: 'mailbox' | 'archive';
   error?: string;
   artifactCount: number;
   attachmentCount?: number;
