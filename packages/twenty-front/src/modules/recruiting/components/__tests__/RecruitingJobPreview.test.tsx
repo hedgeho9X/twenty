@@ -14,6 +14,7 @@ jest.mock('@/recruiting/components/recruitingStyles', () => ({
   StyledRecruitingChoices: 'div',
   StyledRecruitingStatus: 'span',
   StyledRecruitingJobHover: 'div',
+  StyledRecruitingRecordLink: 'a',
   StyledRecruitingError: 'div',
   StyledRecruitingMuted: 'p',
   StyledRecruitingPanel: 'section',

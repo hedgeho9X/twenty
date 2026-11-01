@@ -20,6 +20,7 @@ jest.mock('@/recruiting/components/recruitingStyles', () => ({
   StyledRecruitingChoices: 'div',
   StyledRecruitingStatus: 'span',
   StyledRecruitingJobHover: 'div',
+  StyledRecruitingRecordLink: 'a',
   StyledRecruitingError: 'div',
   StyledRecruitingMuted: 'p',
   StyledRecruitingPanel: 'section',
@@ -185,6 +186,7 @@ it('retains text, notes and completed uploads when reopening a failed JD submiss
     />,
   );
   fireEvent.click(screen.getByRole('button', { name: '公司:choose' }));
+  expect(screen.queryByRole('button', { name: '新建公司' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: '下一步：添加材料' }));
   const [text, note] = screen.getAllByRole('textbox');
   fireEvent.change(text, { target: { value: 'Original full JD' } });

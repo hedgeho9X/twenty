@@ -10,6 +10,7 @@ import { PageHeader } from '@/ui/layout/page/components/PageHeader';
 import { RecruitingCandidateIntake } from '@/recruiting/components/RecruitingCandidateIntake';
 import { RecruitingQueueDialog } from '@/recruiting/components/RecruitingQueueDialog';
 import { RecruitingMatchResults } from '@/recruiting/components/RecruitingMatchResults';
+import { RecruitingCompanyJobsList } from '@/recruiting/components/RecruitingCompanyJobsList';
 import { RecruitingCompanyJobs } from '@/recruiting/components/RecruitingCompanyJobs';
 import { RecruitingManualMatch } from '@/recruiting/components/RecruitingManualMatch';
 import { RecruitingDrafts } from '@/recruiting/components/RecruitingDrafts';
@@ -26,6 +27,7 @@ export const RecruitingWorkspacePage = () => {
   const [queueOpen, setQueueOpen] = useState(false);
   const [hasNewTasks, setHasNewTasks] = useState(false);
   const tab = params.get('tab') ?? 'resumes';
+  const companyJobsId = params.get('companyJobs');
   const candidateId = params.get('candidateId') ?? undefined;
   return (
     <StyledRecruitingWorkspace>
@@ -87,19 +89,41 @@ export const RecruitingWorkspacePage = () => {
             />
           </div>
           <Tabs.Panel value="companies" keepMounted>
-            <RecruitingCompanyJobs
-              active={tab === 'companies'}
-              initialIntakeId={params.get('intakeId') ?? undefined}
-              onSubmitted={() => setHasNewTasks(true)}
-              onIntakeChange={(id) =>
-                setParams((current) => {
-                  const next = new URLSearchParams(current);
-                  if (id) next.set('intakeId', id);
-                  else next.delete('intakeId');
-                  return next;
-                })
-              }
-            />
+            <div hidden={Boolean(companyJobsId)}>
+              <RecruitingCompanyJobs
+                active={tab === 'companies' && !companyJobsId}
+                onBrowseJobs={(companyId) =>
+                  setParams((current) => {
+                    const next = new URLSearchParams(current);
+                    next.set('companyJobs', companyId);
+                    return next;
+                  })
+                }
+                initialIntakeId={params.get('intakeId') ?? undefined}
+                onSubmitted={() => setHasNewTasks(true)}
+                onIntakeChange={(id) =>
+                  setParams((current) => {
+                    const next = new URLSearchParams(current);
+                    if (id) next.set('intakeId', id);
+                    else next.delete('intakeId');
+                    return next;
+                  })
+                }
+              />
+            </div>
+            {companyJobsId && (
+              <RecruitingCompanyJobsList
+                key={companyJobsId}
+                companyId={companyJobsId}
+                onBack={() =>
+                  setParams((current) => {
+                    const next = new URLSearchParams(current);
+                    next.delete('companyJobs');
+                    return next;
+                  })
+                }
+              />
+            )}
           </Tabs.Panel>
           <Tabs.Panel value="resumes" keepMounted>
             <RecruitingCandidateIntake

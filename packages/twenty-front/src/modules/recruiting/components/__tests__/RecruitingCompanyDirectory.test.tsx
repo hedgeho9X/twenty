@@ -1,5 +1,5 @@
 /** Checks company disambiguation and bounded existing-job visibility without creating records. */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { RecruitingCompanyExistingJobs } from '@/recruiting/components/RecruitingCompanyExistingJobs';
 import { RecruitingRecordPicker } from '@/recruiting/components/RecruitingRecordPicker';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
@@ -11,6 +11,7 @@ jest.mock('@/recruiting/components/recruitingStyles', () => ({
   StyledRecruitingChoices: 'div',
   StyledRecruitingStatus: 'span',
   StyledRecruitingJobHover: 'div',
+  StyledRecruitingRecordLink: 'a',
   StyledRecruitingError: 'div',
   StyledRecruitingMuted: 'p',
   StyledRecruitingRow: 'div',
@@ -19,9 +20,13 @@ jest.mock('@/recruiting/components/recruitingStyles', () => ({
 }));
 jest.mock('twenty-ui/primitives/data-display', () => ({ Badge: 'span' }));
 jest.mock('twenty-ui/primitives/input', () => ({
-  Button: ({ children }: { children: React.ReactNode }) => (
-    <button>{children}</button>
-  ),
+  Button: ({
+    children,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+  }) => <button onClick={onClick}>{children}</button>,
   Field: { Root: 'div', Label: 'label' },
   Input: () => <input />,
 }));
@@ -75,8 +80,13 @@ it('shows active and closed jobs with native record links and a bounded preview'
     error: '',
     reload: jest.fn(),
   });
+  const onViewAll = jest.fn();
   render(
-    <RecruitingCompanyExistingJobs companyId="company-a" active={false} />,
+    <RecruitingCompanyExistingJobs
+      companyId="company-a"
+      active={false}
+      onViewAll={onViewAll}
+    />,
   );
   expect(useRecruitingQuery).toHaveBeenCalledWith(
     'jobs?companyId=company-a&active=false',
@@ -90,7 +100,13 @@ it('shows active and closed jobs with native record links and a bounded preview'
     screen.getByRole('link', { name: '岗位 0' }).getAttribute('href'),
   ).toBe('/object/recruitmentJob/job-0');
   expect(screen.queryByText('岗位 5')).toBeNull();
-  expect(screen.getByText(/这里显示前5条/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: '查看全部 7 个岗位' }));
+  expect(onViewAll).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('在招')).toHaveAttribute('data-tone', 'green');
+  expect(screen.getAllByText('已停招')[0]).toHaveAttribute(
+    'data-tone',
+    'neutral',
+  );
 });
 
 it('keeps a directory permission failure distinct from an empty company', () => {

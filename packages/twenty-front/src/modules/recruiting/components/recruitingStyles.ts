@@ -210,6 +210,10 @@ export const StyledRecruitingStatus = styled.span`
     color: ${theme.color.orange};
     background: color-mix(in srgb, ${theme.color.orange} 12%, transparent);
   }
+  &[data-tone='neutral'] {
+    color: ${theme.font.color.secondary};
+    background: ${theme.background.secondary};
+  }
   &[data-tone='blue'] {
     color: ${theme.color.blue};
     background: color-mix(in srgb, ${theme.color.blue} 12%, transparent);
@@ -228,5 +232,22 @@ export const recruitingDialogClass = css`
   a:focus-visible {
     text-decoration: underline;
     text-underline-offset: 4px;
+  }
+`;
+
+/** Quiet native record links retain a clear hover and keyboard affordance. */
+export const StyledRecruitingRecordLink = styled.a`
+  && {
+    color: ${theme.font.color.primary};
+    text-decoration: none;
+  }
+  font-weight: ${theme.font.weight.medium};
+  &:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  &:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
 `;

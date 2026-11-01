@@ -32,6 +32,7 @@ import {
   StyledRecruitingTitle,
   StyledRecruitingSteps,
   StyledRecruitingForm,
+  StyledRecruitingRecordLink,
 } from '@/recruiting/components/recruitingStyles';
 
 /** A refreshed preview keeps local edits separate from authoritative per-item server outcomes. */
@@ -56,11 +57,13 @@ export const RecruitingCompanyJobs = ({
   onSubmitted,
   onIntakeChange,
   active = true,
+  onBrowseJobs,
 }: {
   initialIntakeId?: string;
   onSubmitted: () => void;
   onIntakeChange: (id: string | undefined) => void;
   active?: boolean;
+  onBrowseJobs?: (companyId: string) => void;
 }) => {
   const [step, setStep] = useState(1);
   const [company, setCompany] = useState<RecruitingCompany>();
@@ -265,11 +268,14 @@ export const RecruitingCompanyJobs = ({
                     {chosen.recruitingDescription}
                   </StyledRecruitingMuted>
                 )}
-                <a href={`/object/company/${chosen.id}`}>{t`打开公司记录`}</a>
+                <StyledRecruitingRecordLink
+                  href={`/object/company/${chosen.id}`}
+                >{t`公司详情 ↗`}</StyledRecruitingRecordLink>
                 <RecruitingCompanyExistingJobs
                   key={chosen.id}
                   companyId={chosen.id}
                   active={active}
+                  onViewAll={() => onBrowseJobs?.(chosen.id)}
                 />
                 <Button
                   disabled={contractEditing}
@@ -279,7 +285,7 @@ export const RecruitingCompanyJobs = ({
                 </Button>
               </>
             )}
-            {!locked && !createCompany && !contractEditing && (
+            {!chosen && !locked && !createCompany && !contractEditing && (
               <Button
                 startIcon={<IconPlus size={16} />}
                 onClick={() => setCreateCompany(true)}
