@@ -16,6 +16,7 @@ import { type RecruitingUpload } from '@/recruiting/types/RecruitingUpload';
 import { RecruitingRecordPicker } from '@/recruiting/components/RecruitingRecordPicker';
 import { RecruitingContracts } from '@/recruiting/components/RecruitingContracts';
 import { RecruitingJobDraftEditor } from '@/recruiting/components/RecruitingJobDraftEditor';
+import { RecruitingCompanyExistingJobs } from '@/recruiting/components/RecruitingCompanyExistingJobs';
 import {
   StyledRecruitingDrop,
   StyledRecruitingError,
@@ -215,6 +216,7 @@ export const RecruitingCompanyJobs = ({
           selected={chosen}
           disabled={locked || contractEditing}
           renderLabel={(record) => record.name}
+          renderHint={(record) => record.domainName?.primaryLinkUrl}
           onSelect={setCompany}
         />
         {chosen && (
@@ -228,6 +230,11 @@ export const RecruitingCompanyJobs = ({
               </StyledRecruitingMuted>
             )}
             <a href={`/object/company/${chosen.id}`}>{t`打开公司记录`}</a>
+            <RecruitingCompanyExistingJobs
+              key={chosen.id}
+              companyId={chosen.id}
+              active={active}
+            />
             <Button
               disabled={contractEditing}
               onClick={() => setContractsOpen((value) => !value)}

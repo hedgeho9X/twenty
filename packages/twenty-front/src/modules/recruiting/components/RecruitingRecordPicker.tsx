@@ -18,6 +18,7 @@ export const RecruitingRecordPicker = <T extends { id: string }>({
   path,
   selected,
   renderLabel,
+  renderHint,
   onSelect,
   disabled = false,
 }: {
@@ -25,6 +26,7 @@ export const RecruitingRecordPicker = <T extends { id: string }>({
   path: string;
   selected?: T;
   renderLabel: (record: T) => string;
+  renderHint?: (record: T) => string | undefined;
   onSelect: (record: T | undefined) => void;
   disabled?: boolean;
 }) => {
@@ -74,6 +76,7 @@ export const RecruitingRecordPicker = <T extends { id: string }>({
                 onClick={() => onSelect(record)}
               >
                 {renderLabel(record)}
+                {renderHint?.(record) && ` · ${renderHint(record)}`}
               </Button>
             ))}
           </StyledRecruitingScroll>

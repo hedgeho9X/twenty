@@ -193,7 +193,7 @@ export const RecruitingCandidateIntake = ({
             <StyledRecruitingRow>
               <IconFiles size={16} />
               <strong>{entry.file.name}</strong>
-              <StyledRecruitingMuted>{`${(entry.file.size / 1024 / 1024).toFixed(1)} MB`}</StyledRecruitingMuted>
+              <StyledRecruitingMuted>{t`${(entry.file.size / 1024 / 1024).toFixed(1)} MB`}</StyledRecruitingMuted>
             </StyledRecruitingRow>
             {!grouped && entries.length > 1 && (
               <Field.Root>
