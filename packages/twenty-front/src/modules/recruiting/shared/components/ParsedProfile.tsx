@@ -2,6 +2,7 @@
 import { t } from '@lingui/core/macro';
 import {
   StyledRecruitingMuted,
+  StyledRecruitingRow,
   StyledRecruitingStack,
   StyledRecruitingStatus,
   StyledRecruitingTitle,
@@ -75,6 +76,11 @@ export const RecruitingParsedProfile = ({
   const needsReview =
     data.needsReview === true || data.identityConflict === true;
   const reviewNotes = list(data.reviewNotes);
+  const jobs = Array.isArray(data.jobs)
+    ? data.jobs
+    : text(data.title)
+      ? [data]
+      : [];
   return (
     <StyledRecruitingStack>
       {kind === 'CANDIDATE' ? (
@@ -134,14 +140,11 @@ export const RecruitingParsedProfile = ({
       ) : (
         <>
           <StyledRecruitingTitle>{t`岗位资料`}</StyledRecruitingTitle>
-          {(Array.isArray(data.jobs) ? data.jobs : []).map((value, index) => {
+          {jobs.map((value, index) => {
             const job = object(value);
             return (
               <StyledRecruitingProfileSection key={index}>
                 <strong>{text(job.title) || t`岗位名称待补充`}</strong>
-                <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
-                  {text(job.description)}
-                </p>
                 <StyledRecruitingProfileFacts>
                   <Fact
                     name={t`岗位方向`}
@@ -159,14 +162,41 @@ export const RecruitingParsedProfile = ({
                   />
                   <Fact name={t`工作地点`} values={list(job.locations)} />
                 </StyledRecruitingProfileFacts>
+                <strong>{t`招聘偏好`}</strong>
+                <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
+                  {text(job.preferences) || t`未提供`}
+                </p>
+                <StyledRecruitingRow>
+                  <strong>{t`需要核对`}</strong>
+                  <StyledRecruitingStatus
+                    data-tone={job.needsReview === true ? 'yellow' : 'neutral'}
+                  >
+                    {job.needsReview === true
+                      ? t`是`
+                      : job.needsReview === false
+                        ? t`否`
+                        : t`未标记`}
+                  </StyledRecruitingStatus>
+                </StyledRecruitingRow>
+                {list(job.reviewNotes).length > 0 && (
+                  <History
+                    title={t`岗位待核对事项`}
+                    values={list(job.reviewNotes)}
+                  />
+                )}
+                <strong>{t`完整岗位正文`}</strong>
+                <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
+                  {text(job.description) || t`未提供`}
+                </p>
               </StyledRecruitingProfileSection>
             );
           })}
         </>
       )}
-      {reviewNotes.length > 0 && (
-        <History title={t`待核对事项`} values={reviewNotes} />
-      )}
+      {reviewNotes.length > 0 &&
+        (kind === 'CANDIDATE' || Array.isArray(data.jobs)) && (
+          <History title={t`待核对事项`} values={reviewNotes} />
+        )}
       <details>
         <summary>{t`查看原始 JSON`}</summary>
         <pre

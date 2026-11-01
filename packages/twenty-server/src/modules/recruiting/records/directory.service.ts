@@ -48,7 +48,14 @@ export class RecruitingDirectoryService {
     const page = await this.records.list(context, 'recruitmentJob', {
       filter: { id: { eq: id } },
       limit: 1,
-      select: ['id', 'name', 'companyId', 'jobStatus', 'jobDescription'],
+      select: [
+        'id',
+        'name',
+        'companyId',
+        'jobStatus',
+        'jobDescription',
+        'recruitingProfile',
+      ],
     });
     if (!page.records[0])
       throw new NotFoundException('岗位不存在或当前无权访问');

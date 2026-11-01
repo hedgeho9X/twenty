@@ -36,3 +36,7 @@ POST /recruiting/job-intakes 接收 companyId、text（岗位原文）、可选 
 - companyId 来自请求中已验证的公司，岗位/条目 ID 由服务端生成，不由模型填写。
 - 创建时至少要求 title 和 description 非空。通常新建为 RECRUITING；历史重解析导入结束后需按旧状态恢复 CLOSED/NEEDS_DETAILS，避免重新开启历史停招岗位。
 - 原始 JD 在 intake.input.text 中保留；派生描述不替代原文。成功条目使用稳定 ID，重复请求不重复创建。
+
+## 页面查看
+
+处理队列 → 岗位任务详情显示完整解析字段；公司与岗位 → 已有岗位 / 查看全部 → 查看解析使用同一资料卡读取已保存的 recruitingProfile。包含招聘偏好、分类、雇佣类型、工作方式、地点、需核对标记、岗位核对原因和完整正文；单岗位与多岗位批次均支持，原始 JSON 默认折叠。只读展示不触发重新解析或修改记录。

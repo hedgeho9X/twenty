@@ -1,3 +1,4 @@
+import { JobProfileDialog } from './JobProfileDialog';
 /** Opens all jobs for one company using the existing permission-aware, paginated directory. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
@@ -29,12 +30,19 @@ export const RecruitingCompanyJobsList = ({
   const company = useRecruitingQuery<RecruitingCompany>(
     `companies/${encodeURIComponent(companyId)}`,
   );
+  const [selectedJob, setSelectedJob] = useState<string>();
   const query = useRecruitingQuery<RecruitingPage<RecruitingJob>>(
     `jobs?companyId=${encodeURIComponent(companyId)}&active=false&offset=${offset}&search=${encodeURIComponent(search)}`,
   );
   const page = query.error ? undefined : query.data;
   return (
     <StyledRecruitingStack>
+      {selectedJob && (
+        <JobProfileDialog
+          id={selectedJob}
+          onClose={() => setSelectedJob(undefined)}
+        />
+      )}
       <StyledRecruitingRow>
         <Button variant="ghost" onClick={onBack}>{t`返回导入`}</Button>
       </StyledRecruitingRow>
@@ -65,6 +73,7 @@ export const RecruitingCompanyJobsList = ({
               <tr>
                 <th>{t`岗位名称`}</th>
                 <th>{t`状态`}</th>
+                <th>{t`解析资料`}</th>
               </tr>
             </thead>
             <tbody>
@@ -79,6 +88,12 @@ export const RecruitingCompanyJobsList = ({
                   </td>
                   <td>
                     <RecruitingJobStatus status={job.jobStatus} />
+                  </td>
+                  <td>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setSelectedJob(job.id)}
+                    >{t`查看解析`}</Button>
                   </td>
                 </tr>
               ))}

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { JobProfileDialog } from './JobProfileDialog';
 /** Shows permission-scoped existing jobs before an operator imports another company-bound batch. */
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
@@ -23,6 +25,7 @@ export const RecruitingCompanyExistingJobs = ({
   active?: boolean;
   onViewAll?: () => void;
 }) => {
+  const [selectedJob, setSelectedJob] = useState<string>();
   const query = useRecruitingQuery<RecruitingPage<RecruitingJob>>(
     `jobs?companyId=${encodeURIComponent(companyId)}&active=false`,
     0,
@@ -31,6 +34,12 @@ export const RecruitingCompanyExistingJobs = ({
   const page = query.error ? undefined : query.data;
   return (
     <details>
+      {selectedJob && (
+        <JobProfileDialog
+          id={selectedJob}
+          onClose={() => setSelectedJob(undefined)}
+        />
+      )}
       <summary>{page ? t`已有岗位（${page.count}）` : t`已有岗位`}</summary>
       <StyledRecruitingStack>
         {query.loading && (
@@ -49,6 +58,11 @@ export const RecruitingCompanyExistingJobs = ({
               {job.name}
             </StyledRecruitingRecordLink>
             <RecruitingJobStatus status={job.jobStatus} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedJob(job.id)}
+            >{t`查看解析`}</Button>
           </StyledRecruitingRow>
         ))}
         {page?.count === 0 && (
