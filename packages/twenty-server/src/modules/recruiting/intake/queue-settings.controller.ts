@@ -64,12 +64,12 @@ export class RecruitingQueueSettingsController {
     const parsed = z
       .object({
         parsing: z.number().int().min(1).max(20),
-        matching: z.number().int().min(1).max(10),
+        matching: z.number().int().min(1).max(20),
       })
       .strict()
       .safeParse(body);
     if (!parsed.success)
-      throw new BadRequestException('解析并发为 1–20，匹配并发为 1–10');
+      throw new BadRequestException('解析并发为 1–20，匹配并发为 1–20');
     await this.config.set('MESSAGE_QUEUE_CONCURRENCY', {
       ...this.config.get('MESSAGE_QUEUE_CONCURRENCY'),
       [MessageQueue.recruitingQueue]: parsed.data.parsing,

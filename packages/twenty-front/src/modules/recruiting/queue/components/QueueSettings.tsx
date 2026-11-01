@@ -1,7 +1,7 @@
 /** Edits global admission limits without pausing or restarting active work. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Select } from '@/ui/input/components/Select';
+import { TextInput } from '@/ui/input/components/TextInput';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/shared/api/request';
 import {
@@ -35,31 +35,57 @@ export const QueueSettings = ({ active }: { active: boolean }) => {
     <>
       <StyledRecruitingRow>
         <span>{t`解析并发`}</span>
-        <Select
-          dropdownId="parsing-concurrency"
+        <ConcurrencyInput
+          label="解析并发"
           value={limits.parsing}
           disabled={busy}
-          options={Array.from({ length: 20 }, (_, i) => ({
-            value: i + 1,
-            label: String(i + 1),
-          }))}
-          onChange={(value) => void change('parsing', value)}
+          onSave={(value) => void change('parsing', value)}
         />
         <span>{t`匹配并发`}</span>
-        <Select
-          dropdownId="matching-concurrency"
+        <ConcurrencyInput
+          label="匹配并发"
           value={limits.matching}
           disabled={busy}
-          options={Array.from({ length: 10 }, (_, i) => ({
-            value: i + 1,
-            label: String(i + 1),
-          }))}
-          onChange={(value) => void change('matching', value)}
+          onSave={(value) => void change('matching', value)}
         />
       </StyledRecruitingRow>
       {error && (
         <StyledRecruitingError role="alert">{error}</StyledRecruitingError>
       )}
     </>
+  );
+};
+
+/** Validates an integer on blur so typing never submits incomplete numeric values. */
+const ConcurrencyInput = ({
+  label,
+  value,
+  disabled,
+  onSave,
+}: {
+  label: string;
+  value: number;
+  disabled: boolean;
+  onSave: (value: number) => void;
+}) => {
+  const [draft, setDraft] = useState(String(value));
+  return (
+    <TextInput
+      aria-label={label}
+      type="number"
+      min={1}
+      max={20}
+      step={1}
+      value={draft}
+      disabled={disabled}
+      style={{ width: 76 }}
+      onChange={setDraft}
+      onBlur={() => {
+        const next = Number(draft);
+        if (Number.isInteger(next) && next >= 1 && next <= 20) {
+          if (next !== value) onSave(next);
+        } else setDraft(String(value));
+      }}
+    />
   );
 };

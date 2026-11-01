@@ -70,6 +70,8 @@ export class AiFeatureModelsService {
       providerName,
       baseUrl: provider?.baseUrl ?? '',
       hasApiKey: Boolean(provider?.apiKey),
+      inputPricePerMillion:
+        this.config.get('RECRUITING_JEV_INPUT_PRICE') ?? null,
     };
   }
 
@@ -78,6 +80,7 @@ export class AiFeatureModelsService {
       .object({
         baseUrl: z.union([z.literal(''), z.url()]),
         apiKey: z.string().min(1).max(4096).optional(),
+        inputPricePerMillion: z.number().finite().nonnegative().optional(),
       })
       .strict()
       .safeParse(input);
@@ -95,6 +98,11 @@ export class AiFeatureModelsService {
         ...(parsed.data.apiKey ? { apiKey: parsed.data.apiKey } : {}),
       },
     });
+    if (parsed.data.inputPricePerMillion !== undefined)
+      await this.config.set(
+        'RECRUITING_JEV_INPUT_PRICE',
+        parsed.data.inputPricePerMillion,
+      );
     return this.jevConfig();
   }
 

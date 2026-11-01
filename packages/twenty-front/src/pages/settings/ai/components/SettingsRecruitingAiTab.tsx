@@ -35,6 +35,7 @@ type JevConfig = {
   providerName: string;
   baseUrl: string;
   hasApiKey: boolean;
+  inputPricePerMillion: number | null;
 };
 
 /** A provider refresh discovers models; only explicit feature selection changes running application configuration. */
@@ -50,6 +51,7 @@ export const SettingsRecruitingAiTab = ({
   const [jev, setJev] = useState<JevConfig>();
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [price, setPrice] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -87,6 +89,11 @@ export const SettingsRecruitingAiTab = ({
           if (!controller.signal.aborted) {
             setJev(result);
             setBaseUrl(result.baseUrl);
+            setPrice(
+              result.inputPricePerMillion == null
+                ? ''
+                : String(result.inputPricePerMillion),
+            );
           }
         })
         .catch((failure) => {
@@ -256,6 +263,16 @@ export const SettingsRecruitingAiTab = ({
                 }}
               />
             </label>
+            <label>
+              输入价格（美元 / 百万 Token）
+              <TextInput
+                type="number"
+                min={0}
+                step="any"
+                value={price}
+                onChange={setPrice}
+              />
+            </label>
             <StyledSubscriptionRow>
               <Button
                 disabled={busy}
@@ -283,6 +300,9 @@ export const SettingsRecruitingAiTab = ({
                         method: 'POST',
                         body: JSON.stringify({
                           baseUrl,
+                          ...(price.trim()
+                            ? { inputPricePerMillion: Number(price) }
+                            : {}),
                           ...(apiKey ? { apiKey } : {}),
                         }),
                       }),

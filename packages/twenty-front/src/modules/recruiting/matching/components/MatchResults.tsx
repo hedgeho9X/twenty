@@ -1,6 +1,6 @@
 import { MatchSelection } from './MatchSelection';
 /** Shows matching history and a focused subject detail with current ranked results. */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
 import { IconArrowLeft, IconRefresh } from 'twenty-ui/icon';
@@ -30,19 +30,27 @@ export const RecruitingMatchResults = ({
   onBack?: () => void;
   active?: boolean;
 }) => {
+  const [finished, setFinished] = useState(false);
   const [runId, setRunId] = useState(initialRunId);
   const [offset, setOffset] = useState(0);
   const [direction, setDirection] = useState('CANDIDATE_TO_JOBS');
   const list = useRecruitingQuery<RecruitingPage<RecruitingMatchRun>>(
     `match-runs?offset=${offset}&direction=${direction}&completed=true`,
-    8000,
-    active,
+    0,
+    active && !runId,
   );
   const detail = useRecruitingQuery<RecruitingMatchRun>(
     runId ? `match-runs/${runId}` : null,
-    runId ? 8000 : 0,
+    runId && !finished ? 1500 : 0,
     active,
   );
+  useEffect(() => {
+    setFinished(false);
+  }, [runId]);
+  useEffect(() => {
+    if (detail.data && !['QUEUED', 'PROCESSING'].includes(detail.data.status))
+      setFinished(true);
+  }, [detail.data]);
   const run = detail.error ? undefined : detail.data;
   const notice = run ? matchResultNotice(run) : undefined;
   if (runId)
@@ -76,6 +84,26 @@ export const RecruitingMatchResults = ({
               </StyledRecruitingPanel>
             )}
             <StyledRecruitingPanel>
+              <StyledRecruitingRow>
+                <strong>
+                  {run.counts.processed} / {run.counts.total} 已处理
+                </strong>
+                <span>复用 {run.counts.cached} 项</span>
+                <span>
+                  {run.billing
+                    ? `预计费用 $${run.billing.estimatedUsd.toFixed(6)}`
+                    : '费用未配置'}
+                </span>
+                {!!run.billing?.unknownUsage && <span>部分调用未返回用量</span>}
+              </StyledRecruitingRow>
+              {!finished && (
+                <progress
+                  aria-label="匹配进度"
+                  max={Math.max(1, run.counts.total)}
+                  value={run.counts.processed}
+                  style={{ width: '100%' }}
+                />
+              )}
               {notice &&
                 (notice.error ? (
                   <StyledRecruitingError role="alert">

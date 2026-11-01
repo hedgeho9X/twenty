@@ -1,3 +1,4 @@
+import { getMatchBilling } from './domain/match-billing';
 /** Coordinates independent matching runs; stored candidates are never rolled back by scoring failures. */
 import {
   BadRequestException,
@@ -658,6 +659,10 @@ export class RecruitingMatchingService {
       subjectId: run.subjectId,
       status: run.status,
       counts,
+      billing: getMatchBilling(
+        payload.results,
+        this.evaluator.inputPricePerMillion?.() ?? null,
+      ),
       error: payload.error,
       createdAt: run.createdAt,
       startedAt: payload.startedAt,

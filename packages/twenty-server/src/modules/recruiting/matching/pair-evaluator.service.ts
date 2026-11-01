@@ -78,6 +78,11 @@ export class RecruitingPairEvaluatorService {
     @Optional() private readonly features?: AiFeatureModelsService,
   ) {}
 
+  /** Returns the configured estimate rate without treating a missing price as zero. */
+  inputPricePerMillion() {
+    return this.features?.jevConfig().inputPricePerMillion ?? null;
+  }
+
   /** Computes eligibility and a content-only cache identity without invoking a model. */
   prepare(
     context: WorkspaceAuthContext,

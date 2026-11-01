@@ -29,7 +29,7 @@ it('persists and applies both limits', async () => {
 it.each([
   { parsing: 0, matching: 2 },
   { parsing: 21, matching: 2 },
-  { parsing: 10, matching: 11 },
+  { parsing: 10, matching: 21 },
 ])('rejects invalid limits', async (value) => {
   const { controller, config } = setup();
   await expect(controller.set(admin as never, value)).rejects.toThrow();

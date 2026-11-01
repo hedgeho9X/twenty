@@ -2156,6 +2156,14 @@ export class ConfigVariables {
   AI_FEATURE_MODELS: Record<string, string> = {};
 
   @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.LLM,
+    description: 'Jev price in USD per million input tokens',
+    type: ConfigVariableType.NUMBER,
+  })
+  @IsOptional()
+  RECRUITING_JEV_INPUT_PRICE?: number;
+
+  @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.ADVANCED_SETTINGS,
     description: 'Persistent global concurrency overrides by queue name',
     type: ConfigVariableType.JSON,

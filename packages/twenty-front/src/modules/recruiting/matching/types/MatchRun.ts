@@ -12,6 +12,7 @@ export type RecruitingMatchRun = {
   createdAt: string;
   reviewedAt?: string;
   error?: string;
+  billing?: { estimatedUsd: number; unknownUsage: number };
   counts: {
     total: number;
     processed: number;
