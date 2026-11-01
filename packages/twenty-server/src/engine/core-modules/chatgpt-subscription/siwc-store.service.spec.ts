@@ -156,3 +156,30 @@ it('reports remote revocation failure while completing local sign-out', async ()
   });
   expect((await first.read(value.id)).tokens).toBeUndefined();
 });
+
+it('keeps an independent Codex registration encrypted and refreshes it without local login files', async () => {
+  const { first } = setup();
+  const connection = await first.save(
+    'host',
+    'codex-client',
+    account,
+    { ...tokens, expires_in: 1 },
+    undefined,
+    'codex',
+    'account-id',
+  );
+  const refresh = jest.spyOn(first.codexProtocol, 'refresh').mockResolvedValue({
+    ...tokens,
+    id_token: undefined,
+    scope: 'openid',
+    expires_in: 3600,
+  });
+  const credential = await first.credential(connection.id);
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(credential).toMatchObject({
+    protocol: 'codex',
+    accountId: 'account-id',
+    clientVersion: '0.166.0',
+  });
+  expect(JSON.stringify(await first.list())).not.toContain(tokens.access_token);
+});

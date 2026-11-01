@@ -1,3 +1,7 @@
+import {
+  CODEX_CLIENT_VERSION,
+  CodexOAuthProtocol,
+} from './codex-oauth-protocol';
 /** Stores encrypted SIWC registrations and serializes rotating-token refresh across the API and workers. */
 import { Injectable } from '@nestjs/common';
 import {
@@ -30,6 +34,8 @@ import {
 /** A registration's client/account mapping survives sign-out; renewable credentials do not. */
 export type SiwcConnection = {
   id: string;
+  protocol?: 'codex' | 'siwc';
+  accountId?: string;
   hostId: string;
   clientId: string;
   subject: string;
@@ -49,6 +55,7 @@ const encryptionScope = { workspaceId: 'chatgpt-subscription-registrations' };
 /** Uses native authenticated encryption and advisory locks, never the Codex credential file or another service. */
 export class SiwcStoreService {
   readonly protocol: SiwcProtocol;
+  readonly codexProtocol: CodexOAuthProtocol;
   constructor(
     private readonly encryption: SecretEncryptionService,
     private readonly config: TwentyConfigService,
@@ -56,6 +63,10 @@ export class SiwcStoreService {
   ) {
     this.protocol = new SiwcProtocol(
       createSubscriptionTransport(process.env.RECRUITING_MODEL_PROXY_URL),
+    );
+    this.codexProtocol = new CodexOAuthProtocol(
+      createSubscriptionTransport(process.env.RECRUITING_MODEL_PROXY_URL),
+      this.protocol,
     );
   }
 
@@ -97,6 +108,8 @@ export class SiwcStoreService {
     account: SiwcIdentity,
     tokens: SiwcTokens,
     previousId?: string,
+    protocol: 'codex' | 'siwc' = 'siwc',
+    accountId?: string,
   ) {
     const id =
       previousId ?? v5(`${hostId}:${clientId}:${account.subject}`, v5.URL);
@@ -113,13 +126,19 @@ export class SiwcStoreService {
       const scopes = tokens.scope.split(/\s+/).filter(Boolean);
       const connection: SiwcConnection = {
         id,
+        protocol,
+        accountId,
         hostId,
         clientId,
         subject: account.subject,
         email: account.email,
         label: `${account.email || 'ChatGPT'} · ${id.slice(0, 8)}`,
         scopes,
-        status: scopes.includes(SIWC_PLAN_SCOPE)
+        status: (
+          protocol === 'codex'
+            ? Boolean(accountId)
+            : scopes.includes(SIWC_PLAN_SCOPE)
+        )
           ? 'READY'
           : 'MISSING_PLAN_PERMISSION',
         expiresAt: Date.now() + tokens.expires_in * 1000,
@@ -131,31 +150,52 @@ export class SiwcStoreService {
     });
   }
   /** Re-reads inside the global connection lock; one process refreshes while all others consume its atomic replacement. */
-  async credential(id: string): Promise<SubscriptionCredential> {
+  async credential(
+    id: string,
+    forceRefresh = false,
+  ): Promise<SubscriptionCredential> {
     return this.lock(id, async () => {
       let connection = await this.read(id);
       if (connection.status !== 'READY' || !connection.tokens?.access_token)
         throw new Error('ChatGPT subscription requires authorization');
-      if (connection.expiresAt <= Date.now() + 30000) {
+      if (forceRefresh || connection.expiresAt <= Date.now() + 30000) {
         if (!connection.tokens.refresh_token)
           throw new Error(
             'ChatGPT subscription requires renewed authorization',
           );
         let rotated = false;
         try {
-          const tokens = await this.protocol.refresh(
-            connection.clientId,
-            connection.tokens.refresh_token,
-          );
+          const tokens =
+            connection.protocol === 'codex'
+              ? await this.codexProtocol.refresh(
+                  connection.tokens.refresh_token,
+                )
+              : await this.protocol.refresh(
+                  connection.clientId,
+                  connection.tokens.refresh_token,
+                );
           rotated = true;
-          if (!tokens.refresh_token) throw new Error('SIWC_REAUTH_REQUIRED');
+          if (!tokens.refresh_token && connection.protocol !== 'codex')
+            throw new Error('SIWC_REAUTH_REQUIRED');
           if (tokens.id_token) {
-            const account = await this.protocol.identity(
-              tokens.id_token,
-              connection.clientId,
-              undefined,
-              tokens.access_token,
-            );
+            const account =
+              connection.protocol === 'codex'
+                ? await this.codexProtocol.identity(
+                    tokens.id_token,
+                    undefined,
+                    tokens.access_token,
+                  )
+                : await this.protocol.identity(
+                    tokens.id_token,
+                    connection.clientId,
+                    undefined,
+                    tokens.access_token,
+                  );
+            if (
+              'accountId' in account &&
+              account.accountId !== connection.accountId
+            )
+              throw new Error('SIWC_REAUTH_REQUIRED');
             if (account.subject !== connection.subject)
               throw new Error('SIWC_REAUTH_REQUIRED');
           }
@@ -164,12 +204,16 @@ export class SiwcStoreService {
             ...connection,
             tokens: {
               ...tokens,
+              refresh_token:
+                tokens.refresh_token ?? connection.tokens.refresh_token,
               id_token: tokens.id_token ?? connection.tokens.id_token,
             },
             scopes,
-            status: scopes.includes(SIWC_PLAN_SCOPE)
-              ? 'READY'
-              : 'MISSING_PLAN_PERMISSION',
+            status:
+              connection.protocol === 'codex' ||
+              scopes.includes(SIWC_PLAN_SCOPE)
+                ? 'READY'
+                : 'MISSING_PLAN_PERMISSION',
             expiresAt: Date.now() + tokens.expires_in * 1000,
             updatedAt: new Date().toISOString(),
           };
@@ -192,7 +236,14 @@ export class SiwcStoreService {
       }
       if (connection.status !== 'READY' || !connection.tokens)
         throw new Error('ChatGPT plan permission is missing');
-      return { accessToken: connection.tokens.access_token, protocol: 'siwc' };
+      return {
+        accessToken: connection.tokens.access_token,
+        protocol: connection.protocol ?? 'siwc',
+        accountId: connection.accountId,
+        ...(connection.protocol === 'codex'
+          ? { clientVersion: CODEX_CLIENT_VERSION }
+          : {}),
+      };
     });
   }
   /** Reads the selected account's catalog with its current credential rather than a guessed bundled model list. */
@@ -296,13 +347,16 @@ export class SiwcStoreService {
   private view(connection: SiwcConnection) {
     return {
       id: connection.id,
+      protocol: connection.protocol ?? 'siwc',
       label: connection.label,
       email: connection.email,
       status: connection.status,
       expiresAt: connection.expiresAt,
       updatedAt: connection.updatedAt,
       canRefresh: Boolean(connection.tokens?.refresh_token),
-      planUsageEnabled: connection.scopes.includes(SIWC_PLAN_SCOPE),
+      planUsageEnabled:
+        connection.protocol === 'codex' ||
+        connection.scopes.includes(SIWC_PLAN_SCOPE),
     };
   }
 }

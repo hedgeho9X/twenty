@@ -1,3 +1,7 @@
+import {
+  createCodexTransaction,
+  codexAuthorizeUrl,
+} from './codex-oauth-protocol';
 /** Owns short-lived loopback OAuth attempts without changing an active registration before verified authorization completes. */
 import {
   Injectable,
@@ -28,6 +32,7 @@ import {
 /** Verifiers and nonces remain in this process and are discarded on timeout, cancellation, failure or shutdown. */
 type Attempt = {
   id: string;
+  protocol: 'codex' | 'siwc';
   ownerId: string;
   connectionId?: string;
   status:
@@ -55,7 +60,11 @@ export class SiwcLoginService implements OnModuleDestroy {
   ) {}
 
   /** Binds one local listener and fresh PKCE transaction before returning the authorization URL for an explicit user click. */
-  async start(ownerId: string, connectionId?: string) {
+  async start(
+    ownerId: string,
+    connectionId?: string,
+    protocol: 'codex' | 'siwc' = 'siwc',
+  ) {
     await this.owner(ownerId);
     if (
       [...this.attempts.values()].some(
@@ -70,6 +79,8 @@ export class SiwcLoginService implements OnModuleDestroy {
     const previous = connectionId
       ? await this.store.read(connectionId)
       : undefined;
+    if (previous && (previous.protocol ?? 'siwc') !== protocol)
+      throw new BadRequestException('账号连接协议不一致，请新建连接');
     const hostId = previous?.hostId ?? (await this.store.hostId());
     const id = randomUUID();
     const server = createServer((request, response) => {
@@ -82,7 +93,7 @@ export class SiwcLoginService implements OnModuleDestroy {
     });
     await new Promise<void>((done, reject) => {
       server.once('error', reject);
-      server.listen(0, '127.0.0.1', () => {
+      server.listen(protocol === 'codex' ? 1455 : 0, '127.0.0.1', () => {
         server.off('error', reject);
         done();
       });
@@ -92,12 +103,15 @@ export class SiwcLoginService implements OnModuleDestroy {
       server.close();
       throw new Error('无法启动本机授权回调');
     }
-    const transaction = createSiwcTransaction(
-      `http://127.0.0.1:${address.port}/auth/callback`,
-      hostId,
-      previous?.clientId,
-      previous?.subject,
-    );
+    const transaction =
+      protocol === 'codex'
+        ? createCodexTransaction(hostId, previous?.subject)
+        : createSiwcTransaction(
+            `http://127.0.0.1:${address.port}/auth/callback`,
+            hostId,
+            previous?.clientId,
+            previous?.subject,
+          );
     const timer = setTimeout(() => {
       const attempt = this.attempts.get(id);
       if (attempt && attempt.status === 'PENDING')
@@ -106,6 +120,7 @@ export class SiwcLoginService implements OnModuleDestroy {
     timer.unref();
     const attempt: Attempt = {
       id,
+      protocol,
       ownerId,
       connectionId,
       status: 'PENDING',
@@ -118,7 +133,10 @@ export class SiwcLoginService implements OnModuleDestroy {
     return {
       attemptId: id,
       expiresAt: attempt.expiresAt,
-      authorizeUrl: siwcAuthorizeUrl(transaction),
+      authorizeUrl:
+        protocol === 'codex'
+          ? codexAuthorizeUrl(transaction)
+          : siwcAuthorizeUrl(transaction),
     };
   }
   /** Polls only sanitized state for the same administrator; credentials never appear in status responses. */
@@ -142,7 +160,12 @@ export class SiwcLoginService implements OnModuleDestroy {
     return {
       ...this.status(ownerId, attempt.id),
       ...(attempt.status === 'PENDING'
-        ? { authorizeUrl: siwcAuthorizeUrl(attempt.transaction) }
+        ? {
+            authorizeUrl:
+              attempt.protocol === 'codex'
+                ? codexAuthorizeUrl(attempt.transaction)
+                : siwcAuthorizeUrl(attempt.transaction),
+          }
         : {}),
     };
   }
@@ -213,11 +236,14 @@ export class SiwcLoginService implements OnModuleDestroy {
         throw new Error('authorization_denied');
       const code = url.searchParams.get('code');
       if (!code || code.length > 4096) throw new Error('code_missing');
-      const result = await this.store.protocol.exchange(
-        attempt.transaction,
-        code,
-        url.searchParams.get('client_id') ?? undefined,
-      );
+      const result =
+        attempt.protocol === 'codex'
+          ? await this.store.codexProtocol.exchange(attempt.transaction, code)
+          : await this.store.protocol.exchange(
+              attempt.transaction,
+              code,
+              url.searchParams.get('client_id') ?? undefined,
+            );
       issuedSession = {
         clientId: result.clientId,
         refreshToken: result.tokens.refresh_token,
@@ -238,6 +264,10 @@ export class SiwcLoginService implements OnModuleDestroy {
         result.identity,
         result.tokens,
         attempt.connectionId,
+        attempt.protocol,
+        'accountId' in result.identity
+          ? (result.identity.accountId as string)
+          : undefined,
       );
       attempt.completedConnectionId = connection.id;
       this.finish(attempt, 'COMPLETED');
