@@ -1,4 +1,5 @@
 /** Allows operators to correct every fact that influences matching before creating a company-bound job. */
+import { useEffect, useState } from 'react';
 import { t } from '@lingui/core/macro';
 import {
   Button,
@@ -34,10 +35,32 @@ export const RecruitingJobDraftEditor = ({
   onChange: (draft: RecruitingJobDraft) => void;
   onIgnore: () => void;
 }) => {
+  const [locationsEditor, setLocationsEditor] = useState<{
+    itemId: string;
+    text: string;
+  }>();
+  useEffect(() => {
+    setLocationsEditor(undefined);
+  }, [item.itemId]);
+  const locationsText =
+    locationsEditor?.itemId === item.itemId
+      ? locationsEditor.text
+      : draft.locations.join('、');
   const created = item.status === 'CREATED';
   const disabled = created || item.status === 'DISCARDED' || ignored || busy;
   const update = (patch: Partial<RecruitingJobDraft>) =>
     onChange({ ...draft, ...patch });
+  /** Commits list values after editing so a trailing separator remains available for the next location. */
+  const saveLocations = () => {
+    if (!locationsEditor || locationsEditor.itemId !== item.itemId) return;
+    update({
+      locations: locationsEditor.text
+        .split(/[、,，;；\n]/)
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    });
+    setLocationsEditor(undefined);
+  };
   const categories = [
     { value: '', label: t`待确认` },
     { value: 'engineering', label: t`研发` },
@@ -176,15 +199,11 @@ export const RecruitingJobDraftEditor = ({
           <Field.Label>{t`工作地点`}</Field.Label>
           <Input
             disabled={disabled}
-            value={draft.locations.join('、')}
+            value={locationsText}
             onValueChange={(value) =>
-              update({
-                locations: value
-                  .split(/[、,，;；\n]/)
-                  .map((entry) => entry.trim())
-                  .filter(Boolean),
-              })
+              setLocationsEditor({ itemId: item.itemId, text: value })
             }
+            onBlur={saveLocations}
           />
           <Field.Description>{t`多个地点可用顿号或逗号分隔。`}</Field.Description>
         </Field.Root>
