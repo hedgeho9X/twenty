@@ -97,7 +97,8 @@ export const RecruitingMailSources = ({
             variant="ghost"
             startIcon={<IconArrowLeft size={16} />}
             onClick={() => setArchiveId(undefined)}
-          >{t`返回`}</Button>
+            size="sm"
+          >{t`返回邮件列表`}</Button>
         </StyledRecruitingSticky>
       )}
       {mail && (

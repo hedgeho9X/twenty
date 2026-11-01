@@ -2,7 +2,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
-import { IconX } from 'twenty-ui/icon';
+import { IconX, IconArrowLeft } from 'twenty-ui/icon';
 import { Dialog } from 'twenty-ui/primitives/surfaces';
 import {
   recruitingBlob,
@@ -27,6 +27,8 @@ type RecruitingFilePreviewProps = {
   intakeId?: string;
   fileId?: string;
   onClose: () => void;
+  embedded?: boolean;
+  onBack?: () => void;
 };
 /** Uses blob URLs only for PDF/images and parser-generated page PNGs; revokes every URL on close. */
 export const RecruitingFilePreview = ({
@@ -35,6 +37,8 @@ export const RecruitingFilePreview = ({
   intakeId,
   fileId,
   onClose,
+  embedded = false,
+  onBack,
 }: RecruitingFilePreviewProps) => {
   const [images, setImages] = useState<string[]>([]);
   const [pdf, setPdf] = useState('');
@@ -132,6 +136,85 @@ export const RecruitingFilePreview = ({
       urls.forEach((value) => URL.revokeObjectURL(value));
     };
   }, [path, label, intakeId, fileId]);
+  const content = (
+    <>
+      <Dialog.Header>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          {embedded && (
+            <Button
+              variant="ghost"
+              startIcon={<IconArrowLeft size={16} />}
+              onClick={onBack ?? onClose}
+            >
+              返回
+            </Button>
+          )}
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            <Dialog.Title>{label}</Dialog.Title>
+          </div>
+          <Button variant="ghost" aria-label={t`关闭预览`} onClick={onClose}>
+            <IconX size={18} />
+          </Button>
+        </div>
+      </Dialog.Header>
+      <Dialog.Body>
+        {loading && (
+          <StyledRecruitingMuted>{t`正在读取原件…`}</StyledRecruitingMuted>
+        )}
+        {error && (
+          <StyledRecruitingError role="alert">{error}</StyledRecruitingError>
+        )}
+        {pdf && (
+          <Suspense
+            fallback={
+              <StyledRecruitingMuted>{t`正在打开文档…`}</StyledRecruitingMuted>
+            }
+          >
+            <DocumentViewer
+              documentName={label}
+              documentUrl={pdf}
+              documentExtension="pdf"
+            />
+          </Suspense>
+        )}
+        {images.map((src, index) => (
+          <img
+            key={src}
+            src={src}
+            alt={`${label} · ${index + 1}`}
+            style={{ width: '100%', display: 'block' }}
+          />
+        ))}
+        {text && (
+          <pre
+            style={{
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+              maxHeight: '65vh',
+              overflow: 'auto',
+            }}
+          >
+            {text}
+          </pre>
+        )}
+      </Dialog.Body>
+    </>
+  );
+  if (embedded) return content;
   return (
     <Dialog.Root
       open
@@ -143,79 +226,7 @@ export const RecruitingFilePreview = ({
         <Dialog.Backdrop />
         <Dialog.Viewport>
           <div className={recruitingDialogClass}>
-            <Dialog.Popup size="xl">
-              <Dialog.Header>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      overflow: 'hidden',
-                      whiteSpace: 'nowrap',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    <Dialog.Title>{label}</Dialog.Title>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    aria-label={t`关闭预览`}
-                    onClick={onClose}
-                  >
-                    <IconX size={18} />
-                  </Button>
-                </div>
-              </Dialog.Header>
-              <Dialog.Body>
-                {loading && (
-                  <StyledRecruitingMuted>{t`正在读取原件…`}</StyledRecruitingMuted>
-                )}
-                {error && (
-                  <StyledRecruitingError role="alert">
-                    {error}
-                  </StyledRecruitingError>
-                )}
-                {pdf && (
-                  <Suspense
-                    fallback={
-                      <StyledRecruitingMuted>{t`正在打开文档…`}</StyledRecruitingMuted>
-                    }
-                  >
-                    <DocumentViewer
-                      documentName={label}
-                      documentUrl={pdf}
-                      documentExtension="pdf"
-                    />
-                  </Suspense>
-                )}
-                {images.map((src, index) => (
-                  <img
-                    key={src}
-                    src={src}
-                    alt={`${label} · ${index + 1}`}
-                    style={{ width: '100%', display: 'block' }}
-                  />
-                ))}
-                {text && (
-                  <pre
-                    style={{
-                      whiteSpace: 'pre-wrap',
-                      overflowWrap: 'anywhere',
-                      maxHeight: '65vh',
-                      overflow: 'auto',
-                    }}
-                  >
-                    {text}
-                  </pre>
-                )}
-              </Dialog.Body>
-            </Dialog.Popup>
+            <Dialog.Popup size="xl">{content}</Dialog.Popup>
           </div>
         </Dialog.Viewport>
       </Dialog.Portal>

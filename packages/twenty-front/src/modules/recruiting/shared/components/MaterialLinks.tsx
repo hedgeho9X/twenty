@@ -15,12 +15,15 @@ import {
 type RecruitingMaterialLinksProps = Pick<
   RecruitingIntake,
   'intakeId' | 'files'
->;
+> & {
+  onPreview?: (file: NonNullable<RecruitingIntake['files']>[number]) => void;
+};
 
 /** Keeps failed downloads retryable without changing material processing or displaying signed file URLs. */
 export const RecruitingMaterialLinks = ({
   intakeId,
   files,
+  onPreview,
 }: RecruitingMaterialLinksProps) => {
   const [preview, setPreview] =
     useState<NonNullable<RecruitingIntake['files']>[number]>();
@@ -56,7 +59,7 @@ export const RecruitingMaterialLinks = ({
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => setPreview(file)}
+            onClick={() => (onPreview ? onPreview(file) : setPreview(file))}
           >{t`查看`}</Button>
           <Button
             size="sm"

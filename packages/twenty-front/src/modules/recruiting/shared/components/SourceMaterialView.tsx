@@ -13,7 +13,13 @@ type SourceMaterial = Pick<RecruitingIntake, 'files' | 'kind'> & {
   detail?: { input?: { text?: string; note?: string } };
 };
 
-export const SourceMaterialView = ({ intakeId }: { intakeId: string }) => {
+export const SourceMaterialView = ({
+  intakeId,
+  onPreview,
+}: {
+  intakeId: string;
+  onPreview?: (file: NonNullable<RecruitingIntake['files']>[number]) => void;
+}) => {
   const query = useRecruitingQuery<SourceMaterial>(
     `resume-intakes/${intakeId}`,
   );
@@ -66,6 +72,7 @@ export const SourceMaterialView = ({ intakeId }: { intakeId: string }) => {
           <RecruitingMaterialLinks
             intakeId={intakeId}
             files={query.data.files}
+            onPreview={onPreview}
           />
         </>
       )}

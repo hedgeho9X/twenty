@@ -385,14 +385,14 @@ it.each(['mail', 'draft'] as const)(
 
 it('opens mail as a separate view with a reliable back action and no manual EML upload', () => {
   renderTask('mail', 'READY');
-  expect(screen.getByRole('button', { name: '返回' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '返回邮件列表' })).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: '已接收邮件' })).toBeNull();
   expect(screen.queryByLabelText('选择完整EML邮件')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: '返回' }));
+  fireEvent.click(screen.getByRole('button', { name: '返回邮件列表' }));
   expect(
     screen.getByRole('heading', { name: '已接收邮件' }),
   ).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: '返回' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '返回邮件列表' })).toBeNull();
 });
 
 it('shows matching as a stage of the same intake task', () => {
