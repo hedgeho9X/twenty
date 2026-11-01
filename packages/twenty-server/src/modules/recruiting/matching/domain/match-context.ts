@@ -130,6 +130,25 @@ const objectValue = (value: unknown): Record<string, unknown> =>
 const cityValues = (value: unknown): string[] =>
   factTexts(value).map((city) => city.trim().replace(/市$/, '').toLowerCase());
 
+/** Keeps extensible professional data while excluding record bookkeeping and direct contact fields. */
+const professionalProfile = (profile: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(profile).filter(
+      ([key]) =>
+        ![
+          'sourceIntakeId',
+          'sourceItemId',
+          'sourceHash',
+          'sourceDraftHash',
+          'modelId',
+          'generatedAt',
+          'name',
+          'email',
+          'phone',
+        ].includes(key),
+    ),
+  );
+
 /** Builds the current and legacy occupational inputs plus explicit, source-backed preferences. */
 export const buildCandidateMatchContext = (record: MatchSource) => {
   const profile = objectValue(record.recruitingProfile);
@@ -163,6 +182,7 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
       : [sourceText, recruitingText(profile.note)].join('\n');
   const compact = Object.keys(profile).length > 0;
   const context = {
+    ...professionalProfile(profile),
     summary: recruitingText(profile.summary),
     skills: factTexts(compact ? profile.skills : legacy.skills),
     experience: factTexts(compact ? profile.experience : legacy.experience),
@@ -226,8 +246,17 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
       : factTexts(record.candidateEmploymentType).map((entry) =>
           entry.toLowerCase(),
         );
-    if (values.length)
-      eligibility.employmentTypes = { values, certainty: 'unconfirmed' };
+    if (values.length) {
+      const evidence = recruitingText(profile.employmentEvidence).trim();
+      const confirmed =
+        evidence.length > 0 &&
+        material.includes(evidence) &&
+        !/优先|倾向|最好/.test(evidence);
+      eligibility.employmentTypes = {
+        values,
+        certainty: confirmed ? 'confirmed' : 'unconfirmed',
+      };
+    }
   }
   if (
     statements.some((text) =>
@@ -337,6 +366,7 @@ export const buildJobMatchContext = (
   );
   const companyContext = buildCompanyMatchContext(company);
   const context = {
+    ...professionalProfile(profile),
     title: recruitingText(record.name),
     description: currentRecruitingText(
       record.jobDescription,

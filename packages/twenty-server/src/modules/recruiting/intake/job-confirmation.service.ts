@@ -25,10 +25,7 @@ import {
   type RecruitingRecord,
 } from '../records/records.service';
 import { RecruitingMatchingService } from '../matching/matching.service';
-import {
-  jobProfilesSchema,
-  type RecruitingJobProfile,
-} from './schemas';
+import { jobProfilesSchema, type RecruitingJobProfile } from './schemas';
 import { contentVersion } from '../matching/domain/match-context';
 
 /** Item identity belongs to the original preview, never its current position after editing or deletion. */
@@ -325,6 +322,7 @@ export class RecruitingJobConfirmationService {
               .filter((entry) => attributes.has(entry)),
             recruitingProfile: {
               ...draft,
+              originalText: envelope.input.text ?? '',
               sourceIntakeId: id,
               sourceItemId: item.itemId,
               sourceHash: envelope.inputHash,

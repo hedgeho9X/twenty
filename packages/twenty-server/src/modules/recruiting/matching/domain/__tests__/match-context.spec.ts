@@ -420,3 +420,67 @@ describe('recruiting match context', () => {
     expect(contentVersion({ a: 1, b: 2 })).toBe(contentVersion({ b: 2, a: 1 }));
   });
 });
+
+it('retains new professional fields and complete original JD in matching context and version', () => {
+  const job = {
+    id: 'job',
+    name: 'Engineer',
+    jobStatus: 'RECRUITING',
+    recruitingProfile: {
+      description: 'Summary',
+      originalText: 'Complete duties and requirements',
+      salary: { min: 10, max: 20 },
+      certifications: ['required'],
+      sourceIntakeId: 'internal',
+    },
+  };
+  const first = buildJobMatchContext(job);
+  expect(first.context).toMatchObject({
+    originalText: 'Complete duties and requirements',
+    salary: { min: 10, max: 20 },
+    certifications: ['required'],
+  });
+  expect(first.context).not.toHaveProperty('sourceIntakeId');
+  const changed = buildJobMatchContext({
+    ...job,
+    recruitingProfile: {
+      ...job.recruitingProfile,
+      salary: { min: 20, max: 30 },
+    },
+  });
+  expect(changed.version).not.toBe(first.version);
+  const candidate = buildCandidateMatchContext({
+    id: 'candidate',
+    recruitingProfile: {
+      summary: 'Engineer',
+      portfolio: { achievements: ['delivered service'] },
+    },
+  });
+  expect(candidate.context).toMatchObject({
+    portfolio: { achievements: ['delivered service'] },
+  });
+});
+it('uses source-backed employment requirements as a hard filter and keeps unknowns', () => {
+  const person = buildCandidateMatchContext({
+    id: 'candidate',
+    recruitingProfile: {
+      summary: 'Engineer',
+      employmentTypes: ['full_time'],
+      employmentEvidence: '接受全职',
+      sourceText: '求职意向：接受全职',
+    },
+  });
+  expect(person.eligibility.employmentTypes?.certainty).toBe('confirmed');
+  expect(
+    evaluateRecruitingEligibility(person.eligibility, {
+      status: 'RECRUITING',
+      employmentTypes: ['internship'],
+    }).status,
+  ).toBe('excluded');
+  expect(
+    evaluateRecruitingEligibility(person.eligibility, {
+      status: 'RECRUITING',
+      employmentTypes: [],
+    }).status,
+  ).not.toBe('excluded');
+});
