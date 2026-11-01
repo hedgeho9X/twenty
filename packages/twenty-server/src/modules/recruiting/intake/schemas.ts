@@ -52,12 +52,8 @@ export const jobProfilesSchema = z.object({
       employmentTypes: z.array(employmentTypeSchema),
       workModes: z.array(workModeSchema),
       locations: z.array(z.string()),
-      needsReview: z.boolean(),
-      reviewNotes: z.array(z.string()),
     }),
   ),
-  needsReview: z.boolean(),
-  reviewNotes: z.array(z.string()),
 });
 
 /** File references refer to completed native uploads in the caller's workspace. */

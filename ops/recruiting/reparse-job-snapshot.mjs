@@ -1,6 +1,6 @@
 /** Replays private legacy JD text through local intake APIs; never restores legacy generated profiles or touches production. */
 import { readFile, writeFile, rename } from 'node:fs/promises';
-import { resolve, dirname, join } from 'node:path';
+import { resolve, dirname, join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { localRequest } from './local-api.mjs';
 
@@ -171,7 +171,7 @@ for (const job of ready) {
     text,
     source: 'api',
     sourceId: `legacy-job:${job.id}`,
-    idempotencyKey: `legacy-reparse:${sourceHash}:${job.id}`,
+    idempotencyKey: `legacy-reparse:${basename(dirname(sourcePath))}:${sourceHash}:${job.id}`,
   });
   manifest.jobs[job.id] = {
     intakeId: result.intakeId,
@@ -227,5 +227,8 @@ while (Date.now() < deadline) {
   await new Promise((done) => setTimeout(done, 10_000));
 }
 
-if (!manifest.finishedAt) throw new Error('Import still pending; resume with the same source and manifest');
+if (!manifest.finishedAt)
+  throw new Error(
+    'Import still pending; resume with the same source and manifest',
+  );
 if (summary().failed) process.exitCode = 2;

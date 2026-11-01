@@ -1,5 +1,5 @@
 /** Covers the unified intake boundary that UI, MCP and mail must share. */
-import { intakeInputSchema } from './schemas';
+import { intakeInputSchema, jobProfilesSchema } from './schemas';
 
 const file = {
   fileId: '9f972110-76ed-4b99-966c-e0d3a8f58db7',
@@ -70,4 +70,14 @@ describe('unified recruiting intake contract', () => {
       }).success,
     ).toBe(false);
   });
+});
+
+it('does not request review flags or review notes for JD extraction', () => {
+  expect(Object.keys(jobProfilesSchema.shape)).toEqual(['jobs']);
+  expect(Object.keys(jobProfilesSchema.shape.jobs.element.shape)).not.toContain(
+    'needsReview',
+  );
+  expect(Object.keys(jobProfilesSchema.shape.jobs.element.shape)).not.toContain(
+    'reviewNotes',
+  );
 });

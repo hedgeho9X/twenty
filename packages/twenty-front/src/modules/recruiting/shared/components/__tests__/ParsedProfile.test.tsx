@@ -90,11 +90,10 @@ it.each([true, false])(
       '全职',
       '远程',
       '杭州',
-      '薪资待确认',
     ])
       expect(screen.getByText(text)).toBeVisible();
-    expect(screen.getByText('需要核对')).toBeVisible();
-    expect(screen.getByText('是')).toBeVisible();
+    expect(screen.queryByText('需要核对')).toBeNull();
+    expect(screen.queryByText('岗位待核对事项')).toBeNull();
     expect(container.querySelector('details')).not.toHaveAttribute('open');
     expect(container.querySelector('pre')).not.toBeVisible();
   },

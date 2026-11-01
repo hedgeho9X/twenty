@@ -7,6 +7,4 @@ export type RecruitingJobDraft = {
   employmentTypes: string[];
   workModes: string[];
   locations: string[];
-  needsReview: boolean;
-  reviewNotes: string[];
 };

@@ -64,15 +64,6 @@
             "items": {
               "type": "string"
             }
-          },
-          "needsReview": {
-            "type": "boolean"
-          },
-          "reviewNotes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         },
         "required": [
@@ -82,27 +73,14 @@
           "category",
           "employmentTypes",
           "workModes",
-          "locations",
-          "needsReview",
-          "reviewNotes"
+          "locations"
         ],
         "additionalProperties": false
-      }
-    },
-    "needsReview": {
-      "type": "boolean"
-    },
-    "reviewNotes": {
-      "type": "array",
-      "items": {
-        "type": "string"
       }
     }
   },
   "required": [
-    "jobs",
-    "needsReview",
-    "reviewNotes"
+    "jobs"
   ],
   "additionalProperties": false
 }

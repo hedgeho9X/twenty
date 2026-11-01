@@ -10,7 +10,7 @@ POST /recruiting/job-intakes 接收 companyId、text（岗位原文）、可选 
 
 ## 模型输出
 
-顶层字段全部必需：jobs（数组）、needsReview（布尔）、reviewNotes（字符串数组）。一份材料允许多个岗位。
+顶层字段为 jobs（数组）。一份材料允许多个岗位。
 
 每个 jobs 元素：
 
@@ -23,10 +23,8 @@ POST /recruiting/job-intakes 接收 companyId、text（岗位原文）、可选 
 | employmentTypes | enum[] | full_time / part_time / internship / contract |
 | workModes | enum[] | onsite / hybrid / remote |
 | locations | string[] | 地点原文 |
-| needsReview | boolean | 是否存在待核对内容 |
-| reviewNotes | string[] | 待核对原因 |
 
-未知枚举/地点不猜测，分别允许 category=null 或空数组。薪资上下限、币种、经验年限、学历、职责列表和技能要求目前没有独立类型字段，保留在 description。当前 needsReview 是数据标记，不是强制人工确认步骤。
+未知枚举/地点不猜测，分别允许 category=null 或空数组。薪资上下限、币种、经验年限、学历、职责列表和技能要求目前没有独立类型字段，保留在 description。岗位不再生成 needsReview/reviewNotes；必要字段缺失仍由服务端返回创建错误。
 
 ## 入库映射
 
@@ -39,6 +37,6 @@ POST /recruiting/job-intakes 接收 companyId、text（岗位原文）、可选 
 
 ## 页面查看
 
-处理队列 → 岗位任务详情显示完整解析字段；公司与岗位 → 已有岗位 / 查看全部 → 查看解析使用同一资料卡读取已保存的 recruitingProfile。包含招聘偏好、分类、雇佣类型、工作方式、地点、需核对标记、岗位核对原因和完整正文；单岗位与多岗位批次均支持，原始 JSON 默认折叠。只读展示不触发重新解析或修改记录。
+处理队列 → 岗位任务详情显示完整解析字段；公司与岗位 → 已有岗位 / 查看全部 → 查看解析使用同一资料卡读取已保存的 recruitingProfile。包含招聘偏好、分类、雇佣类型、工作方式、地点和完整正文；单岗位与多岗位批次均支持，原始 JSON 默认折叠。只读展示不触发重新解析或修改记录。
 
 “原始材料”入口打开弹窗内的原文视图，读取对应 intake 保存的 input.text；左上角返回解析资料，右上角关闭。JD 仅展示当时提交的文字，保留原始换行和缩进，不用模型 description/JSON 代替，也不显示文件上传或附件区。候选人任务仍可在原始材料中查看其上传的简历原件。

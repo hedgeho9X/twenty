@@ -43,8 +43,6 @@ const original: RecruitingJobDraft = {
   employmentTypes: [],
   workModes: [],
   locations: ['北京'],
-  needsReview: false,
-  reviewNotes: [],
 };
 const item: RecruitingJobItem = {
   itemId: 'first-item',

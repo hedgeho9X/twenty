@@ -266,9 +266,6 @@ export const RecruitingJobDraftEditor = ({
           <Field.Description>{t`多个地点可用顿号或逗号分隔。`}</Field.Description>
         </Field.Root>
       </details>
-      {draft.reviewNotes.map((note, index) => (
-        <StyledRecruitingMuted key={index}>{note}</StyledRecruitingMuted>
-      ))}
     </StyledRecruitingPanel>
   );
 };

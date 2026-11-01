@@ -2,7 +2,6 @@
 import { t } from '@lingui/core/macro';
 import {
   StyledRecruitingMuted,
-  StyledRecruitingRow,
   StyledRecruitingStack,
   StyledRecruitingStatus,
   StyledRecruitingTitle,
@@ -166,24 +165,6 @@ export const RecruitingParsedProfile = ({
                 <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
                   {text(job.preferences) || t`未提供`}
                 </p>
-                <StyledRecruitingRow>
-                  <strong>{t`需要核对`}</strong>
-                  <StyledRecruitingStatus
-                    data-tone={job.needsReview === true ? 'yellow' : 'neutral'}
-                  >
-                    {job.needsReview === true
-                      ? t`是`
-                      : job.needsReview === false
-                        ? t`否`
-                        : t`未标记`}
-                  </StyledRecruitingStatus>
-                </StyledRecruitingRow>
-                {list(job.reviewNotes).length > 0 && (
-                  <History
-                    title={t`岗位待核对事项`}
-                    values={list(job.reviewNotes)}
-                  />
-                )}
                 <strong>{t`完整岗位正文`}</strong>
                 <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
                   {text(job.description) || t`未提供`}
@@ -193,10 +174,9 @@ export const RecruitingParsedProfile = ({
           })}
         </>
       )}
-      {reviewNotes.length > 0 &&
-        (kind === 'CANDIDATE' || Array.isArray(data.jobs)) && (
-          <History title={t`待核对事项`} values={reviewNotes} />
-        )}
+      {kind === 'CANDIDATE' && reviewNotes.length > 0 && (
+        <History title={t`待核对事项`} values={reviewNotes} />
+      )}
       <details>
         <summary>{t`查看原始 JSON`}</summary>
         <pre

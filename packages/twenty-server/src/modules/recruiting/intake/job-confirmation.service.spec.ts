@@ -18,8 +18,6 @@ const draft = (title: string): RecruitingJobProfile => ({
   employmentTypes: ['full_time'],
   workModes: ['onsite'],
   locations: [],
-  needsReview: false,
-  reviewNotes: [],
 });
 
 /** Retains native-like rows so retries must reconcile persisted state rather than an in-memory loop index. */
@@ -33,8 +31,6 @@ const setup = () => {
     extraction: {
       profile: {
         jobs: [draft('A'), draft('B'), draft('C')],
-        needsReview: false,
-        reviewNotes: [],
       },
     },
   };
