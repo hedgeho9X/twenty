@@ -1,11 +1,15 @@
-/** Separates complete email reception/archiving from explicit candidate-material selection. */
+/** Shows received candidate mail with downstream processing progress. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
 import { Dialog } from 'twenty-ui/primitives/surfaces';
 import { type RecruitingMailArchive } from '@/recruiting/types/RecruitingMailArchive';
 import { type RecruitingPage } from '@/recruiting/types/RecruitingPage';
-import { RecruitingMailSelection } from '@/recruiting/components/RecruitingMailSelection';
+import { RecruitingMailDetail } from '@/recruiting/components/RecruitingMailDetail';
+import {
+  recruitingTaskLabel,
+  recruitingTaskTone,
+} from '@/recruiting/utils/taskLabels';
 import { RecruitingMailboxSettings } from '@/recruiting/components/RecruitingMailboxSettings';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
@@ -19,6 +23,7 @@ import {
   StyledRecruitingTable,
   StyledRecruitingTitle,
   StyledRecruitingSticky,
+  StyledRecruitingStatus,
 } from '@/recruiting/components/recruitingStyles';
 
 /** Uses business status instead of exposing transport or worker implementation to operators. */
@@ -27,15 +32,14 @@ const mailLabel = (status: string) =>
     UPLOADING: t`保存原文`,
     QUEUED: t`排队中`,
     EXPANDING: t`整理附件`,
-    READY: t`已归档`,
-    NEEDS_SELECTION: t`待选择材料`,
+    READY: t`等待解析`,
+    NEEDS_SELECTION: t`待处理`,
     FAILED: t`需要处理`,
-  })[status] ?? status;
+  })[status] ?? recruitingTaskLabel(status);
 
 /** Browses received mail separately from its material-selection detail; reception is configured in mailbox settings. */
 export const RecruitingMailSources = ({
   active = true,
-  onSubmitted,
 }: {
   active?: boolean;
   onSubmitted: () => void;
@@ -57,7 +61,8 @@ export const RecruitingMailSources = ({
   );
   const mail = archiveId && !detail.error ? detail.data : undefined;
   const canResume = Boolean(
-    mail && ['QUEUED', 'EXPANDING'].includes(mail.status),
+    mail &&
+    (['QUEUED', 'EXPANDING'].includes(mail.status) || Boolean(mail.error)),
   );
   /** Reuses archive checkpoints; the server keeps an in-flight task waiting instead of starting it twice. */
   const retry = async () => {
@@ -131,10 +136,24 @@ export const RecruitingMailSources = ({
         <StyledRecruitingPanel>
           <StyledRecruitingRow>
             <StyledRecruitingTitle>{mail.name}</StyledRecruitingTitle>
-            <span>{mailLabel(mail.status)}</span>
+            <StyledRecruitingStatus
+              data-tone={recruitingTaskTone(
+                mail.processingStatus ?? mail.status,
+              )}
+            >
+              {mailLabel(mail.processingStatus ?? mail.status)}
+            </StyledRecruitingStatus>
           </StyledRecruitingRow>
           <StyledRecruitingMuted>
-            {[mail.detail?.metadata?.from?.address, mail.detail?.metadata?.date]
+            {[
+              [
+                mail.detail?.metadata?.from?.name,
+                mail.detail?.metadata?.from?.address,
+              ]
+                .filter(Boolean)
+                .join(' · '),
+              mail.detail?.metadata?.date,
+            ]
               .filter(Boolean)
               .join(' · ')}
           </StyledRecruitingMuted>
@@ -155,13 +174,7 @@ export const RecruitingMailSources = ({
               {canResume ? t`恢复处理` : t`重试归档`}
             </Button>
           )}
-          {['READY', 'NEEDS_SELECTION'].includes(mail.status) && (
-            <RecruitingMailSelection
-              key={mail.archiveId}
-              archive={mail}
-              onSubmitted={onSubmitted}
-            />
-          )}
+          <RecruitingMailDetail key={mail.archiveId} archive={mail} />
         </StyledRecruitingPanel>
       )}
       {!archiveId && (
@@ -170,9 +183,9 @@ export const RecruitingMailSources = ({
           <StyledRecruitingTable>
             <thead>
               <tr>
-                <th>{t`邮件`}</th>
-                <th>{t`进度`}</th>
-                <th>{t`材料数量`}</th>
+                <th>{t`邮件主题`}</th>
+                <th>{t`附件数量`}</th>
+                <th>{t`处理进度`}</th>
                 <th>{t`操作`}</th>
               </tr>
             </thead>
@@ -180,13 +193,21 @@ export const RecruitingMailSources = ({
               {list.data?.records.map((item) => (
                 <tr key={item.archiveId}>
                   <td>{item.name}</td>
-                  <td>{mailLabel(item.status)}</td>
-                  <td>{item.artifactCount}</td>
+                  <td>{item.attachmentCount ?? '—'}</td>
+                  <td>
+                    <StyledRecruitingStatus
+                      data-tone={recruitingTaskTone(
+                        item.processingStatus ?? item.status,
+                      )}
+                    >
+                      {mailLabel(item.processingStatus ?? item.status)}
+                    </StyledRecruitingStatus>
+                  </td>
                   <td>
                     <Button
                       disabled={busy}
                       onClick={() => setArchiveId(item.archiveId)}
-                    >{t`查看与选择材料`}</Button>
+                    >{t`查看`}</Button>
                   </td>
                 </tr>
               ))}

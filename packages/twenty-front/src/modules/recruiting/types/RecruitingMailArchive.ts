@@ -5,6 +5,8 @@ export type RecruitingMailArchive = {
   status: string;
   error?: string;
   artifactCount: number;
+  attachmentCount?: number;
+  processingStatus?: string;
   intakeIds: string[];
   detail?: {
     metadata?: {
@@ -15,6 +17,8 @@ export type RecruitingMailArchive = {
     };
     artifacts: {
       key: string;
+      fileId?: string;
+      preview?: { intakeId: string; fileId: string };
       label: string;
       kind: 'raw' | 'metadata' | 'text' | 'html' | 'attachment';
       inline: boolean;

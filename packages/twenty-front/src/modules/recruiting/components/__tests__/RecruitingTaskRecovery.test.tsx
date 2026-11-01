@@ -146,7 +146,7 @@ const renderTask = (kind: TaskKind, status: string) => {
     queryData['mail-archives?offset=0'] = { records: [mail] };
     queryData['mail-archives/fixture'] = mail;
     render(<RecruitingMailSources onSubmitted={jest.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '查看与选择材料' }));
+    fireEvent.click(screen.getByRole('button', { name: '查看' }));
     return 'mail-archives/fixture/retry';
   }
   const draft = { draftId: 'fixture', name: 'Fixture', status };

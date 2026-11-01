@@ -126,19 +126,7 @@ export const RecruitingMailboxSettings = ({
               {connection.lastPollError}
             </StyledRecruitingError>
           )}
-          <Field.Root>
-            <Field.Item>
-              <Checkbox
-                checked={connection.autoSubmit}
-                disabled={busy || !query.data?.nativeIntegrationEnabled}
-                onCheckedChange={(checked) => {
-                  void configure(connection, { autoSubmit: checked === true });
-                }}
-              />
-              <Field.Label>{t`自动提交普通简历附件进行整理`}</Field.Label>
-            </Field.Item>
-            <Field.Description>{t`内嵌图及无法自动识别的材料完整归档，等待人工选择。`}</Field.Description>
-          </Field.Root>
+          <StyledRecruitingMuted>{t`新来信默认按候选人材料处理，正文和全部附件自动进入解析队列。`}</StyledRecruitingMuted>
           <Button
             loading={busy}
             disabled={!query.data?.nativeIntegrationEnabled}
