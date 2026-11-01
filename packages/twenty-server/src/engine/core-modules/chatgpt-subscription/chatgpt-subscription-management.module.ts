@@ -1,3 +1,4 @@
+import { SubscriptionAccountService } from './subscription-account.service';
 /** Registers account-management HTTP only in the API, keeping authentication/controller dependencies out of model workers. */
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -15,7 +16,7 @@ import { ChatgptSubscriptionController } from './chatgpt-subscription.controller
     WorkspaceCacheStorageModule,
     TypeOrmModule.forFeature([UserEntity]),
   ],
-  providers: [SiwcLoginService],
+  providers: [SiwcLoginService, SubscriptionAccountService],
   controllers: [ChatgptSubscriptionController],
 })
 /** A settings page can manage credentials without causing every background worker to own OAuth listeners. */

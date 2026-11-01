@@ -1,3 +1,5 @@
+import { SubscriptionAccountService } from './subscription-account.service';
+import { AiFeatureModelsService } from 'src/engine/metadata-modules/ai/ai-models/services/ai-feature-models.service';
 /** Exposes administrator-owned connection management, never model tokens or a general unauthenticated compatible API. */
 import {
   BadRequestException,
@@ -42,6 +44,8 @@ export class ChatgptSubscriptionController {
   constructor(
     private readonly store: SiwcStoreService,
     private readonly login: SiwcLoginService,
+    private readonly account: SubscriptionAccountService,
+    private readonly features: AiFeatureModelsService,
   ) {}
   /** Lists account state and availability of the existing read-only local login. */
   @Get() async list(@Req() request: Request) {
@@ -58,6 +62,39 @@ export class ChatgptSubscriptionController {
       localCodex,
       pendingAttempt: this.login.active(ownerId),
     };
+  }
+  @Get('local/usage') usage(@Req() request: Request) {
+    this.owner(request);
+    return this.account.usage();
+  }
+  @Post('local/models/sync') syncModels(@Req() request: Request) {
+    this.owner(request);
+    return this.account.syncModels();
+  }
+  @Get('features') featureList(@Req() request: Request) {
+    this.owner(request);
+    return this.features.list();
+  }
+  @Post('features/:id') async setFeature(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() input: unknown,
+  ) {
+    this.owner(request);
+    const parsed = z
+      .object({ modelId: z.string().min(1) })
+      .strict()
+      .safeParse(input);
+    if (!parsed.success) throw new BadRequestException('请选择模型');
+    return this.features.set(id, parsed.data.modelId);
+  }
+  @Get('jev') jevConfig(@Req() request: Request) {
+    this.owner(request);
+    return this.features.jevConfig();
+  }
+  @Post('jev') saveJev(@Req() request: Request, @Body() input: unknown) {
+    this.owner(request);
+    return this.features.saveJev(input);
   }
   /** Starts only on explicit user action; loading settings never opens authorization. */
   @Post('authorize') start(@Req() request: Request, @Body() value: unknown) {
