@@ -4,6 +4,7 @@ import { ApiPath } from 'twenty-shared/types';
 export const API_PROXY_PATHS = [
   ...Object.values(ApiPath),
   'recruiting-portal',
+  'recruiting-job-pages',
   'chatgpt-subscriptions',
 ] as const;
 

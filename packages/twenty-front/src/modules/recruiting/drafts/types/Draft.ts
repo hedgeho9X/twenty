@@ -2,6 +2,7 @@
 export type RecruitingDraft = {
   draftId: string;
   selectedIds?: string[];
+  jobPageUrl?: string;
   name: string;
   kind: 'GREETING' | 'JOB_PUBLICATION';
   candidateId?: string;

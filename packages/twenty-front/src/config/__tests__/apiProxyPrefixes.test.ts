@@ -13,7 +13,11 @@ const isProxiedPath = (path: string) =>
   matchers.some((matcher) => matcher.test(path));
 
 describe('apiProxyPrefixes', () => {
-  it.each(['recruiting-portal', 'chatgpt-subscriptions'])(
+  it.each([
+    'recruiting-portal',
+    'chatgpt-subscriptions',
+    'recruiting-job-pages',
+  ])(
     'should proxy the standalone fork API root %s and its operations',
     (apiPath) => {
       expect(isProxiedPath(`/${apiPath}`)).toBe(true);
@@ -24,6 +28,8 @@ describe('apiProxyPrefixes', () => {
 
   it.each([
     '/candidate-portal',
+    '/job-introductions',
+    '/recruiting-job-pages-other',
     '/recruiting-workspace',
     '/recruiting-portal-other',
     '/chatgpt-subscriptions-other',

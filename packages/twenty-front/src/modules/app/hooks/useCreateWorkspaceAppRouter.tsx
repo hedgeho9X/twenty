@@ -1,3 +1,4 @@
+import { RecruitingJobPage } from '~/pages/recruiting/RecruitingJobPage';
 import { lazy, useMemo } from 'react';
 
 import { createBrowserRouter } from 'react-router-dom';
@@ -108,6 +109,14 @@ const createWorkspaceAppRouter = ({
   });
 
   return createBrowserRouter([
+    {
+      path: '/job-introductions',
+      element: (
+        <BaseThemeProvider>
+          <RecruitingJobPage />
+        </BaseThemeProvider>
+      ),
+    },
     {
       path: '/candidate-portal',
       element: (

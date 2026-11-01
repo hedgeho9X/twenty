@@ -1,3 +1,4 @@
+import { RecruitingJobPage } from '~/pages/recruiting/RecruitingJobPage';
 import { lazy, useState } from 'react';
 import {
   createBrowserRouter,
@@ -34,6 +35,14 @@ const createRootAppRouter = () =>
   createBrowserRouter(
     createRoutesFromElements(
       <>
+        <Route
+          path="/job-introductions"
+          element={
+            <BaseThemeProvider>
+              <RecruitingJobPage />
+            </BaseThemeProvider>
+          }
+        />
         <Route
           path="/candidate-portal"
           element={

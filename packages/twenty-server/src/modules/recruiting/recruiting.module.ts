@@ -1,3 +1,5 @@
+import { RecruitingJobPageService } from './portal/job-page.service';
+import { RecruitingJobPageController } from './portal/job-page.controller';
 import { RecruitingQueueSettingsController } from './intake/queue-settings.controller';
 import { ProcessingTasksService } from './intake/processing-tasks.service';
 /** Registers the recruiting domain without replacing native CRM records, authentication or models. */
@@ -83,8 +85,10 @@ import { RecruitingPortalController } from './portal/portal.controller';
     RecruitingController,
     RecruitingPortalController,
     RecruitingQueueSettingsController,
+    RecruitingJobPageController,
   ],
   providers: [
+    RecruitingJobPageService,
     ProcessingTasksService,
     RecruitingActorService,
     RecruitingRecordsService,

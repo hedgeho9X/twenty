@@ -1,5 +1,6 @@
-import { RecruitingMatchingService } from '../matching/matching.service';
 /** Persists resumable text drafts and keeps generation distinct from real-world human actions. */
+import { RecruitingJobPageService } from '../portal/job-page.service';
+import { RecruitingMatchingService } from '../matching/matching.service';
 import {
   BadRequestException,
   ConflictException,
@@ -67,6 +68,7 @@ type DraftPayload = {
   inputHash: string;
   actor: RecruitingActor;
   sourceVersion: string;
+  jobPageUrl?: string;
   generation?: Awaited<ReturnType<RecruitingExtractorService['draft']>>;
   approvedAt?: string;
 };
@@ -83,6 +85,7 @@ export class RecruitingDraftsService {
     @InjectMessageQueue(MessageQueue.recruitingQueue)
     private readonly queue: MessageQueueService,
     @Optional() private readonly matching?: RecruitingMatchingService,
+    @Optional() private readonly jobPages?: RecruitingJobPageService,
   ) {}
 
   /** Creates a durable draft before any model call and reuses an identical submission. */
@@ -146,6 +149,7 @@ export class RecruitingDraftsService {
       body: record.body,
       note: payload.input.note,
       selectedIds: payload.input.selectedIds,
+      jobPageUrl: payload.jobPageUrl,
       stale: payload.sourceVersion !== source.version,
       generation: payload.generation,
       approvedAt: payload.approvedAt,
@@ -289,10 +293,26 @@ export class RecruitingDraftsService {
           const source = await this.source(context, payload.input);
           if (source.version !== payload.sourceVersion)
             throw new ConflictException();
+          if (payload.input.matchRunId && !payload.jobPageUrl) {
+            if (!this.jobPages)
+              throw new BadRequestException('岗位介绍服务未就绪');
+            const ids =
+              'pairs' in source.context
+                ? source.context.pairs.map((pair) => pair.job.id)
+                : [];
+            payload = {
+              ...payload,
+              jobPageUrl: await this.jobPages.create(context, ids),
+            };
+            await update({ payload });
+          }
           if (!payload.generation) {
             const generation = await this.extractor.draft(
               payload.input.matchRunId ? 'MATCH_BRIEF' : payload.input.kind,
-              JSON.stringify(source.context),
+              JSON.stringify({
+                ...source.context,
+                jobPageUrl: payload.jobPageUrl,
+              }),
               payload.input.note,
             );
             payload = { ...payload, generation };
@@ -306,7 +326,12 @@ export class RecruitingDraftsService {
           await update({
             status: stale || profile.needsReview ? 'NEEDS_REVIEW' : 'READY',
             title: profile.title,
-            body: profile.body,
+            body:
+              payload.jobPageUrl && !profile.body.includes(payload.jobPageUrl)
+                ? `${profile.body}
+
+岗位介绍：${payload.jobPageUrl}`
+                : profile.body,
             error: stale ? '来源资料已更新，请重新生成并核对' : '',
             payload,
           });
@@ -374,7 +399,7 @@ export class RecruitingDraftsService {
       const vacancy = buildJobMatchContext(job, company);
       pairs.push({
         candidate: { name: candidate.label, ...candidate.context },
-        job: { name: vacancy.label, ...vacancy.context },
+        job: { id: pair.jobId, name: vacancy.label, ...vacancy.context },
         company: vacancy.company,
         score: pair.score,
         versions: [candidate.version, vacancy.version, vacancy.companyVersion],
@@ -383,7 +408,7 @@ export class RecruitingDraftsService {
     return {
       label: `${run.subjectLabel} · 匹配沟通文案`,
       context: { direction: run.direction, pairs },
-      version: contentVersion(pairs),
+      version: contentVersion({ pairs, policy: 'advisor-job-links-v2' }),
       links: { candidateUrl: undefined, jobUrl: undefined },
     };
   }
