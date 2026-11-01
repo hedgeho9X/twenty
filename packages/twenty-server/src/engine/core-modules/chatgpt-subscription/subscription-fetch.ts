@@ -10,6 +10,7 @@ export type SubscriptionCredential = {
   accessToken: string;
   accountId?: string;
   protocol: 'codex' | 'siwc';
+  clientVersion?: string;
 };
 
 /** Injected transports and credential loaders keep protocol tests independent of real accounts. */
@@ -243,7 +244,10 @@ export const createSubscriptionFetch =
       if (credential.accountId)
         headers.set('ChatGPT-Account-Id', credential.accountId);
       headers.set('originator', 'codex_cli_rs');
-      headers.set('User-Agent', 'codex_cli_rs/0.144.1');
+      headers.set(
+        'User-Agent',
+        `codex_cli_rs/${credential.clientVersion ?? '0.144.1'}`,
+      );
     }
     const response = await upstreamFetch(
       credential.protocol === 'codex'

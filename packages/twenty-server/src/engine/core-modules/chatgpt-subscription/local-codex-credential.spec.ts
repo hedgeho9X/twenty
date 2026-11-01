@@ -39,6 +39,21 @@ describe('local subscription credential', () => {
     expect(await readFile(join(directory, 'auth.json'), 'utf8')).toBe(before);
   });
 
+  it('uses the installed desktop catalog version without changing credentials', async () => {
+    await writeFile(
+      join(directory, 'models_cache.json'),
+      JSON.stringify({ client_version: '0.166.0' }),
+    );
+    expect((await loadLocalCodexCredential()).clientVersion).toBe('0.166.0');
+  });
+  it('falls back safely when catalog version metadata is malformed', async () => {
+    await writeFile(
+      join(directory, 'models_cache.json'),
+      JSON.stringify({ client_version: 'invalid/header' }),
+    );
+    expect((await loadLocalCodexCredential()).clientVersion).toBe('0.144.1');
+  });
+
   it('rejects a login file readable by other users', async () => {
     await chmod(join(directory, 'auth.json'), 0o644);
     await expect(loadLocalCodexCredential()).rejects.toThrow('reconnect');

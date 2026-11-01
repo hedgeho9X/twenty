@@ -25,6 +25,9 @@ const catalogSchema = z.object({
       slug: z.string().min(1),
       display_name: z.string().optional(),
       input_modalities: z.array(z.string()).optional(),
+      visibility: z.string().optional(),
+      supported_in_api: z.boolean().optional(),
+      context_window: z.number().int().positive().optional(),
     }),
   ),
 });
@@ -46,19 +49,22 @@ export class SubscriptionAccountService {
     const transport = createSubscriptionTransport(
       process.env.RECRUITING_MODEL_PROXY_URL,
     );
-    const response = await transport(
-      `https://chatgpt.com/backend-api/${path}`,
-      {
-        headers: {
-          authorization: `Bearer ${credential.accessToken}`,
-          'ChatGPT-Account-Id': credential.accountId ?? '',
-          'User-Agent': 'codex_cli_rs/0.144.1',
-          originator: 'codex_cli_rs',
-        },
-        signal: AbortSignal.timeout(20_000),
-        redirect: 'error',
+    const url = new URL(`https://chatgpt.com/backend-api/${path}`);
+    if (path === 'codex/models')
+      url.searchParams.set(
+        'client_version',
+        credential.clientVersion ?? '0.144.1',
+      );
+    const response = await transport(url.toString(), {
+      headers: {
+        authorization: `Bearer ${credential.accessToken}`,
+        'ChatGPT-Account-Id': credential.accountId ?? '',
+        'User-Agent': `codex_cli_rs/${credential.clientVersion ?? '0.144.1'}`,
+        originator: 'codex_cli_rs',
       },
-    );
+      signal: AbortSignal.timeout(20_000),
+      redirect: 'error',
+    });
     if (!response.ok)
       throw new BadRequestException('订阅信息暂不可用，请检查账号连接后刷新');
     return { body: await response.json(), accountId: credential.accountId };
@@ -95,12 +101,15 @@ export class SubscriptionAccountService {
 
   /** Explicit catalog refresh adds usable models without changing selected feature models. */
   async syncModels() {
-    const { body, accountId } = await this.request(
-      'codex/models?client_version=0.144.1',
-    );
+    const { body, accountId } = await this.request('codex/models');
     const parsed = catalogSchema.safeParse(body);
     if (!parsed.success || !parsed.data.models.length)
       throw new BadRequestException('未获取到可用模型');
+    const models = parsed.data.models.filter(
+      (model) =>
+        model.visibility !== 'hide' && model.supported_in_api !== false,
+    );
+    if (!models.length) throw new BadRequestException('当前账号没有可选模型');
     const providers = this.config.get('AI_PROVIDERS');
     const name =
       Object.entries(providers).find(
@@ -116,16 +125,19 @@ export class SubscriptionAccountService {
         authType: 'chatgpt',
         subscriptionAccountId: accountId,
         label: 'ChatGPT 订阅',
-        models: parsed.data.models.map((model) => ({
+        models: models.map((model) => ({
           ...previous?.models?.find((existing) => existing.name === model.slug),
           name: model.slug,
           label: model.display_name ?? model.slug,
+          ...(model.context_window
+            ? { contextWindowTokens: model.context_window }
+            : {}),
           modalities: model.input_modalities?.includes('image')
             ? ['text', 'image']
             : ['text'],
         })),
       },
     });
-    return { count: parsed.data.models.length };
+    return { count: models.length };
   }
 }

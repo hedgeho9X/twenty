@@ -1,7 +1,7 @@
 /** Reads the explicitly selected local Codex login without copying or refreshing its tokens. */
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import { z } from 'zod';
 
@@ -38,7 +38,20 @@ export const loadLocalCodexCredential = async (
       result.data.tokens;
     if (expectedAccountId && accountId !== expectedAccountId)
       throw new Error('account_changed');
-    return { accessToken, accountId, protocol: 'codex' };
+    let clientVersion = '0.144.1';
+    try {
+      const metadata = z
+        .object({ client_version: z.string().regex(/^\d+\.\d+\.\d+$/) })
+        .parse(
+          JSON.parse(
+            await readFile(join(dirname(file), 'models_cache.json'), 'utf8'),
+          ),
+        );
+      clientVersion = metadata.client_version;
+    } catch {
+      // CLI-only installations may not have a desktop model cache.
+    }
+    return { accessToken, accountId, protocol: 'codex', clientVersion };
   } catch {
     throw new Error(
       'ChatGPT subscription is unavailable; reconnect the selected account',

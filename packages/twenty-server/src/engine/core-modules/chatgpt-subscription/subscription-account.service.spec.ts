@@ -95,3 +95,33 @@ it('registers discovered models and preserves other providers', async () => {
     }),
   );
 });
+
+it('uses the current client version and excludes hidden or unavailable catalog entries', async () => {
+  const { service, config } = setup({
+    models: [
+      { slug: 'gpt-6-astra', visibility: 'list', supported_in_api: true },
+      { slug: 'internal-model', visibility: 'hide' },
+      { slug: 'unsupported-model', supported_in_api: false },
+    ],
+  });
+  jest
+    .mocked(loadLocalCodexCredential)
+    .mockResolvedValue({
+      accessToken: 'private-token',
+      accountId: 'bound-account',
+      protocol: 'codex',
+      clientVersion: '0.166.0',
+    });
+  expect(await service.syncModels()).toEqual({ count: 1 });
+  expect(jest.mocked(global.fetch).mock.calls[0][0]).toBe(
+    'https://chatgpt.com/backend-api/codex/models?client_version=0.166.0',
+  );
+  expect(config.set).toHaveBeenCalledWith(
+    'AI_PROVIDERS',
+    expect.objectContaining({
+      source: expect.objectContaining({
+        models: [expect.objectContaining({ name: 'gpt-6-astra' })],
+      }),
+    }),
+  );
+});
