@@ -13,6 +13,38 @@ const environment = JSON.parse(
   await readFile('.local/recruiting/environment.json', 'utf8'),
 );
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
+
+/** Normalizes Markdown escaping and layout whitespace while retaining exact project, date and technology values. */
+function normalizeTableCell(value) {
+  return String(value)
+    .normalize('NFKC')
+    .replace(/\\([\\_*|])/g, '$1')
+    .replace(/\s+/g, '');
+}
+
+/** Reads data rows only after a three-column Markdown table delimiter, preserving cell and row boundaries. */
+function markdownTableRows(text) {
+  const rows = [];
+  let inTable = false;
+  for (const line of String(text).split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
+      inTable = false;
+      continue;
+    }
+    const cells = trimmed
+      .slice(1, -1)
+      .split(/(?<!\\)\|/)
+      .map(normalizeTableCell);
+    if (cells.length === 3 && cells.every((cell) => /^:?-{3,}:?$/.test(cell))) {
+      inTable = true;
+      continue;
+    }
+    if (inTable && cells.length === 3) rows.push(cells);
+  }
+  return rows;
+}
+
 let resourceRequests = 0;
 const counter = createServer((_request, response) => {
   resourceRequests++;
@@ -64,6 +96,16 @@ const cases = [
     status: 200,
     pages: 2,
     words: ['WORD_LAST_SECTION'],
+  },
+  {
+    filename: 'table-resume.docx',
+    status: 200,
+    pages: 2,
+    words: ['TABLE_LAST_SECTION'],
+    tableRows: [
+      ['PROJECT_ALPHA', '2020-2021', 'TypeScript'],
+      ['PROJECT_BETA', '2022-2023', 'Rust'],
+    ],
   },
   {
     filename: 'long-resume.html',
@@ -143,6 +185,18 @@ try {
           .replace(/[\s\\_]+/g, '')
           .includes(word.normalize('NFKC').replace(/[\s\\_]+/g, '')),
       })),
+      ...(item.tableRows
+        ? {
+            tableRows: item.tableRows.map((expected) => ({
+              expected,
+              matched: markdownTableRows(result.text).some((cells) =>
+                cells.every(
+                  (cell, index) => cell === normalizeTableCell(expected[index]),
+                ),
+              ),
+            })),
+          }
+        : {}),
     };
     await writeFile(
       join(root, `${item.filename}.result.json`),
@@ -156,6 +210,10 @@ try {
         result.pages === result.previews.length &&
         row.words.every((word) => word.present);
       if (item.pages) row.passed &&= result.pages === item.pages;
+      if (item.tableRows)
+        row.passed &&=
+          result.coverage === 'all_pages' &&
+          row.tableRows.every((tableRow) => tableRow.matched);
       if (item.multiple) row.passed &&= result.pages > 1;
       if (item.needsReview)
         row.passed &&=

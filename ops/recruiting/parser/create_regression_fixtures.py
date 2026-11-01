@@ -43,4 +43,44 @@ subprocess.run([
     str(root / 'resume-two-pages.docx'),
 ], check=True, capture_output=True, timeout=60)
 assert (root / 'resume-two-pages.doc').read_bytes().startswith(bytes.fromhex('d0cf11e0a1b11ae1'))
+
+
+def create_table_resume(destination: Path) -> None:
+    """Write a three-column Word table and an explicit second-page sentinel using synthetic facts only."""
+    rows = [
+        ('Project', 'Period', 'Technology'),
+        ('PROJECT_ALPHA', '2020-2021', 'TypeScript'),
+        ('PROJECT_BETA', '2022-2023', 'Rust'),
+    ]
+    table_rows = ''.join(
+        '<w:tr>' + ''.join(
+            '<w:tc><w:tcPr><w:tcW w:w="3120" w:type="dxa"/></w:tcPr>'
+            '<w:p><w:r><w:t>' + escape(cell) + '</w:t></w:r></w:p></w:tc>'
+            for cell in row
+        ) + '</w:tr>'
+        for row in rows
+    )
+    table_document = (
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:body><w:p><w:r><w:t>Synthetic table resume</w:t></w:r></w:p>'
+        '<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/><w:tblBorders>'
+        '<w:top w:val="single" w:sz="8"/><w:left w:val="single" w:sz="8"/>'
+        '<w:bottom w:val="single" w:sz="8"/><w:right w:val="single" w:sz="8"/>'
+        '<w:insideH w:val="single" w:sz="8"/><w:insideV w:val="single" w:sz="8"/>'
+        '</w:tblBorders></w:tblPr><w:tblGrid>'
+        '<w:gridCol w:w="3120"/><w:gridCol w:w="3120"/><w:gridCol w:w="3120"/>'
+        '</w:tblGrid>' + table_rows + '</w:tbl>'
+        '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+        '<w:p><w:r><w:t>TABLE_LAST_SECTION</w:t></w:r></w:p>'
+        '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>'
+        '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>'
+        '</w:sectPr></w:body></w:document>'
+    )
+    with ZipFile(destination, 'w') as archive:
+        archive.writestr('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')
+        archive.writestr('_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')
+        archive.writestr('word/document.xml', table_document)
+
+
+create_table_resume(root / 'table-resume.docx')
 print({'directory': str(root), 'syntheticFiles': len(list(root.iterdir()))})

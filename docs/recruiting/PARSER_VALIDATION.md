@@ -27,3 +27,9 @@ Docling 2.145.0、RapidOCR及固定渲染器均在隔离本地容器运行。新
 ## 5. 旧DOC在当前版本的补充验证
 
 额外将同一合成两页DOCX经LibreOffice导出为真实Word97二进制DOC，先验证OLE文件头，再在preview-v2执行真实HTTP解析：200、complete、all_pages、两页两张完整PNG，尾页WORD_LAST_SECTION文字保留。结果为私有doc-v2-evidence.json；不是重命名DOCX冒充旧DOC。生成器和smoke-parser已纳入该场景，后续完整回归为10项；当前证据是原9项加这一项独立运行。
+
+## 6. 表格关系与完整11项回归
+
+新增真正w:tbl三列表格的两页Word：PROJECT_ALPHA对应2020-2021/TypeScript，PROJECT_BETA对应2022-2023/Rust，尾页另有TABLE_LAST_SECTION。真实HTTP200、complete、all_pages和两张PNG通过；已查看两页图像，表格及尾页标识清楚。
+
+断言逐列检查同一解析表格行中的项目、日期和技术关系，不能仅凭关键词出现判成功；日期/技术互换、纯散文或把三项拼在一个单元格都不能通过。完整回归现在11/11按预期通过，外部资源请求仍0，旧10项未回写新内容。私有pre-table-report.json保留此前报告，当前report.json记录本轮。该合成表格证明这一有限布局的解析关系，不能代表所有真实复杂表格均准确。
