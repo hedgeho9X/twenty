@@ -9,7 +9,12 @@ import {
 import { RECRUITING_ADVISORY_LOCK } from './recruiting-advisory-lock.constant';
 
 import { v5 } from 'uuid';
-import { isPlainObject } from 'twenty-shared/utils';
+import {
+  getRecruitingPreviewMissingFields,
+  getRecruitingPreviewNameWarnings,
+  isPlainObject,
+  type RecruitingPreviewExistingJob,
+} from 'twenty-shared/utils';
 
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-advisory-lock.service';
@@ -66,6 +71,88 @@ export class RecruitingJobConfirmationService {
           : {}),
       };
     });
+  }
+
+  /** Enriches an authorized preview with current name hints and batch provenance; reads never modify stored items. */
+  async describePreview(
+    context: WorkspaceAuthContext,
+    intakeId: string,
+    envelope: IntakeEnvelope,
+  ) {
+    const items = this.preview(intakeId, envelope);
+    let existingJobs: RecruitingPreviewExistingJob[] = [];
+    let duplicateCheck: {
+      status: 'COMPLETE' | 'PARTIAL' | 'UNAVAILABLE' | 'NOT_REQUIRED';
+      checked: number;
+      total?: number;
+    } = { status: 'NOT_REQUIRED', checked: 0 };
+    const pending = items.some(
+      (item) => !['CREATED', 'DISCARDED'].includes(item.status),
+    );
+    if (pending && !envelope.input.companyId)
+      duplicateCheck = { status: 'UNAVAILABLE', checked: 0 };
+    if (pending && envelope.input.companyId) {
+      try {
+        const page = await this.records.list(context, 'recruitmentJob', {
+          filter: { companyId: { eq: envelope.input.companyId } },
+          select: ['id', 'name', 'companyId', 'jobStatus'],
+          limit: 200,
+        });
+        existingJobs = page.records.flatMap((record) =>
+          isPlainObject(record) &&
+          typeof record.id === 'string' &&
+          record.companyId === envelope.input.companyId &&
+          typeof record.name === 'string' &&
+          record.name.trim()
+            ? [
+                {
+                  id: record.id,
+                  name: record.name,
+                  companyId: String(record.companyId),
+                  jobStatus:
+                    typeof record.jobStatus === 'string'
+                      ? record.jobStatus
+                      : undefined,
+                },
+              ]
+            : [],
+        );
+        duplicateCheck = {
+          status:
+            page.hasNextPage || existingJobs.length !== page.records.length
+              ? 'PARTIAL'
+              : 'COMPLETE',
+          checked: existingJobs.length,
+          total: page.count,
+        };
+      } catch {
+        duplicateCheck = { status: 'UNAVAILABLE', checked: 0 };
+      }
+    }
+    const names = items.map((item) => ({ ...item, title: item.draft.title }));
+    return {
+      jobItems: items.map((item) => ({
+        ...item,
+        missingFields: getRecruitingPreviewMissingFields(item.draft),
+        nameWarnings: getRecruitingPreviewNameWarnings(
+          { ...item, title: item.draft.title },
+          names,
+          existingJobs,
+          envelope.input.companyId ?? '',
+        ),
+      })),
+      previewExistingJobs: existingJobs,
+      duplicateCheck,
+      previewSources: {
+        attribution: 'BATCH' as const,
+        files: (envelope.input.files ?? []).map((file) => ({
+          fileId: file.fileId,
+          label: file.label,
+        })),
+        hasText: Boolean(envelope.input.text?.trim()),
+        hasNote: Boolean(envelope.input.note?.trim()),
+      },
+    };
   }
 
   /** Serializes confirmation of the same intake but never waits for child model jobs. */

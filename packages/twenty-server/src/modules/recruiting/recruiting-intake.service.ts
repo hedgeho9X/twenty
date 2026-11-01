@@ -231,7 +231,7 @@ export class RecruitingIntakeService {
       detail: {
         ...envelope,
         ...(envelope.input.kind === 'JOB'
-          ? { jobItems: this.jobs.preview(id, envelope) }
+          ? await this.jobs.describePreview(context, id, envelope)
           : {}),
       },
     };
@@ -630,7 +630,9 @@ export class RecruitingIntakeService {
             }))
           : undefined,
       recordUrl: envelope.recordUrl,
-      batchId: envelope.input.batchId,
+      batchId:
+        envelope.input.batchId ??
+        (envelope.input.kind === 'JOB' ? record.id : undefined),
       matchingStatus: envelope.matchingStatus,
       matchingRunIds: envelope.matchingRunIds,
       matchingError: envelope.matchingError,

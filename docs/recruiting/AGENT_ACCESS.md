@@ -51,3 +51,11 @@ MCP contract_status/contract_reminder与CLI contract status/reminder --company-i
 明确指定candidateId时必须指向仍有CANDIDATE角色的联系人，不能受理普通联系人后假报入库成功。每次耗时解析/生成返回后的checkpoint及候选人写入前重新解析当前执行身份；撤销或到期会停止，不能沿用旧context写候选人或FAILED。
 
 候选人附件按原生完整版本条件合并，冲突重新读当前附件，保留两个并发提交及原有引用；人工姓名和偏好不被模型修改。服务层真实回归命令为node ops/recruiting/smoke-candidate-cas.mjs，只操作确定合成资料、走原生上传/复制/ORM，禁该测试进程的自动匹配，不调用模型。它不能替代简历理解、页面或业务质量验收。
+
+## 8. JD 预览的来源与名称核对
+
+JOB 提交未指定 batchId 时，受理回执与后续 task_get 均以 intakeId 作为稳定 batchId；itemId 在解析产生岗位预览后提供。HTTP、官方 MCP 和 CLI 共用该行为。previewSources 标明 BATCH，文件标签、原始正文及补充说明均保留为批次输入，不把模型推测当逐岗位原件来源。
+
+预览逐项返回 missingFields 与 nameWarnings。只对当前公司、当前角色可读的最多200条岗位核对名称，并返回 duplicateCheck 的 COMPLETE/PARTIAL/UNAVAILABLE/NOT_REQUIRED 及核对数；部分或权限失败不能当作不存在重复。名称仅归一化大小写、全半角和空白，保留 C++/C#、地点、级别等差异。已有岗位及同批未创建项的同名只提示人工核对，不合并、不阻止创建。未知分类、雇佣类型、方式和地点继续保持未知；标题与岗位正文仍由既有创建校验要求填写。预览读取不修改原件、解析结果或人工编辑，不触发模型。
+
+node ops/recruiting/smoke-job-preview.mjs 复用既有合成预览，在独立合成公司创建或复用固定 CLOSED 同名岗位，校验 HTTP/MCP/CLI 三入口的一致性与读取不变性。不会确认预览、启用岗位或调用模型；详情证据私存 job-preview-native-evidence.json。

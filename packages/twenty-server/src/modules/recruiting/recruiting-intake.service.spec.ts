@@ -8,6 +8,43 @@ import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/wo
 import { RecruitingIntakeService } from './recruiting-intake.service';
 import { RecruitingMatchingService } from './recruiting-matching.service';
 
+it.each([undefined, '11111111-1111-4111-8111-111111111111'])(
+  'returns a stable job batch identity when the input batch is %s',
+  async (batchId) => {
+    const context = { workspace: { id: 'workspace' } } as WorkspaceAuthContext;
+    const id = '22222222-2222-4222-8222-222222222222';
+    const records = {
+      one: jest.fn(async () => ({
+        id,
+        kind: 'JOB',
+        state: 'NEEDS_REVIEW',
+        result: {
+          schemaVersion: 2,
+          input: { kind: 'JOB', files: [], batchId },
+          stage: 'AWAITING_CONFIRMATION',
+        },
+      })),
+    };
+    const jobs = {
+      preview: () => [],
+      describePreview: async () => ({ jobItems: [] }),
+    };
+    const service = new RecruitingIntakeService(
+      records as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      jobs as never,
+      {} as never,
+      {} as never,
+    );
+    expect((await service.one(context, id)).batchId).toBe(batchId ?? id);
+    expect((await service.one(context, id)).batchId).toBe(batchId ?? id);
+  },
+);
+
 it.each([
   ['false', 'DISABLED'],
   [undefined, 'QUEUED'],
