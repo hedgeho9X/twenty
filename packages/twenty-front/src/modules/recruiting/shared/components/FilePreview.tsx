@@ -2,6 +2,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
+import { IconX } from 'twenty-ui/icon';
 import { Dialog } from 'twenty-ui/primitives/surfaces';
 import {
   recruitingBlob,
@@ -144,7 +145,32 @@ export const RecruitingFilePreview = ({
           <div className={recruitingDialogClass}>
             <Dialog.Popup size="xl">
               <Dialog.Header>
-                <Dialog.Title>{label}</Dialog.Title>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <div
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      whiteSpace: 'nowrap',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    <Dialog.Title>{label}</Dialog.Title>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    aria-label={t`关闭预览`}
+                    onClick={onClose}
+                  >
+                    <IconX size={18} />
+                  </Button>
+                </div>
               </Dialog.Header>
               <Dialog.Body>
                 {loading && (
@@ -189,9 +215,6 @@ export const RecruitingFilePreview = ({
                   </pre>
                 )}
               </Dialog.Body>
-              <Dialog.Footer>
-                <Button onClick={onClose}>{t`关闭`}</Button>
-              </Dialog.Footer>
             </Dialog.Popup>
           </div>
         </Dialog.Viewport>

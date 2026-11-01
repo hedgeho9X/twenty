@@ -13,7 +13,6 @@ import { RecruitingMatchResults } from '@/recruiting/matching/components/MatchRe
 import { RecruitingCompanyJobsList } from '@/recruiting/companies/components/CompanyJobsList';
 import { RecruitingCompanyJobs } from '@/recruiting/companies/components/CompanyJobIntake';
 import { RecruitingManualMatch } from '@/recruiting/matching/components/ManualMatch';
-import { RecruitingDrafts } from '@/recruiting/drafts/components/DraftList';
 import { RecruitingMailSources } from '@/recruiting/mail/components/MailList';
 import { RecruitingSharing } from '@/recruiting/portal/components/Sharing';
 import {
@@ -71,11 +70,10 @@ export const RecruitingWorkspacePage = () => {
             </Tabs.List>
             <Select
               dropdownId="recruiting-more-pages"
-              value={['manual', 'drafts', 'sharing'].includes(tab) ? tab : ''}
+              value={['manual', 'sharing'].includes(tab) ? tab : ''}
               options={[
                 { value: '', label: t`更多` },
                 { value: 'manual', label: t`手动匹配` },
-                { value: 'drafts', label: t`问候与发布草稿` },
                 { value: 'sharing', label: t`资料确认与跟进` },
               ]}
               onChange={(value) => {
@@ -153,23 +151,6 @@ export const RecruitingWorkspacePage = () => {
                   return next;
                 })
               }
-              onDraft={(candidateId, jobId) =>
-                setParams((current) => {
-                  const next = new URLSearchParams(current);
-                  next.set('tab', 'drafts');
-                  next.set('draftCandidateId', candidateId);
-                  next.set('draftJobId', jobId);
-                  return next;
-                })
-              }
-            />
-          </Tabs.Panel>
-          <Tabs.Panel value="drafts" keepMounted>
-            <RecruitingDrafts
-              active={tab === 'drafts'}
-              key={`${params.get('draftCandidateId')}:${params.get('draftJobId')}`}
-              initialCandidateId={params.get('draftCandidateId') ?? undefined}
-              initialJobId={params.get('draftJobId') ?? undefined}
             />
           </Tabs.Panel>
           <Tabs.Panel value="sharing" keepMounted>
@@ -181,16 +162,7 @@ export const RecruitingWorkspacePage = () => {
             />
           </Tabs.Panel>
           <Tabs.Panel value="manual" keepMounted>
-            <RecruitingManualMatch
-              onStarted={(id) =>
-                setParams((current) => {
-                  const next = new URLSearchParams(current);
-                  next.set('tab', 'matches');
-                  next.set('runId', id);
-                  return next;
-                })
-              }
-            />
+            <RecruitingManualMatch active={tab === 'manual'} />
           </Tabs.Panel>
         </Tabs.Root>
       </StyledRecruitingBody>

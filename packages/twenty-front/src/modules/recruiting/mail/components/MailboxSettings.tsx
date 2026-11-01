@@ -32,7 +32,7 @@ export const RecruitingMailboxSettings = ({
   onReceived,
 }: {
   active: boolean;
-  onReceived: (archiveId: string) => void;
+  onReceived?: (archiveId: string) => void;
 }) => {
   const query = useRecruitingQuery<Mailboxes>('mailboxes', 0, active);
   const [busy, setBusy] = useState(false);
@@ -67,7 +67,7 @@ export const RecruitingMailboxSettings = ({
         'mailboxes/receive-latest',
         { method: 'POST', body: JSON.stringify({ connectedAccountId }) },
       );
-      onReceived(mail.archiveId);
+      onReceived?.(mail.archiveId);
     } catch (failure) {
       setError(
         failure instanceof Error

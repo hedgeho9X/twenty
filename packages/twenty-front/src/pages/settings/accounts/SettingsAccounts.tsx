@@ -1,3 +1,4 @@
+import { RecruitingMailboxSettings } from '@/recruiting/mail/components/MailboxSettings';
 import { SettingsAccountsLegacySections } from '@/settings/accounts/components/SettingsAccountsLegacySections';
 import { SettingsAccountsMessageChannelsSSEEffect } from '@/settings/accounts/components/SettingsAccountsMessageChannelsSSEEffect';
 import { SettingsAppPreferencesAccountsTab } from '@/settings/app-preferences/components/SettingsAppPreferencesAccountsTab';
@@ -74,6 +75,10 @@ export const SettingsAccounts = () => {
           </>
         ) : (
           <SettingsAccountsLegacySections />
+        )}
+        {(!isAppPreferencesEnabled ||
+          activeTabId === SETTINGS_APP_PREFERENCES_TAB_IDS.ACCOUNTS) && (
+          <RecruitingMailboxSettings active />
         )}
       </SettingsPageContainer>
     </SettingsPageLayout>

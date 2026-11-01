@@ -48,6 +48,19 @@ jest.mock('twenty-ui/primitives/input', () => ({
       {children}
     </button>
   ),
+  Checkbox: ({
+    checked,
+    onCheckedChange,
+  }: {
+    checked: boolean;
+    onCheckedChange: (value: boolean) => void;
+  }) => (
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(event) => onCheckedChange(event.target.checked)}
+    />
+  ),
   Field: { Root: 'div', Label: 'label' },
   Input: ({
     value,

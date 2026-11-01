@@ -1,5 +1,6 @@
 /** Starts explicit candidate, job or specified-pair matching without bypassing the shared queue and policy. */
 import { useState } from 'react';
+import { RecruitingMatchResults } from './MatchResults';
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
 import { Select } from '@/ui/input/components/Select';
@@ -18,10 +19,11 @@ import {
 
 /** Keeps record choice explicit and preserves a request key across a failed network response. */
 export const RecruitingManualMatch = ({
-  onStarted,
+  active = true,
 }: {
-  onStarted: (runId: string) => void;
+  active?: boolean;
 }) => {
+  const [runId, setRunId] = useState<string>();
   const [mode, setMode] = useState('candidate');
   const [candidate, setCandidate] = useState<RecruitingCandidate>();
   const [company, setCompany] = useState<RecruitingCompany>();
@@ -48,17 +50,26 @@ export const RecruitingManualMatch = ({
         }),
       });
       setKey(crypto.randomUUID());
-      onStarted(result.runId);
+      setRunId(result.runId);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : t`匹配请求未完成`);
     } finally {
       setBusy(false);
     }
   };
+  if (runId)
+    return (
+      <RecruitingMatchResults
+        key={runId}
+        active={active}
+        initialRunId={runId}
+        onBack={() => setRunId(undefined)}
+      />
+    );
   return (
     <StyledRecruitingPanel>
       <StyledRecruitingTitle>{t`手动匹配`}</StyledRecruitingTitle>
-      <StyledRecruitingMuted>{t`可以重新为候选人找岗位、为岗位找候选人，或核对指定的人岗组合。两种方向使用同一套评分与版本缓存。`}</StyledRecruitingMuted>
+      <StyledRecruitingMuted>{t`选择候选人或岗位，直接开始匹配并在此查看结果。`}</StyledRecruitingMuted>
       <Select
         dropdownId="recruiting-match-direction"
         label={t`匹配方式`}
@@ -67,7 +78,6 @@ export const RecruitingManualMatch = ({
         options={[
           { value: 'candidate', label: t`候选人找岗位` },
           { value: 'job', label: t`岗位找候选人` },
-          { value: 'pair', label: t`指定人岗组合` },
         ]}
         onChange={(value) => {
           setMode(value);
@@ -130,7 +140,7 @@ export const RecruitingManualMatch = ({
         onClick={() => {
           void submit();
         }}
-      >{t`开始匹配并查看进度`}</Button>
+      >{t`开始匹配`}</Button>
     </StyledRecruitingPanel>
   );
 };

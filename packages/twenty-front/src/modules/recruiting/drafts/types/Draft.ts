@@ -1,6 +1,7 @@
 /** A text draft carries review state independently of actual communication or publication. */
 export type RecruitingDraft = {
   draftId: string;
+  selectedIds?: string[];
   name: string;
   kind: 'GREETING' | 'JOB_PUBLICATION';
   candidateId?: string;

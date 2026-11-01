@@ -1,3 +1,4 @@
+import { MatchSelection } from './MatchSelection';
 /** Shows matching history and a focused subject detail with current ranked results. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
@@ -8,11 +9,7 @@ import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery
 import { type RecruitingMatchRun } from '@/recruiting/matching/types/MatchRun';
 import { matchResultNotice } from '@/recruiting/matching/utils/resultNotice';
 import { type RecruitingPage } from '@/recruiting/shared/types/Page';
-import {
-  RecruitingCandidateFacts,
-  RecruitingCompanyName,
-  RecruitingJobFacts,
-} from './MatchFacts';
+import { RecruitingCandidateFacts } from './MatchFacts';
 import {
   StyledRecruitingError,
   StyledRecruitingMuted,
@@ -26,9 +23,11 @@ import {
 /** Filters direction in the toolbar and preserves explicit warnings only when results are incomplete. */
 export const RecruitingMatchResults = ({
   initialRunId,
+  onBack,
   active = true,
 }: {
   initialRunId?: string;
+  onBack?: () => void;
   onDraft?: (candidateId: string, jobId: string) => void;
   onSharing?: (candidateId: string, jobId: string) => void;
   active?: boolean;
@@ -55,7 +54,7 @@ export const RecruitingMatchResults = ({
           <Button
             variant="ghost"
             startIcon={<IconArrowLeft size={16} />}
-            onClick={() => setRunId(undefined)}
+            onClick={() => (onBack ? onBack() : setRunId(undefined))}
           >{t`返回匹配列表`}</Button>
         </StyledRecruitingRow>
         {detail.error && (
@@ -89,46 +88,9 @@ export const RecruitingMatchResults = ({
                     {notice.message}
                   </StyledRecruitingMuted>
                 ))}
-              <StyledRecruitingTable>
-                <thead>
-                  <tr>
-                    {run.direction === 'JOB_TO_CANDIDATES' ? (
-                      <th>{t`姓名`}</th>
-                    ) : (
-                      <th>{t`岗位`}</th>
-                    )}
-                    <th>{t`公司`}</th>
-                    <th>{t`匹配值`}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {run.top?.map((pair) => (
-                    <tr key={`${pair.candidateId}:${pair.jobId}`}>
-                      <td>
-                        {run.direction === 'JOB_TO_CANDIDATES' ? (
-                          <a href={pair.candidateUrl}>{pair.candidateLabel}</a>
-                        ) : (
-                          <RecruitingJobFacts
-                            id={pair.jobId}
-                            label={pair.jobLabel}
-                          />
-                        )}
-                      </td>
-                      <td>
-                        <RecruitingCompanyName id={pair.companyId} />
-                      </td>
-                      <td
-                        style={{
-                          whiteSpace: 'nowrap',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {pair.score?.toFixed(2)} / 4
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </StyledRecruitingTable>
+              {run.complete && (run.top?.length ?? 0) > 0 && (
+                <MatchSelection key={run.runId} run={run} active={active} />
+              )}
               {!run.complete &&
                 (run.results ?? [])
                   .filter((pair) => pair.status !== 'SCORED')
@@ -158,7 +120,7 @@ export const RecruitingMatchResults = ({
                       {pair.error && <p>{pair.error}</p>}
                     </div>
                   ))}
-              {!run.top?.length && (
+              {run.complete && !run.top?.length && (
                 <StyledRecruitingMuted>{t`暂无匹配结果`}</StyledRecruitingMuted>
               )}
             </StyledRecruitingPanel>

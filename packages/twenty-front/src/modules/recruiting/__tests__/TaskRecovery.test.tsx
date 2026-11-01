@@ -120,10 +120,12 @@ beforeEach(() => {
 /** Opens each actual operator surface against a bounded synthetic API projection. */
 const renderTask = (kind: TaskKind, status: string) => {
   if (kind === 'intake') {
-    queryData['resume-intakes?offset=0'] = {
+    queryData['processing-tasks?offset=0&direction='] = {
       records: [
         {
           intakeId: 'fixture',
+          retryPath: 'resume-intakes/fixture/retry',
+          progress: { processed: 0, total: 0 },
           kind: 'CANDIDATE',
           name: 'Fixture',
           state: status === 'AWAITING_CONFIRMATION' ? 'READY' : status,
@@ -158,7 +160,7 @@ const renderTask = (kind: TaskKind, status: string) => {
 };
 
 it('downloads a queued original with authentication and keeps download failures retryable', async () => {
-  queryData['resume-intakes?offset=0'] = {
+  queryData['processing-tasks?offset=0&direction='] = {
     records: [
       {
         intakeId: 'fixture',
@@ -176,8 +178,11 @@ it('downloads a queued original with authentication and keeps download failures 
     .mocked(downloadRecruitingArtifact)
     .mockRejectedValueOnce(new Error('denied'));
   queryData['resume-intakes/fixture'] = {
-    ...((queryData['resume-intakes?offset=0'] as { records: unknown[] })
-      .records[0] as object),
+    ...((
+      queryData['processing-tasks?offset=0&direction='] as {
+        records: unknown[];
+      }
+    ).records[0] as object),
     detail: { extraction: { profile: { name: '合成候选人' } } },
   };
   fireEvent.click(screen.getByRole('button', { name: '详情' }));
@@ -211,9 +216,12 @@ it.each([
   async (kind, status) => {
     jest.mocked(recruitingRequest).mockResolvedValue({});
     const path = renderTask(kind, status);
-    expect(
-      screen.getByText('长时间没有进展时可尝试恢复；仍在运行的任务会继续等待'),
-    ).toBeInTheDocument();
+    if (kind !== 'intake')
+      expect(
+        screen.getByText(
+          '长时间没有进展时可尝试恢复；仍在运行的任务会继续等待',
+        ),
+      ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '恢复处理' }));
     await waitFor(() => expect(reload).toHaveBeenCalled());
     expect(recruitingRequest).toHaveBeenCalledWith(path, {
@@ -382,45 +390,38 @@ it.each(['intake', 'mail', 'draft'] as const)(
 
 it('opens mail as a separate view with a reliable back action and no manual EML upload', () => {
   renderTask('mail', 'READY');
-  expect(
-    screen.getByRole('button', { name: '返回邮件列表' }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '返回' })).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: '已接收邮件' })).toBeNull();
   expect(screen.queryByLabelText('选择完整EML邮件')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: '返回邮件列表' }));
+  fireEvent.click(screen.getByRole('button', { name: '返回' }));
   expect(
     screen.getByRole('heading', { name: '已接收邮件' }),
   ).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: '返回邮件列表' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '返回' })).toBeNull();
 });
 
-it('separates match tasks from material tasks and displays pages, channel and time', () => {
-  queryData['resume-intakes?offset=0'] = {
-    records: [],
-    count: 0,
-    hasNextPage: false,
-  };
-  queryData['match-runs?offset=0'] = {
+it('shows matching as a stage of the same intake task', () => {
+  queryData['processing-tasks?offset=0&direction='] = {
     records: [
       {
-        runId: 'match',
-        subjectLabel: '合成候选人',
-        direction: 'CANDIDATE_TO_JOBS',
+        intakeId: 'stage',
+        kind: 'CANDIDATE',
+        name: '合成候选人',
         source: 'email',
-        status: 'PROCESSING',
+        state: 'COMPLETED',
+        stage: 'MATCHING',
         createdAt: '2026-11-01T00:00:00Z',
-        counts: { processed: 2, total: 8 },
+        progress: { processed: 2, total: 8 },
+        retryPath: 'match-runs/run/retry',
       },
     ],
     count: 101,
     hasNextPage: true,
   };
   render(<RecruitingQueueDialog open onOpenChange={jest.fn()} />);
-  fireEvent.click(screen.getByRole('button', { name: '岗位匹配' }));
   expect(screen.getByText('合成候选人')).toBeInTheDocument();
-  expect(screen.getByText('邮件')).toBeInTheDocument();
   expect(screen.getByText('匹配中')).toBeInTheDocument();
+  expect(screen.getByText('2/8')).toBeInTheDocument();
   expect(screen.getByText(/1 \/ 3/)).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: '刷新队列' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: '关闭队列' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '岗位匹配' })).toBeNull();
 });

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
-import { Dialog } from 'twenty-ui/primitives/surfaces';
+import { IconArrowLeft } from 'twenty-ui/icon';
 import { type RecruitingMailArchive } from '@/recruiting/mail/types/MailArchive';
 import { type RecruitingPage } from '@/recruiting/shared/types/Page';
 import { RecruitingMailDetail } from '@/recruiting/mail/components/MailDetail';
@@ -10,11 +10,9 @@ import {
   recruitingTaskLabel,
   recruitingTaskTone,
 } from '@/recruiting/shared/utils/taskLabels';
-import { RecruitingMailboxSettings } from '@/recruiting/mail/components/MailboxSettings';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/shared/api/request';
 import {
-  recruitingDialogClass,
   StyledRecruitingError,
   StyledRecruitingMuted,
   StyledRecruitingPanel,
@@ -35,7 +33,7 @@ const mailLabel = (status: string) =>
     READY: t`等待解析`,
     NEEDS_SELECTION: t`待处理`,
     FAILED: t`解析失败`,
-    COMPLETED: t`已入库`,
+    COMPLETED: t`已解析`,
     NEEDS_REVIEW: t`待核对资料`,
     UNAVAILABLE: t`状态不可用`,
   })[status] ?? recruitingTaskLabel(status);
@@ -47,7 +45,6 @@ export const RecruitingMailSources = ({
   active?: boolean;
   onSubmitted: () => void;
 }) => {
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [archiveId, setArchiveId] = useState<string>();
   const [offset, setOffset] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -89,52 +86,18 @@ export const RecruitingMailSources = ({
   };
   return (
     <StyledRecruitingStack>
-      <StyledRecruitingRow style={{ justifyContent: 'flex-end' }}>
-        <Button variant="ghost" onClick={() => setSettingsOpen(!settingsOpen)}>
-          {settingsOpen ? t`关闭邮箱设置` : t`邮箱设置`}
-        </Button>
-      </StyledRecruitingRow>
-      {settingsOpen && (
-        <Dialog.Root open onOpenChange={setSettingsOpen}>
-          <Dialog.Portal>
-            <Dialog.Backdrop />
-            <Dialog.Viewport>
-              <div className={recruitingDialogClass}>
-                <Dialog.Popup size="lg">
-                  <Dialog.Header>
-                    <Dialog.Title>{t`邮箱设置`}</Dialog.Title>
-                  </Dialog.Header>
-                  <Dialog.Body>
-                    <RecruitingMailboxSettings
-                      active={active}
-                      onReceived={(id) => {
-                        setArchiveId(id);
-                        void list.reload();
-                      }}
-                    />
-                  </Dialog.Body>
-                  <Dialog.Footer>
-                    <Button
-                      onClick={() => setSettingsOpen(false)}
-                    >{t`完成`}</Button>
-                  </Dialog.Footer>
-                </Dialog.Popup>
-              </div>
-            </Dialog.Viewport>
-          </Dialog.Portal>
-        </Dialog.Root>
-      )}
       {(error || list.error || detail.error) && (
         <StyledRecruitingError role="alert">
           {error || detail.error || list.error}
         </StyledRecruitingError>
       )}
       {archiveId && (
-        <StyledRecruitingSticky>
+        <StyledRecruitingSticky style={{ alignSelf: 'flex-start' }}>
           <Button
             variant="ghost"
+            startIcon={<IconArrowLeft size={16} />}
             onClick={() => setArchiveId(undefined)}
-          >{t`返回邮件列表`}</Button>
+          >{t`返回`}</Button>
         </StyledRecruitingSticky>
       )}
       {mail && (

@@ -4,6 +4,9 @@ import { t } from '@lingui/core/macro';
 /** Maps the actual saved business stage to a concise operator label. */
 export const recruitingTaskLabel = (state: string) =>
   ({
+    MATCHING: t`匹配中`,
+    MATCH_FAILED: t`匹配失败`,
+    MATCH_STALE: t`需要重新匹配`,
     SCORED: t`已评分`,
     EXCLUDED: t`条件不符`,
     READY: t`待处理`,
@@ -40,7 +43,7 @@ export const recruitingChannelLabel = (source?: string) =>
 export const recruitingTaskTone = (state: string) =>
   ['STORED', 'COMPLETED'].includes(state)
     ? 'green'
-    : ['FAILED', 'FAILED_TO_QUEUE'].includes(state)
+    : ['FAILED', 'FAILED_TO_QUEUE', 'MATCH_FAILED'].includes(state)
       ? 'red'
       : [
             'PARTIAL',

@@ -7,7 +7,7 @@ export const matchResultNotice = (run: RecruitingMatchRun) => {
   if (run.error || run.status === 'FAILED')
     return {
       error: true,
-      message: run.error || t`匹配处理失败，请在处理队列查看原因。`,
+      message: run.error || t`匹配处理失败，请检查错误信息后重新尝试。`,
     };
   if (run.stale)
     return {
@@ -25,11 +25,11 @@ export const matchResultNotice = (run: RecruitingMatchRun) => {
       message: t`可匹配的候选人或岗位范围已变化，当前结果来自上次匹配。`,
     };
   if (['QUEUED', 'PROCESSING'].includes(run.status))
-    return { error: false, message: t`匹配尚在处理中，可到处理队列查看进度。` };
+    return { error: false, message: t`匹配进行中，结果会自动更新。` };
   if (run.status === 'PARTIAL')
     return {
       error: false,
-      message: t`部分匹配尚未完成，已完成的结果显示如下。可到处理队列查看详情。`,
+      message: t`部分匹配尚未完成，已完成的结果显示如下。`,
     };
   return undefined;
 };

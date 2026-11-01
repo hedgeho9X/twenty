@@ -9,7 +9,7 @@ it.each([
   [{ stale: 8 }, '资料已更新'],
   [{ inaccessible: 1 }, '无权查看'],
   [{ poolChanged: true }, '范围已变化'],
-  [{ status: 'PROCESSING' }, '处理中'],
+  [{ status: 'PROCESSING' }, '进行中'],
   [{ status: 'PARTIAL' }, '部分匹配'],
 ])('explains a concrete nonfailure condition: %j', (patch, text) => {
   expect(matchResultNotice({ ...run, ...patch })).toEqual({
