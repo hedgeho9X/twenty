@@ -51,6 +51,7 @@ export const recruitingMatchInputSchema = z
 type MatchRunPayload = {
   version: 1;
   protocolVersion?: string;
+  source?: 'manual' | 'api' | 'email' | 'system';
   input: z.infer<typeof recruitingMatchInputSchema>;
   inputHash: string;
   actor: RecruitingActor;
@@ -81,28 +82,41 @@ export class RecruitingMatchingService {
     context: WorkspaceAuthContext,
     object: 'person' | 'recruitmentJob',
     id: string,
+    source: 'manual' | 'api' | 'email' | 'system' = 'system',
   ) {
     const record = await this.records.one(context, object, id);
     if (object === 'person')
-      return this.submit(context, {
-        direction: 'CANDIDATE_TO_JOBS',
-        subjectId: id,
-        idempotencyKey: `candidate:${id}:${buildCandidateMatchContext(record).version}`,
-      });
+      return this.submit(
+        context,
+        {
+          direction: 'CANDIDATE_TO_JOBS',
+          subjectId: id,
+          idempotencyKey: `candidate:${id}:${buildCandidateMatchContext(record).version}`,
+        },
+        source,
+      );
     const company =
       typeof record.companyId === 'string'
         ? await this.records.one(context, 'company', record.companyId)
         : undefined;
     const prepared = buildJobMatchContext(record, company);
-    return this.submit(context, {
-      direction: 'JOB_TO_CANDIDATES',
-      subjectId: id,
-      idempotencyKey: `job:${id}:${prepared.version}:${prepared.companyVersion}`,
-    });
+    return this.submit(
+      context,
+      {
+        direction: 'JOB_TO_CANDIDATES',
+        subjectId: id,
+        idempotencyKey: `job:${id}:${prepared.version}:${prepared.companyVersion}`,
+      },
+      source,
+    );
   }
 
   /** Persists and queues an authorized run before returning HTTP 202. */
-  async submit(context: WorkspaceAuthContext, value: unknown) {
+  async submit(
+    context: WorkspaceAuthContext,
+    value: unknown,
+    source?: 'manual' | 'api' | 'email' | 'system',
+  ) {
     const parsed = recruitingMatchInputSchema.safeParse(value);
     if (!parsed.success)
       throw new BadRequestException('请指定有效的匹配方向和来源记录');
@@ -131,6 +145,14 @@ export class RecruitingMatchingService {
     const payload: MatchRunPayload = {
       version: 1,
       protocolVersion: RECRUITING_MATCH_PROTOCOL.version,
+      source:
+        source ??
+        (actor.apiKeyId ||
+        actor.applicationId ||
+        actor.viaApplicationId ||
+        actor.agentId
+          ? 'api'
+          : 'manual'),
       input,
       inputHash,
       actor,
@@ -155,25 +177,33 @@ export class RecruitingMatchingService {
   }
 
   /** Returns small queue rows; a detail request revalidates the underlying record permissions. */
-  async list(context: WorkspaceAuthContext, offset = 0, direction?: string) {
+  async list(
+    context: WorkspaceAuthContext,
+    offset = 0,
+    direction?: string,
+    completedOnly = false,
+  ) {
     if (
       direction &&
       !['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES'].includes(direction)
     )
       throw new BadRequestException('匹配方向无效');
+    const filters: Record<string, unknown>[] = [];
+    if (direction)
+      filters.push(
+        direction === 'CANDIDATE_TO_JOBS'
+          ? {
+              or: [
+                { direction: { eq: 'CANDIDATE_TO_JOBS' } },
+                { direction: { eq: 'PAIR' } },
+              ],
+            }
+          : { direction: { eq: direction } },
+      );
+    if (completedOnly) filters.push({ status: { eq: 'COMPLETED' } });
     const page = await this.records.list(context, 'recruitingMatchRun', {
-      ...(direction
-        ? {
-            filter:
-              direction === 'CANDIDATE_TO_JOBS'
-                ? {
-                    or: [
-                      { direction: { eq: 'CANDIDATE_TO_JOBS' } },
-                      { direction: { eq: 'PAIR' } },
-                    ],
-                  }
-                : { direction: { eq: direction } },
-          }
+      ...(filters.length
+        ? { filter: filters.length === 1 ? filters[0] : { and: filters } }
         : {}),
       offset,
       limit: 50,
@@ -624,6 +654,7 @@ export class RecruitingMatchingService {
     return {
       runId: run.id,
       direction: run.direction,
+      source: payload.source,
       subjectId: run.subjectId,
       status: run.status,
       counts,

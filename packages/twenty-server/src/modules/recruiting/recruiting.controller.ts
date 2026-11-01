@@ -469,11 +469,13 @@ export class RecruitingController {
     @Req() request: Request,
     @Query('offset') offset = '0',
     @Query('direction') direction?: string,
+    @Query('completed') completed?: string,
   ) {
     return this.matching.list(
       buildWorkspaceAuthContextFromRequest(request),
       Math.max(0, Number.parseInt(offset, 10) || 0),
       direction,
+      completed === 'true',
     );
   }
 

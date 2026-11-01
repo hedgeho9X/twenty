@@ -584,7 +584,14 @@ export class RecruitingIntakeService {
     for (const id of automaticMatchingEnabled ? ids : []) {
       try {
         matchingRunIds.push(
-          (await this.matching.submitForRecord(context, object, id)).runId,
+          (
+            await this.matching.submitForRecord(
+              context,
+              object,
+              id,
+              envelope.input.source,
+            )
+          ).runId,
         );
       } catch {
         matchingError = '资料已保存，自动匹配暂未排队，可单独重试匹配';
@@ -626,6 +633,7 @@ export class RecruitingIntakeService {
       jobId: record.id,
       name: record.name,
       kind: record.kind,
+      source: envelope.input.source,
       state: record.state,
       stage: envelope.stage,
       error: record.error,

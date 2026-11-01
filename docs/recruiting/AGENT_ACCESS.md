@@ -62,3 +62,7 @@ node ops/recruiting/smoke-job-preview.mjs 复用既有合成预览，在独立�
 GET /recruiting/resume-intakes/:id/files/:fileId 返回材料原件。请求同时要求当前主体能读取父任务、父任务原生files字段仍列出该文件、原始提交input.files包含同一引用；工作区、上传状态与文件目录继续由原生文件服务检查。返回attachment、application/octet-stream、nosniff和private/no-store，不把HTML/Markdown直接打开在CRM来源。未知或跨父引用404，未登录由原生鉴权拒绝。MCP/CLI取得任务files后可使用已有鉴权HTTP下载，不另造公开下载凭据。
 
 node ops/recruiting/smoke-intake-materials.mjs 只读复验已有合成邮件PDF和批量JD原件；PDF逐字节SHA一致、跨父/未知引用与匿名拒绝均实测，不新上传、不重试任务、不调用模型。证据私存intake-material-download-evidence.json。
+
+## 10. 队列来源与完成结果
+
+材料任务回执包含source（manual/api/email）。新匹配任务包含source（manual/api/email/system），缺失的历史来源保持未记录；自动记录变更创建的任务显示自动，不推断为人工或邮件。GET /recruiting/match-runs可用completed=true只读取COMPLETED记录，该条件与direction在分页前合并；默认查询仍包含所有队列状态。材料入库、匹配入队和匹配完成是不同状态，检查关联matchingRunIds的当前回执判断是否真正完成。

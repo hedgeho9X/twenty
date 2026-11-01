@@ -275,3 +275,27 @@ it.each(['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES'])(
     );
   },
 );
+
+it('selects completed results before pagination while keeping the unfiltered queue available', async () => {
+  const records = {
+    list: jest.fn(async () => ({ records: [], count: 0, hasNextPage: false })),
+  };
+  const service = new RecruitingMatchingService(
+    records as never,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
+  await service.list({} as never, 0, undefined, true);
+  expect(records.list).toHaveBeenLastCalledWith(
+    {},
+    'recruitingMatchRun',
+    expect.objectContaining({ filter: { status: { eq: 'COMPLETED' } } }),
+  );
+  await service.list({} as never, 0);
+  expect(records.list).toHaveBeenLastCalledWith(
+    {},
+    'recruitingMatchRun',
+    expect.not.objectContaining({ filter: expect.anything() }),
+  );
+});
