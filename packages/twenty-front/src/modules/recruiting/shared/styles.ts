@@ -272,13 +272,10 @@ export const StyledRecruitingDenseQueue = styled.div`
   }
 `;
 
-/** Keeps a detail back action reachable while long email material scrolls beneath it. */
+/** Places the detail navigation in normal document flow. */
 export const StyledRecruitingSticky = styled.div`
   background: ${theme.background.primary};
   padding: 8px 0;
-  position: sticky;
-  top: 0;
-  z-index: 5;
 `;
 
 /** Labeled facts wrap at narrow widths rather than squeezing identity and preferences into a dense JSON block. */

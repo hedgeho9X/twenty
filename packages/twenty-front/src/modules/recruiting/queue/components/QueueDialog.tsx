@@ -121,6 +121,11 @@ export const RecruitingQueueDialog = ({
                     setOffset(0);
                   }}
                 />
+                <details>
+                  <summary>{t`处理流程与状态`}</summary>
+                  <StyledRecruitingMuted>{t`排队 → 解析文件 → 整理资料 → 保存入库 → 匹配中 → 匹配完成或无匹配结果。`}</StyledRecruitingMuted>
+                  <StyledRecruitingMuted>{t`未开启自动匹配时停在“已入库·未匹配”；材料或身份不明确时等待核对；失败保留已完成步骤，重试从失败阶段继续。`}</StyledRecruitingMuted>
+                </details>
               </Dialog.Header>
               <Dialog.Body>
                 {(query.error || error) && (

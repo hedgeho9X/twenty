@@ -26,6 +26,7 @@ const setup = (states: { status: string; complete: boolean }[]) => {
   };
   return {
     records,
+    intakes,
     service: new ProcessingTasksService(
       records as never,
       intakes as never,
@@ -36,6 +37,7 @@ const setup = (states: { status: string; complete: boolean }[]) => {
 it.each([
   [[{ status: 'PROCESSING', complete: false }], 'MATCHING'],
   [[{ status: 'COMPLETED', complete: true }], 'COMPLETED'],
+  [[{ status: 'NO_RESULTS', complete: true }], 'NO_RESULTS'],
   [[{ status: 'FAILED', complete: false }], 'MATCH_FAILED'],
   [[{ status: 'COMPLETED', complete: false }], 'MATCH_STALE'],
 ] as const)('projects child state %j as %s', async (states, stage) => {
@@ -57,4 +59,21 @@ it('filters direction before paginating the material roots', async () => {
       },
     }),
   );
+});
+
+it('labels stored material with disabled matching as a separate terminal state', async () => {
+  const { service, intakes } = setup([]);
+  intakes.one.mockResolvedValue({
+    intakeId: 'task',
+    state: 'COMPLETED',
+    stage: 'STORED',
+    matchingRunIds: [],
+    items: [],
+    matchingStatus: 'DISABLED',
+  } as never);
+  const result = await service.list({} as never);
+  expect(result.records[0]).toMatchObject({
+    stage: 'MATCH_DISABLED',
+    state: 'COMPLETED',
+  });
 });

@@ -86,25 +86,32 @@ export class ProcessingTasksService {
           stage = 'MATCH_STALE';
           retryPath = `match-runs/${stale.runId}/retry`;
         } else if (matches.every((match) => match.complete))
-          stage = 'COMPLETED';
+          stage = matches.every((match) => match.status === 'NO_RESULTS')
+            ? 'NO_RESULTS'
+            : 'COMPLETED';
         else stage = 'MATCHING';
       } else if (
         intake.state === 'COMPLETED' &&
         intake.matchingStatus === 'FAILED_TO_QUEUE'
       )
         stage = 'MATCH_FAILED';
+      if (intake.state === 'COMPLETED' && !matches.length && !missing) {
+        if (intake.matchingStatus === 'DISABLED') stage = 'MATCH_DISABLED';
+        else if (intake.matchingStatus === 'QUEUED') stage = 'MATCHING';
+      }
       if (missing) stage = 'IDENTITY_REVIEW';
       const { detail: _detail, ...summary } = intake;
-      const state =
-        stage === 'COMPLETED'
-          ? 'COMPLETED'
-          : ['FAILED', 'MATCH_FAILED'].includes(stage)
-            ? 'FAILED'
-            : ['MATCH_STALE', 'IDENTITY_REVIEW', 'MATERIAL_REVIEW'].includes(
-                  stage,
-                )
-              ? 'NEEDS_REVIEW'
-              : 'PROCESSING';
+      const state = ['COMPLETED', 'NO_RESULTS', 'MATCH_DISABLED'].includes(
+        stage,
+      )
+        ? 'COMPLETED'
+        : ['FAILED', 'MATCH_FAILED'].includes(stage)
+          ? 'FAILED'
+          : ['MATCH_STALE', 'IDENTITY_REVIEW', 'MATERIAL_REVIEW'].includes(
+                stage,
+              )
+            ? 'NEEDS_REVIEW'
+            : 'PROCESSING';
       rows.push({
         ...summary,
         intakeState: intake.state,
