@@ -28,8 +28,6 @@ export const RecruitingMatchResults = ({
 }: {
   initialRunId?: string;
   onBack?: () => void;
-  onDraft?: (candidateId: string, jobId: string) => void;
-  onSharing?: (candidateId: string, jobId: string) => void;
   active?: boolean;
 }) => {
   const [runId, setRunId] = useState(initialRunId);

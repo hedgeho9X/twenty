@@ -14,7 +14,6 @@ import { RecruitingCompanyJobsList } from '@/recruiting/companies/components/Com
 import { RecruitingCompanyJobs } from '@/recruiting/companies/components/CompanyJobIntake';
 import { RecruitingManualMatch } from '@/recruiting/matching/components/ManualMatch';
 import { RecruitingMailSources } from '@/recruiting/mail/components/MailList';
-import { RecruitingSharing } from '@/recruiting/portal/components/Sharing';
 import {
   StyledRecruitingBody,
   StyledRecruitingWorkspace,
@@ -25,7 +24,12 @@ export const RecruitingWorkspacePage = () => {
   const [params, setParams] = useSearchParams();
   const [queueOpen, setQueueOpen] = useState(false);
   const [hasNewTasks, setHasNewTasks] = useState(false);
-  const tab = params.get('tab') ?? 'resumes';
+  const requestedTab = params.get('tab') ?? 'resumes';
+  const tab = ['companies', 'resumes', 'matches', 'mail', 'manual'].includes(
+    requestedTab,
+  )
+    ? requestedTab
+    : 'resumes';
   const companyJobsId = params.get('companyJobs');
   const candidateId = params.get('candidateId') ?? undefined;
   return (
@@ -70,11 +74,10 @@ export const RecruitingWorkspacePage = () => {
             </Tabs.List>
             <Select
               dropdownId="recruiting-more-pages"
-              value={['manual', 'sharing'].includes(tab) ? tab : ''}
+              value={tab === 'manual' ? tab : ''}
               options={[
                 { value: '', label: t`更多` },
                 { value: 'manual', label: t`手动匹配` },
-                { value: 'sharing', label: t`资料确认与跟进` },
               ]}
               onChange={(value) => {
                 if (value)
@@ -142,23 +145,6 @@ export const RecruitingWorkspacePage = () => {
               active={tab === 'matches'}
               key={params.get('runId') ?? 'list'}
               initialRunId={params.get('runId') ?? undefined}
-              onSharing={(candidateId, jobId) =>
-                setParams((current) => {
-                  const next = new URLSearchParams(current);
-                  next.set('tab', 'sharing');
-                  next.set('sharingCandidateId', candidateId);
-                  next.set('sharingJobId', jobId);
-                  return next;
-                })
-              }
-            />
-          </Tabs.Panel>
-          <Tabs.Panel value="sharing" keepMounted>
-            <RecruitingSharing
-              active={tab === 'sharing'}
-              initialCandidateId={params.get('sharingCandidateId') ?? undefined}
-              initialJobId={params.get('sharingJobId') ?? undefined}
-              key={`${params.get('sharingCandidateId')}:${params.get('sharingJobId')}`}
             />
           </Tabs.Panel>
           <Tabs.Panel value="manual" keepMounted>
