@@ -135,7 +135,7 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
     summary: recruitingText(profile.summary),
     skills: factTexts(compact ? profile.skills : legacy.skills),
     experience: factTexts(compact ? profile.experience : legacy.experience),
-    projects: factTexts(legacy.projects),
+    projects: compact ? [] : factTexts(legacy.projects),
     education: factTexts(compact ? profile.education : legacy.education),
     expectedRoles: self
       ? self.expectedRoles
@@ -153,7 +153,7 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
           locationEvidence: profile.locationEvidence,
         }
       : legacyPreferences,
-    unknowns: factTexts(legacy.unknowns),
+    unknowns: compact ? [] : factTexts(legacy.unknowns),
     ...(self
       ? {
           selfReported: {
@@ -261,7 +261,8 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
           clean.note + (self?.summary ?? ''),
         )));
   const conflict =
-    profile.identityConflict === true || Boolean(legacy['数据一致性提示']);
+    profile.identityConflict === true ||
+    (!compact && Boolean(legacy['数据一致性提示']));
   return {
     id: record.id,
     label:

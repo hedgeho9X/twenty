@@ -331,6 +331,7 @@ export class RecruitingMatchingService {
         return this.receipt(run);
     }
     const actor = this.actors.capture(context);
+    const payload = this.payload(run);
     const updated = await this.records.update(
       context,
       'recruitingMatchRun',
@@ -338,11 +339,16 @@ export class RecruitingMatchingService {
       {
         status: 'QUEUED',
         payload: {
-          ...this.payload(run),
+          ...payload,
           actor,
+          targetIds:
+            payload.input.direction !== 'PAIR' && !payload.input.targetIds
+              ? undefined
+              : payload.targetIds,
           results: [],
           error: undefined,
           completedAt: undefined,
+          reviewedAt: undefined,
         },
       },
     );

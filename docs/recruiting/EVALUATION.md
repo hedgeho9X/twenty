@@ -44,3 +44,7 @@ judge使用无业务工具/触发器的独立原生Agent，模型chatgpt-subscri
 在ops/recruiting/report-ui执行npm ci，再用项目Node运行build.mjs，读取现有冻结文件生成.local/recruiting/evaluations/rsi-v1/report.html，不调用模型。Table、Card、Button、Badge使用Shadcn CLI取回的MIT源码，依赖与主系统隔离，Twenty本身仍使用官方组件。HTML内联脚本与CSS，无远程依赖，展示匿名C01至C08、岗位、分数、初审和局限；按候选人筛选、数值排序、展开说明及导出当前CSV。
 
 DOM检查覆盖56行→筛选7行→恢复56行、数值排序、真实组件slot和零远程脚本/CSS；不是浏览器视觉验收。只有点击原生记录链接才需要本地登录。报告仍含业务匹配结果，保持在私有目录，不当作公开分享文件。原件下载URL、邮件与凭据没有进入报告。通用数据链路说明为docs/recruiting/data-flow.html，9个节点可点击查看输入、输出与失败边界，不含个人资料。
+
+## 6. 交付复核后的匹配修正
+
+全池任务重试会重新捕获当前岗位/候选人池并清除已查看标记，显式targetIds仍保持限定范围。岗位只修改companyId也会触发增量重评。存在新recruitingProfile时，不再把已归档的旧JSON项目、未知项和身份警告混入当前输入；没有新profile的历史记录继续兼容旧资料。4项行为回归及相关57项测试通过。固定第一轮输入与标签不回写，新输入按内容版本自然使旧结果过期，不能拿旧实验指标证明这些修正后的质量。

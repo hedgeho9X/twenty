@@ -68,7 +68,9 @@ export class RecruitingRecordChangeListener {
         return (
           after.jobStatus === 'RECRUITING' &&
           !current.issue &&
-          (!before || current.version !== buildJobMatchContext(before).version)
+          (!before ||
+            before.companyId !== after.companyId ||
+            current.version !== buildJobMatchContext(before).version)
         );
       }
       const companyVersion = (record: RecruitingRecord) =>

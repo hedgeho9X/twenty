@@ -107,7 +107,15 @@ const setup = () => {
     evaluator as unknown as RecruitingPairEvaluatorService,
     queue as unknown as MessageQueueService,
   );
-  return { service, rows, evaluator, records, queue, maximum: () => maximum };
+  return {
+    service,
+    rows,
+    jobs,
+    evaluator,
+    records,
+    queue,
+    maximum: () => maximum,
+  };
 };
 
 describe('recruiting matching runs', () => {
@@ -186,5 +194,48 @@ describe('recruiting matching runs', () => {
     expect(result.poolChanged).toBe(true);
     expect(result.complete).toBe(false);
     expect(result.currentPoolCount).toBe(8);
+  });
+
+  it('refreshes the current whole pool and makes a previously reviewed run visible again', async () => {
+    const { service, rows, jobs } = setup();
+    await service.process({ runId: 'run', actor });
+    await service.reviewed(context, 'run');
+    const added = { id: 'job-added', companyId: 'company' };
+    jobs.push(added);
+    rows.set(added.id, added);
+
+    await service.retry(context, 'run');
+    const queued = rows.get('run')!.payload as Record<string, unknown>;
+    expect(queued.targetIds).toBeUndefined();
+    expect(queued.reviewedAt).toBeUndefined();
+
+    await service.process({ runId: 'run', actor });
+    const result = await service.one(context, 'run');
+    expect(result.counts).toMatchObject({ total: 8, scored: 8 });
+    expect(result.results.some((entry) => entry.jobId === added.id)).toBe(true);
+    expect(result.poolChanged).toBe(false);
+    expect(result.complete).toBe(true);
+  });
+
+  it('retains explicitly selected targets when retrying a limited run', async () => {
+    const { service, rows, jobs } = setup();
+    const payload = rows.get('run')!.payload as {
+      input: Record<string, unknown>;
+    };
+    payload.input.targetIds = ['job-0', 'job-2'];
+    await service.process({ runId: 'run', actor });
+    const added = { id: 'job-added', companyId: 'company' };
+    jobs.push(added);
+    rows.set(added.id, added);
+
+    await service.retry(context, 'run');
+    await service.process({ runId: 'run', actor });
+    const result = await service.one(context, 'run');
+    expect(result.counts).toMatchObject({ total: 2, scored: 2 });
+    expect(result.results.map((entry) => entry.jobId)).toEqual([
+      'job-0',
+      'job-2',
+    ]);
+    expect(result.complete).toBe(true);
   });
 });

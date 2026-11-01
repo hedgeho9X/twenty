@@ -95,6 +95,28 @@ describe('recruiting record changes', () => {
     );
   });
 
+  it('schedules a recruiting job when only its associated company changes', async () => {
+    const { listener, matching, event } = setup();
+    const job = {
+      id: 'job',
+      name: '后端工程师',
+      jobStatus: 'RECRUITING',
+      jobDescription: { markdown: '维护 TypeScript 服务' },
+    };
+    await listener.changed(
+      event(
+        'recruitmentJob',
+        { ...job, companyId: 'new-company' },
+        { ...job, companyId: 'old-company' },
+      ),
+    );
+    expect(matching.submitForRecord).toHaveBeenCalledWith(
+      expect.anything(),
+      'recruitmentJob',
+      'job',
+    );
+  });
+
   it('does not use system updates or empty profiles to launch paid work', async () => {
     const { listener, matching, event } = setup();
     const system = { ...event('person', candidate), actor: undefined };

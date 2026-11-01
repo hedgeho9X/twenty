@@ -125,6 +125,41 @@ describe('recruiting match context', () => {
     expect(result.issue).toBeUndefined();
   });
 
+  it('uses the current profile without mixing archived projects, unknowns or identity warnings', () => {
+    const current = {
+      id: 'person',
+      recruitingProfile: {
+        summary: '当前 TypeScript 后端工程师',
+        sourceText: '当前项目：维护 Node.js 服务',
+      },
+    };
+    const result = buildCandidateMatchContext({
+      ...current,
+      candidateSearchJson: {
+        projects: [{ value: '已更正的旧项目' }],
+        unknowns: ['旧学历待核对'],
+        数据一致性提示: '旧原件身份冲突',
+      },
+    });
+    expect(result.context.sourceText).toContain('当前项目');
+    expect(result.context.projects).toEqual([]);
+    expect(result.context.unknowns).toEqual([]);
+    expect(result.issue).toBeUndefined();
+    expect(result.version).toBe(buildCandidateMatchContext(current).version);
+
+    const legacy = buildCandidateMatchContext({
+      id: 'legacy',
+      candidateSearchJson: {
+        projects: [{ value: '旧版项目资料' }],
+        unknowns: ['旧学历待核对'],
+        数据一致性提示: '旧原件身份冲突',
+      },
+    });
+    expect(legacy.context.projects).toEqual(['旧版项目资料']);
+    expect(legacy.context.unknowns).toEqual(['旧学历待核对']);
+    expect(legacy.issue).toContain('身份冲突');
+  });
+
   it('rejects internship-only jobs for explicit refusal without rejecting part-time work', () => {
     const candidate = buildCandidateMatchContext({
       id: 'p',
