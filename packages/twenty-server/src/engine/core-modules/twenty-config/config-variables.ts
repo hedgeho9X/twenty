@@ -2149,6 +2149,14 @@ export class ConfigVariables {
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.LLM,
+    description: 'Model bindings for registered application AI features',
+    type: ConfigVariableType.JSON,
+  })
+  @IsOptional()
+  AI_FEATURE_MODELS: Record<string, string> = {};
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.LLM,
     description:
       'Storage path for the AI catalog override (e.g. config/ai-catalog.json). When set, the catalog is fetched from the configured storage backend at startup instead of using the built-in ai-providers.json.',
     type: ConfigVariableType.STRING,

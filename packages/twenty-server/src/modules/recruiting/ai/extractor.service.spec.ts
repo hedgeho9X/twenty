@@ -132,3 +132,30 @@ it('rejects a disabled pinned model before reading images or billing', async () 
   expect(generateText).not.toHaveBeenCalled();
   delete process.env.RECRUITING_MODEL_ID;
 });
+
+it.each(['candidate', 'jobs', 'draft'] as const)(
+  'uses the registered feature model for %s',
+  async (operation) => {
+    const { registry, parser } = setup();
+    const features = { resolve: jest.fn(() => 'chosen-feature-model') };
+    const service = new RecruitingExtractorService(
+      registry as never,
+      parser as never,
+      features as never,
+    );
+    jest
+      .mocked(generateText)
+      .mockResolvedValue({ output: {}, usage: {} } as never);
+    if (operation === 'candidate') await service.candidate([], '');
+    else if (operation === 'jobs') await service.jobs([], 'JD', '', 'Company');
+    else await service.draft('MATCH_BRIEF', '', '');
+    expect(features.resolve).toHaveBeenCalledWith(
+      {
+        candidate: 'candidate_extraction',
+        jobs: 'jd_extraction',
+        draft: 'match_brief',
+      }[operation],
+    );
+    expect(registry.getModel).toHaveBeenCalledWith('chosen-feature-model');
+  },
+);

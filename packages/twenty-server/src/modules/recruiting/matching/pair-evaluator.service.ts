@@ -1,9 +1,11 @@
+import { AiFeatureModelsService } from 'src/engine/metadata-modules/ai/ai-models/services/ai-feature-models.service';
 /** Evaluates one versioned candidate/job pair and persists reusable native records. */
 import {
   BadRequestException,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { RECRUITING_ADVISORY_LOCK } from '../shared/locking/advisory-lock.constant';
 
@@ -73,6 +75,7 @@ export class RecruitingPairEvaluatorService {
     private readonly registry: AiModelRegistryService,
     @Inject(RECRUITING_ADVISORY_LOCK)
     private readonly locks: PostgresAdvisoryLockService,
+    @Optional() private readonly features?: AiFeatureModelsService,
   ) {}
 
   /** Computes eligibility and a content-only cache identity without invoking a model. */
@@ -85,6 +88,7 @@ export class RecruitingPairEvaluatorService {
     const candidate = buildCandidateMatchContext(candidateRecord);
     const job = buildJobMatchContext(jobRecord, companyRecord);
     const modelId =
+      this.features?.resolve('jev_matching') ??
       process.env.RECRUITING_JEV_MODEL_ID ??
       'recruiting-gateway/typesafe-ai/jev';
     const cacheKey = getPairEvaluationCacheKey({

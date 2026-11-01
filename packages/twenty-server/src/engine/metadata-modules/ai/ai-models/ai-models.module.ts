@@ -1,3 +1,4 @@
+import { AiFeatureModelsService } from './services/ai-feature-models.service';
 import { Global, Module } from '@nestjs/common';
 
 import { EnterpriseModule } from 'src/engine/core-modules/enterprise/enterprise.module';
@@ -14,6 +15,7 @@ import { SdkProviderFactoryService } from 'src/engine/metadata-modules/ai/ai-mod
 @Module({
   imports: [EnterpriseModule, ChatgptSubscriptionModule],
   providers: [
+    AiFeatureModelsService,
     DefaultAiCatalogService,
     ProviderConfigService,
     SdkProviderFactoryService,
@@ -23,6 +25,7 @@ import { SdkProviderFactoryService } from 'src/engine/metadata-modules/ai/ai-mod
     AiModelConfigService,
   ],
   exports: [
+    AiFeatureModelsService,
     DefaultAiCatalogService,
     AiModelRegistryService,
     AiModelPreferencesService,
