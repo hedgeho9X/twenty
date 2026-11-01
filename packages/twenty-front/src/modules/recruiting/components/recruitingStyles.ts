@@ -251,3 +251,32 @@ export const StyledRecruitingRecordLink = styled.a`
     text-underline-offset: 3px;
   }
 `;
+
+/** Fits more tasks per viewport and moves expanded payloads out of the list. */
+export const StyledRecruitingDenseQueue = styled.div`
+  max-height: 55vh;
+  overflow: auto;
+  table {
+    min-width: 720px;
+  }
+  th,
+  td {
+    padding: 7px 9px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  td:first-child {
+    max-width: 210px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+`;
+
+/** Keeps a detail back action reachable while long email material scrolls beneath it. */
+export const StyledRecruitingSticky = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: ${theme.background.primary};
+  padding: 8px 0;
+`;
