@@ -1,28 +1,15 @@
-/** Guides operators from an actual company to resumable JD preview and per-item confirmation. */
-import { useState } from 'react';
+/** Collects company-bound JD text entries and submits each independently to the background queue. */
+import { useEffect, useRef, useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button, Field, Input, Textarea } from 'twenty-ui/primitives/input';
-import { IconBuildingSkyscraper, IconPlus, IconUpload } from 'twenty-ui/icon';
-import {
-  getRecruitingPreviewNameWarnings,
-  type RecruitingPreviewExistingJob,
-} from 'twenty-shared/utils';
+import { IconPlus } from 'twenty-ui/icon';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
-import { RecruitingMaterialLinks } from '@/recruiting/components/RecruitingMaterialLinks';
-import {
-  recruitingRequest,
-  uploadRecruitingFile,
-} from '@/recruiting/utils/recruitingRequest';
+import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
 import { type RecruitingCompany } from '@/recruiting/types/RecruitingCompany';
 import { type RecruitingIntake } from '@/recruiting/types/RecruitingIntake';
-import { type RecruitingJobDraft } from '@/recruiting/types/RecruitingJobDraft';
-import { type RecruitingJobItem } from '@/recruiting/types/RecruitingJobItem';
-import { type RecruitingUpload } from '@/recruiting/types/RecruitingUpload';
-import { RecruitingRecordPicker } from '@/recruiting/components/RecruitingRecordPicker';
-import { RecruitingJobDraftEditor } from '@/recruiting/components/RecruitingJobDraftEditor';
-import { RecruitingCompanyExistingJobs } from '@/recruiting/components/RecruitingCompanyExistingJobs';
+import { RecruitingRecordPicker } from './RecruitingRecordPicker';
+import { RecruitingCompanyExistingJobs } from './RecruitingCompanyExistingJobs';
 import {
-  StyledRecruitingDrop,
   StyledRecruitingError,
   StyledRecruitingMuted,
   StyledRecruitingPanel,
@@ -32,83 +19,86 @@ import {
   StyledRecruitingSteps,
   StyledRecruitingForm,
   StyledRecruitingRecordLink,
-} from '@/recruiting/components/recruitingStyles';
+  StyledRecruitingStatus,
+} from './recruitingStyles';
 
-/** A refreshed preview keeps local edits separate from authoritative per-item server outcomes. */
-type JobIntakeDetail = RecruitingIntake & {
-  detail: {
-    input: {
-      companyId: string;
-      files?: { fileId: string; label: string }[];
-      text?: string;
-      note?: string;
-    };
-    jobItems: RecruitingJobItem[];
-    extraction?: { profile: { reviewNotes: string[] } };
-    previewExistingJobs?: RecruitingPreviewExistingJob[];
-    duplicateCheck?: { status: string; checked: number; total?: number };
-  };
+type JobTextEntry = {
+  key: string;
+  text: string;
+  attempted?: boolean;
+  companyId?: string;
+  receipt?: RecruitingIntake;
+  error?: string;
 };
+/** Assigns a stable request identity before the first network attempt. */
+const newEntry = (): JobTextEntry => ({
+  key: crypto.randomUUID(),
+  text: '',
+});
 
-/** Holds unfinished material through company creation instead of discarding it when switching forms. */
+/** Submission receipts stay in the input step; there is no mandatory preview or confirmation screen. */
 export const RecruitingCompanyJobs = ({
   initialIntakeId,
   onSubmitted,
   onIntakeChange,
+  onOpenQueue,
   active = true,
   onBrowseJobs,
 }: {
   initialIntakeId?: string;
   onSubmitted: () => void;
   onIntakeChange: (id: string | undefined) => void;
+  onOpenQueue?: () => void;
   active?: boolean;
   onBrowseJobs?: (companyId: string) => void;
 }) => {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(initialIntakeId ? 2 : 1);
   const [company, setCompany] = useState<RecruitingCompany>();
+  const [selectionChanged, setSelectionChanged] = useState(false);
   const [createCompany, setCreateCompany] = useState(false);
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
   const [description, setDescription] = useState('');
   const [preferences, setPreferences] = useState('');
-  const [text, setText] = useState('');
-  const [note, setNote] = useState('');
-  const [files, setFiles] = useState<
-    { file: File; uploaded?: RecruitingUpload }[]
-  >([]);
-  const [intakeId, setIntakeId] = useState(initialIntakeId);
-  const [key, setKey] = useState(() => crypto.randomUUID());
-  const [attempted, setAttempted] = useState(false);
+  const [entries, setEntries] = useState<JobTextEntry[]>(() => [newEntry()]);
+  const [batchId, setBatchId] = useState(() => crypto.randomUUID());
+  const newEntryElement = useRef<HTMLDivElement>(null);
+  const [scrollToNewEntry, setScrollToNewEntry] = useState<string>();
+  useEffect(() => {
+    if (!scrollToNewEntry) return;
+    newEntryElement.current?.scrollIntoView?.({
+      behavior: 'smooth',
+      block: 'center',
+    });
+  }, [scrollToNewEntry]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [overrides, setOverrides] = useState<
-    Record<string, RecruitingJobDraft>
-  >({});
-  const [ignored, setIgnored] = useState<Set<string>>(() => new Set());
-  const query = useRecruitingQuery<JobIntakeDetail>(
-    intakeId ? `resume-intakes/${intakeId}` : null,
-    intakeId ? 5000 : 0,
+  const previous = useRecruitingQuery<
+    RecruitingIntake & { detail: { input: { companyId: string } } }
+  >(initialIntakeId ? `resume-intakes/${initialIntakeId}` : null, 0, active);
+  const initialCompany = useRecruitingQuery<RecruitingCompany>(
+    previous.data?.detail.input.companyId
+      ? `companies/${previous.data.detail.input.companyId}`
+      : null,
+    0,
     active,
   );
-  const boundCompany = useRecruitingQuery<RecruitingCompany>(
-    query.data?.detail.input.companyId
-      ? `companies/${query.data.detail.input.companyId}`
-      : null,
+  const chosen = selectionChanged
+    ? company
+    : (company ?? (initialCompany.error ? undefined : initialCompany.data));
+  const lockedCompany = busy || entries.some((entry) => entry.attempted);
+  const pending = entries.filter(
+    (entry) => !entry.receipt && Boolean(entry.text.trim()),
   );
-  const chosen = intakeId ? (boundCompany.data ?? company) : company;
-  const items = query.data?.detail.jobItems ?? [];
-  const locked = attempted || Boolean(intakeId) || busy;
-  const actionable = items.filter(
-    (item) => !['CREATED', 'DISCARDED'].includes(item.status),
-  );
-  const previewNames = items.map((item) => ({
-    itemId: item.itemId,
-    jobId: item.jobId,
-    title: (overrides[item.itemId] ?? item.draft).title,
-    status: ignored.has(item.itemId) ? 'DISCARDED' : item.status,
-  }));
-
-  /** Creates a company once without mutating the currently uploaded JD materials. */
+  const submitted = entries.filter((entry) => entry.receipt).length;
+  /** Retains successful entries and frozen failed requests while editing unsubmitted text independently. */
+  const update = (key: string, patch: Partial<JobTextEntry>) =>
+    setEntries((current) =>
+      current.map((entry) =>
+        entry.key === key ? { ...entry, ...patch } : entry,
+      ),
+    );
+  /** Creates only the explicitly entered company, preserving all draft JD text. */
   const saveCompany = async () => {
     setBusy(true);
     setError('');
@@ -123,6 +113,7 @@ export const RecruitingCompanyJobs = ({
         }),
       });
       setCompany(saved);
+      setSelectionChanged(true);
       setCreateCompany(false);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : t`公司创建失败`);
@@ -130,153 +121,92 @@ export const RecruitingCompanyJobs = ({
       setBusy(false);
     }
   };
-
-  /** Reuses completed file references and a stable batch key after a transient request failure. */
+  /** Sends one immutable request per JD so partial network failures never resubmit successful entries. */
   const submit = async () => {
-    if (!company) return;
+    if (!chosen || busy || !pending.length) return;
     setBusy(true);
     setError('');
-    setAttempted(true);
-    try {
-      const uploads = [];
-      for (const [index, entry] of files.entries()) {
-        const uploaded =
-          entry.uploaded ?? (await uploadRecruitingFile(entry.file));
-        uploads.push(uploaded);
-        setFiles((current) =>
-          current.map((item, position) =>
-            position === index ? { ...item, uploaded } : item,
-          ),
+    for (const entry of pending) {
+      const companyId = entry.companyId ?? chosen.id;
+      update(entry.key, { attempted: true, companyId, error: undefined });
+      try {
+        const receipt = await recruitingRequest<RecruitingIntake>(
+          'job-intakes',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              companyId,
+              text: entry.text,
+              source: 'manual',
+              batchId,
+              idempotencyKey: entry.key,
+            }),
+          },
         );
+        update(entry.key, { receipt });
+        onSubmitted();
+      } catch (failure) {
+        update(entry.key, {
+          error:
+            failure instanceof Error ? failure.message : t`提交失败，请重试`,
+        });
       }
-      const receipt = await recruitingRequest<RecruitingIntake>('job-intakes', {
-        method: 'POST',
-        body: JSON.stringify({
-          companyId: company.id,
-          files: uploads,
-          text,
-          note,
-          source: 'manual',
-          idempotencyKey: key,
-        }),
-      });
-      setIntakeId(receipt.intakeId);
-      onIntakeChange(receipt.intakeId);
-      onSubmitted();
-    } catch (failure) {
-      setError(
-        failure instanceof Error ? failure.message : t`岗位材料提交失败`,
-      );
-    } finally {
-      setBusy(false);
+    }
+    setBusy(false);
+    if (initialIntakeId) {
+      setCompany(chosen);
+      onIntakeChange(undefined);
     }
   };
-
-  /** Sends server-owned item IDs, preserving completed jobs and independently reporting failed rows. */
-  const confirm = async () => {
-    if (!intakeId) return;
-    setBusy(true);
-    setError('');
-    try {
-      await recruitingRequest(`job-intakes/${intakeId}/confirm`, {
-        method: 'POST',
-        body: JSON.stringify({
-          items: actionable
-            .filter((item) => !ignored.has(item.itemId))
-            .map((item) => ({
-              itemId: item.itemId,
-              draft: overrides[item.itemId] ?? item.draft,
-            })),
-          discardedItemIds: actionable
-            .filter((item) => ignored.has(item.itemId))
-            .map((item) => item.itemId),
-        }),
-      });
-      await query.reload();
-      onSubmitted();
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t`岗位确认未完成`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  /** Starts another batch for the selected company while preserving already submitted server state. */
+  /** Starts another explicit batch without changing tasks that were already accepted by the server. */
   const reset = () => {
+    setEntries([newEntry()]);
+    setBatchId(crypto.randomUUID());
+    setError('');
     setCompany(chosen);
-    setStep(1);
-    setIntakeId(undefined);
     onIntakeChange(undefined);
-    setAttempted(false);
-    setText('');
-    setNote('');
-    setFiles([]);
-    setOverrides({});
-    setIgnored(new Set());
-    setKey(crypto.randomUUID());
-    setError('');
   };
-
-  /** Reopens a failed submission without discarding its source text or completed uploads. */
-  const resumeEditing = () => {
-    setAttempted(false);
-    setKey(crypto.randomUUID());
-    setError('');
-  };
-
   return (
     <StyledRecruitingForm>
       <StyledRecruitingStack>
-        <StyledRecruitingSteps aria-label={t`岗位导入步骤`}>
-          {[t`选择公司`, t`添加材料`, t`核对岗位`].map((label, index) => (
+        <StyledRecruitingSteps aria-label={t`岗位录入步骤`}>
+          {[t`选择公司`, t`填写 JD`].map((label, index) => (
             <span
               key={label}
-              aria-current={
-                (intakeId ? 3 : step) === index + 1 ? 'step' : undefined
-              }
+              aria-current={step === index + 1 ? 'step' : undefined}
             >
               {index + 1}. {label}
             </span>
           ))}
         </StyledRecruitingSteps>
-        {!intakeId && step === 1 && (
+        {step === 1 ? (
           <StyledRecruitingPanel>
-            <StyledRecruitingRow>
-              <IconBuildingSkyscraper size={20} />
-              <StyledRecruitingTitle>{t`1. 选择公司`}</StyledRecruitingTitle>
-            </StyledRecruitingRow>
-            <StyledRecruitingMuted>{t`先找到对应公司；没有记录时可就地新建，再为这家公司批量导入岗位。`}</StyledRecruitingMuted>
+            <StyledRecruitingTitle>{t`选择公司`}</StyledRecruitingTitle>
             <RecruitingRecordPicker<RecruitingCompany>
               label={t`公司`}
               path="companies"
               selected={chosen}
-              disabled={locked}
+              disabled={lockedCompany}
               renderLabel={(record) => record.name}
               renderHint={(record) => record.domainName?.primaryLinkUrl}
-              onSelect={setCompany}
+              onSelect={(value) => {
+                setCompany(value);
+                setSelectionChanged(true);
+              }}
             />
             {chosen && (
               <>
-                <StyledRecruitingMuted>
-                  {chosen.domainName?.primaryLinkUrl}
-                </StyledRecruitingMuted>
-                {chosen.recruitingDescription && (
-                  <StyledRecruitingMuted>
-                    {chosen.recruitingDescription}
-                  </StyledRecruitingMuted>
-                )}
                 <StyledRecruitingRecordLink
                   href={`/object/company/${chosen.id}`}
                 >{t`公司详情 ↗`}</StyledRecruitingRecordLink>
                 <RecruitingCompanyExistingJobs
-                  key={chosen.id}
                   companyId={chosen.id}
                   active={active}
                   onViewAll={() => onBrowseJobs?.(chosen.id)}
                 />
               </>
             )}
-            {!chosen && !locked && !createCompany && (
+            {!chosen && !createCompany && (
               <Button
                 startIcon={<IconPlus size={16} />}
                 onClick={() => setCreateCompany(true)}
@@ -286,7 +216,7 @@ export const RecruitingCompanyJobs = ({
               <StyledRecruitingPanel>
                 <Field.Root>
                   <Field.Label>{t`公司名称`}</Field.Label>
-                  <Input value={name} onValueChange={setName} required />
+                  <Input value={name} onValueChange={setName} />
                 </Field.Root>
                 <Field.Root>
                   <Field.Label>{t`公司网站（可选）`}</Field.Label>
@@ -295,23 +225,21 @@ export const RecruitingCompanyJobs = ({
                 <Field.Root>
                   <Field.Label>{t`公司简介（可选）`}</Field.Label>
                   <Textarea
-                    rows={3}
                     value={description}
                     onValueChange={setDescription}
+                    rows={3}
                   />
                 </Field.Root>
                 <Field.Root>
                   <Field.Label>{t`公司招聘偏好（可选）`}</Field.Label>
                   <Textarea
-                    rows={3}
                     value={preferences}
                     onValueChange={setPreferences}
+                    rows={3}
                   />
                 </Field.Root>
                 <StyledRecruitingRow>
                   <Button
-                    variant="solid"
-                    color="accent"
                     disabled={!name.trim()}
                     loading={busy}
                     onClick={() => {
@@ -331,12 +259,11 @@ export const RecruitingCompanyJobs = ({
                 color="accent"
                 disabled={!chosen}
                 onClick={() => setStep(2)}
-              >{t`下一步：添加材料`}</Button>
+              >{t`下一步：填写 JD`}</Button>
             )}
           </StyledRecruitingPanel>
-        )}
-        {!intakeId && step === 2 && (
-          <StyledRecruitingPanel>
+        ) : (
+          <>
             <StyledRecruitingRow>
               <Button
                 variant="ghost"
@@ -345,184 +272,110 @@ export const RecruitingCompanyJobs = ({
               >{t`返回选择公司`}</Button>
               <strong>{chosen?.name}</strong>
             </StyledRecruitingRow>
-            <StyledRecruitingTitle>{t`添加岗位材料`}</StyledRecruitingTitle>
-            <StyledRecruitingMuted>{t`可以粘贴多条岗位正文，也可以上传包含多条JD的文件。不同公司的材料请分批提交。`}</StyledRecruitingMuted>
-            <Field.Root>
-              <Field.Label>{t`岗位原文`}</Field.Label>
-              <Textarea
-                rows={9}
-                value={text}
-                onValueChange={setText}
-                disabled={locked}
-                placeholder={t`粘贴岗位名称、职责、要求，以及原文中的地点、薪资等信息。`}
-              />
-            </Field.Root>
-            {!locked && (
-              <StyledRecruitingDrop>
-                <IconUpload size={24} />
-                <strong>{t`添加岗位文件（可选）`}</strong>
-                <input
-                  aria-label={t`添加岗位文件`}
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf,.doc,.docx,.txt,.html,.htm,.md,.markdown"
-                  onChange={(event) => {
-                    const selected = Array.from(event.target.files ?? []);
-                    if (
-                      selected.length > 30 ||
-                      selected.some((file) => file.size > 50 * 1024 * 1024)
-                    ) {
-                      setError(t`最多30个文件，每个文件最大50MB`);
-                      return;
-                    }
-                    setFiles(selected.map((file) => ({ file })));
-                  }}
-                />
-              </StyledRecruitingDrop>
+            {initialIntakeId && (
+              <StyledRecruitingRow>
+                <StyledRecruitingMuted>{t`刚才提交的 JD 可在队列中查看，可继续添加。`}</StyledRecruitingMuted>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onOpenQueue}
+                >{t`查看队列`}</Button>
+              </StyledRecruitingRow>
             )}
-            {files.map((entry) => (
-              <StyledRecruitingMuted
-                key={`${entry.file.name}:${entry.file.lastModified}`}
+            {entries.map((entry, index) => (
+              <StyledRecruitingPanel
+                key={entry.key}
+                ref={index === entries.length - 1 ? newEntryElement : undefined}
               >
-                {entry.file.name}
-              </StyledRecruitingMuted>
+                <StyledRecruitingRow
+                  style={{ justifyContent: 'space-between' }}
+                >
+                  <StyledRecruitingTitle>
+                    {t`JD`} {index + 1}
+                  </StyledRecruitingTitle>
+                  {entry.receipt ? (
+                    <StyledRecruitingStatus data-tone="green">{t`已加入队列`}</StyledRecruitingStatus>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy || entry.attempted || entries.length === 1}
+                      onClick={() =>
+                        setEntries((current) =>
+                          current.filter((item) => item.key !== entry.key),
+                        )
+                      }
+                    >{t`移除`}</Button>
+                  )}
+                </StyledRecruitingRow>
+                <Field.Root>
+                  <Field.Label>{t`岗位描述`}</Field.Label>
+                  <Textarea
+                    aria-label={`${t`岗位描述`} ${index + 1}`}
+                    placeholder={t`直接粘贴岗位名称、职责、要求、地点和薪资等 JD 原文`}
+                    value={entry.text}
+                    onValueChange={(text) => update(entry.key, { text })}
+                    disabled={busy || entry.attempted}
+                    rows={7}
+                    maxLength={500000}
+                  />
+                </Field.Root>
+                {entry.error && (
+                  <div>
+                    <StyledRecruitingError role="alert">
+                      {entry.error}
+                    </StyledRecruitingError>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() =>
+                        update(entry.key, {
+                          key: crypto.randomUUID(),
+                          attempted: false,
+                          companyId: undefined,
+                          error: undefined,
+                        })
+                      }
+                    >{t`修改内容后重新提交`}</Button>
+                  </div>
+                )}
+              </StyledRecruitingPanel>
             ))}
-            <Field.Root>
-              <Field.Label>{t`补充说明（可选）`}</Field.Label>
-              <Textarea
-                rows={3}
-                value={note}
-                onValueChange={setNote}
-                disabled={locked}
-              />
-            </Field.Root>
             <StyledRecruitingRow>
+              <Button
+                startIcon={<IconPlus size={16} />}
+                disabled={busy || entries.length >= 30}
+                onClick={() => {
+                  const entry = newEntry();
+                  setEntries((current) => [...current, entry]);
+                  setScrollToNewEntry(entry.key);
+                }}
+              >{t`再添加一个 JD`}</Button>
               <Button
                 variant="solid"
                 color="accent"
-                disabled={!company || (!text.trim() && !files.length)}
+                disabled={busy || !chosen || !pending.length}
                 loading={busy}
                 onClick={() => {
                   void submit();
                 }}
-              >{t`整理并预览岗位`}</Button>
-              {attempted && (
-                <Button
-                  disabled={busy}
-                  onClick={resumeEditing}
-                >{t`重新编辑材料`}</Button>
+              >{t`提交到队列`}</Button>
+              {submitted > 0 && (
+                <>
+                  <Button
+                    variant="ghost"
+                    onClick={onOpenQueue}
+                  >{t`查看队列`}</Button>
+                  <Button
+                    disabled={busy}
+                    variant="ghost"
+                    onClick={reset}
+                  >{t`开始另一批`}</Button>
+                </>
               )}
             </StyledRecruitingRow>
-          </StyledRecruitingPanel>
-        )}
-        {intakeId && (
-          <StyledRecruitingPanel>
-            {chosen && <strong>{chosen.name}</strong>}
-            <StyledRecruitingTitle>{t`3. 核对并确认岗位`}</StyledRecruitingTitle>
-            {(query.error || query.data?.error) && (
-              <StyledRecruitingError role="alert">
-                {query.error || query.data?.error}
-              </StyledRecruitingError>
-            )}
-            {query.data && !items.length && (
-              <StyledRecruitingMuted>
-                {query.data.stage === 'FAILED'
-                  ? t`材料尚未形成岗位预览，可检查队列错误并重新编辑。`
-                  : t`材料正在后台整理，预览完成后会在这里显示。`}
-              </StyledRecruitingMuted>
-            )}
-            {query.data?.detail.extraction?.profile.reviewNotes.map(
-              (message) => (
-                <StyledRecruitingMuted key={message}>
-                  {message}
-                </StyledRecruitingMuted>
-              ),
-            )}
-            {query.data && (
-              <details>
-                <summary>{t`本批材料来源`}</summary>
-                <StyledRecruitingStack>
-                  <RecruitingMaterialLinks
-                    key={query.data.intakeId}
-                    intakeId={query.data.intakeId}
-                    files={query.data.files ?? []}
-                  />
-                  {query.data.detail.input.text && (
-                    <Field.Root>
-                      <Field.Label>{t`提交的岗位原文`}</Field.Label>
-                      <Textarea
-                        value={query.data.detail.input.text}
-                        readOnly
-                        rows={5}
-                      />
-                    </Field.Root>
-                  )}
-                  {query.data.detail.input.note && (
-                    <Field.Root>
-                      <Field.Label>{t`提交的补充说明`}</Field.Label>
-                      <Textarea
-                        value={query.data.detail.input.note}
-                        readOnly
-                        rows={3}
-                      />
-                    </Field.Root>
-                  )}
-                  <StyledRecruitingMuted>{t`以上是本批输入材料，具体岗位来源请对照原文核对。`}</StyledRecruitingMuted>
-                </StyledRecruitingStack>
-              </details>
-            )}
-            {query.data?.detail.duplicateCheck?.status === 'UNAVAILABLE' && (
-              <StyledRecruitingError role="status">{t`暂时无法核对已有岗位名称，请对照公司记录人工确认。`}</StyledRecruitingError>
-            )}
-            {query.data?.detail.duplicateCheck?.status === 'PARTIAL' && (
-              <StyledRecruitingMuted>{t`已有岗位名称只完成部分核对，未提示不代表没有重复。`}</StyledRecruitingMuted>
-            )}
-            {items.map((item, index) => (
-              <RecruitingJobDraftEditor
-                key={item.itemId}
-                item={item}
-                draft={overrides[item.itemId] ?? item.draft}
-                ignored={ignored.has(item.itemId)}
-                busy={busy}
-                nameWarnings={getRecruitingPreviewNameWarnings(
-                  previewNames[index],
-                  previewNames,
-                  query.data?.detail.previewExistingJobs ?? [],
-                  query.data?.detail.input.companyId ?? '',
-                )}
-                onChange={(draft) =>
-                  setOverrides((current) => ({
-                    ...current,
-                    [item.itemId]: draft,
-                  }))
-                }
-                onIgnore={() =>
-                  setIgnored((current) => {
-                    const next = new Set(current);
-                    if (next.has(item.itemId)) next.delete(item.itemId);
-                    else next.add(item.itemId);
-                    return next;
-                  })
-                }
-              />
-            ))}
-            <StyledRecruitingRow>
-              {actionable.length > 0 && (
-                <Button
-                  variant="solid"
-                  color="accent"
-                  loading={busy}
-                  onClick={() => {
-                    void confirm();
-                  }}
-                >{t`确认本批岗位`}</Button>
-              )}
-              <Button
-                disabled={busy}
-                onClick={reset}
-              >{t`继续导入另一批`}</Button>
-            </StyledRecruitingRow>
-          </StyledRecruitingPanel>
+          </>
         )}
         {error && (
           <StyledRecruitingError role="alert">{error}</StyledRecruitingError>

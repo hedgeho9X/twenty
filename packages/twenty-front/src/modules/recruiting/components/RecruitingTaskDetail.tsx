@@ -135,15 +135,6 @@ export const RecruitingTaskDetail = ({
                           ) : (
                             <StyledRecruitingMuted>{t`尚未创建匹配任务`}</StyledRecruitingMuted>
                           )}
-                          {task.kind === 'JOB' &&
-                            [
-                              'AWAITING_CONFIRMATION',
-                              'CONFIRMATION_PARTIAL',
-                            ].includes(task.stage) && (
-                              <a
-                                href={`/recruiting-workspace?tab=companies&intakeId=${id}`}
-                              >{t`核对岗位预览`}</a>
-                            )}
                         </>
                       ) : (
                         <>

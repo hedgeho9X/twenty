@@ -25,10 +25,11 @@ import {
   StyledRecruitingDenseQueue,
 } from './recruitingStyles';
 
-/** Nonterminal material jobs may need recovery, but awaiting operator confirmation is not a worker failure. */
+/** Resumes interrupted processing and legacy JD tasks through the automatic creation pipeline. */
 const canResumeIntake = (intake: RecruitingIntake) =>
-  ['READY', 'PROCESSING'].includes(intake.state) &&
-  intake.stage !== 'AWAITING_CONFIRMATION';
+  (['READY', 'PROCESSING'].includes(intake.state) &&
+    intake.stage !== 'AWAITING_CONFIRMATION') ||
+  (intake.kind === 'JOB' && intake.stage === 'AWAITING_CONFIRMATION');
 
 /** Displays the saved source and actual job state without equating stored material with completed matching. */
 export const RecruitingQueueDialog = ({

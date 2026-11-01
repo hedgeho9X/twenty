@@ -66,7 +66,12 @@
   text-decoration: none;
   user-select: none;
 
-  @include focus-ring;
+  &:focus {
+    outline: none;
+  }
+  &:focus-visible {
+    --tw-tabs-background: var(--t-background-tertiary);
+  }
 
   &[data-size='compact'] {
     --tw-tabs-padding-inline: var(--t-spacing-1);
@@ -121,8 +126,7 @@
 
 .tab[data-highlighted] .content {
   border-radius: var(--t-border-radius-sm);
-  outline: 1px solid var(--t-color-blue);
-  outline-offset: -1px;
+  background: var(--t-background-tertiary);
 }
 
 .label {
@@ -153,7 +157,9 @@
   min-block-size: 0;
   min-inline-size: 0;
 
-  @include focus-ring;
+  &:focus {
+    outline: none;
+  }
 }
 
 .indicator {

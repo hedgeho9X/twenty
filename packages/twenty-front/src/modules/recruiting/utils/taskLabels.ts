@@ -13,6 +13,7 @@ export const recruitingTaskLabel = (state: string) =>
     EXTRACTING: t`整理资料`,
     EXTRACTED: t`资料已整理`,
     COPYING_FILES: t`保存附件`,
+    SAVING_JOBS: t`创建岗位`,
     STORED: t`已入库`,
     AWAITING_CONFIRMATION: t`待确认岗位`,
     CONFIRMATION_PARTIAL: t`部分岗位待修正`,

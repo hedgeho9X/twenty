@@ -1,7 +1,12 @@
 @use 'sass:map';
 
 .button {
-  @include focus-ring;
+  &:focus {
+    outline: none;
+  }
+  &:focus-visible {
+    background: var(--tw-button-hover);
+  }
 
   --tw-button-background: var(--t-background-transparent-lighter);
   --tw-button-border: var(--t-background-transparent-light);

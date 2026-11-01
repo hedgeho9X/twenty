@@ -5,10 +5,7 @@ import { RecruitingDrafts } from '@/recruiting/components/RecruitingDrafts';
 import { RecruitingSharing } from '@/recruiting/components/RecruitingSharing';
 import { RecruitingMatchResults } from '@/recruiting/components/RecruitingMatchResults';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
-import {
-  recruitingRequest,
-  uploadRecruitingFile,
-} from '@/recruiting/utils/recruitingRequest';
+import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
 import { type RecruitingPair } from '@/recruiting/types/RecruitingPair';
 
 jest.mock('@/recruiting/hooks/useRecruitingQuery');
@@ -164,58 +161,6 @@ it.each([RecruitingDrafts, RecruitingSharing])(
     ).not.toBeInTheDocument();
   },
 );
-
-it('retains text, notes and completed uploads when reopening a failed JD submission', async () => {
-  jest.mocked(uploadRecruitingFile).mockResolvedValue({
-    fileId: 'fixture-file',
-    label: 'fixture.pdf',
-    role: 'primary',
-    uploadReceipt: 'fixture-receipt',
-  });
-  jest
-    .mocked(recruitingRequest)
-    .mockRejectedValueOnce(new Error('Temporary failure'))
-    .mockResolvedValueOnce({ intakeId: 'accepted' });
-  render(
-    <RecruitingCompanyJobs
-      onSubmitted={jest.fn()}
-      onIntakeChange={jest.fn()}
-    />,
-  );
-  fireEvent.click(screen.getByRole('button', { name: '公司:choose' }));
-  expect(screen.queryByRole('button', { name: '新建公司' })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: '下一步：添加材料' }));
-  const [text, note] = screen.getAllByRole('textbox');
-  fireEvent.change(text, { target: { value: 'Original full JD' } });
-  fireEvent.change(note, { target: { value: 'Original operator note' } });
-  fireEvent.change(screen.getByLabelText('添加岗位文件'), {
-    target: { files: [new File(['fixture'], 'fixture.pdf')] },
-  });
-  fireEvent.click(screen.getByRole('button', { name: '整理并预览岗位' }));
-  await screen.findByText('Temporary failure');
-
-  const firstInput = JSON.parse(
-    jest.mocked(recruitingRequest).mock.calls[0][1]!.body as string,
-  );
-  fireEvent.click(screen.getByRole('button', { name: '重新编辑材料' }));
-  expect(text).toHaveValue('Original full JD');
-  expect(note).toHaveValue('Original operator note');
-  expect(text).not.toBeDisabled();
-  expect(screen.getByText('fixture.pdf')).toBeInTheDocument();
-  fireEvent.change(text, { target: { value: 'Corrected full JD' } });
-  fireEvent.click(screen.getByRole('button', { name: '整理并预览岗位' }));
-  await waitFor(() => expect(recruitingRequest).toHaveBeenCalledTimes(2));
-  const secondInput = JSON.parse(
-    jest.mocked(recruitingRequest).mock.calls[1][1]!.body as string,
-  );
-  expect(secondInput).toMatchObject({
-    text: 'Corrected full JD',
-    note: firstInput.note,
-    files: firstInput.files,
-  });
-  expect(secondInput.idempotencyKey).not.toBe(firstInput.idempotencyKey);
-  expect(uploadRecruitingFile).toHaveBeenCalledTimes(1);
-});
 
 it.each([
   ['EXCLUDED', '明确条件冲突', '只接受全职，岗位仅接受实习'],

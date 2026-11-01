@@ -65,8 +65,8 @@ export const RecruitingWorkspacePage = () => {
             <Tabs.List aria-label={t`招聘工作区`}>
               <Tabs.Tab value="companies">{t`公司与岗位`}</Tabs.Tab>
               <Tabs.Tab value="resumes">{t`简历入库`}</Tabs.Tab>
-              <Tabs.Tab value="mail">{t`邮件`}</Tabs.Tab>
               <Tabs.Tab value="matches">{t`匹配结果`}</Tabs.Tab>
+              <Tabs.Tab value="mail">{t`邮件列表`}</Tabs.Tab>
               <Tabs.Indicator />
             </Tabs.List>
             <Select
@@ -100,6 +100,7 @@ export const RecruitingWorkspacePage = () => {
                   })
                 }
                 initialIntakeId={params.get('intakeId') ?? undefined}
+                onOpenQueue={() => setQueueOpen(true)}
                 onSubmitted={() => setHasNewTasks(true)}
                 onIntakeChange={(id) =>
                   setParams((current) => {

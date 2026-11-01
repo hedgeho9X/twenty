@@ -1,6 +1,7 @@
 /** Checks original batch materials, live operator name edits and advisory duplicate links without model requests. */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RecruitingCompanyJobs } from '@/recruiting/components/RecruitingCompanyJobs';
+import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
 
 jest.mock('@/recruiting/hooks/useRecruitingQuery');
@@ -67,13 +68,16 @@ jest.mock('twenty-ui/primitives/input', () => ({
     onValueChange,
     readOnly,
     disabled,
+    'aria-label': ariaLabel,
   }: {
     value: string;
     onValueChange?: (value: string) => void;
     readOnly?: boolean;
     disabled?: boolean;
+    'aria-label'?: string;
   }) => (
     <textarea
+      aria-label={ariaLabel}
       value={value}
       readOnly={readOnly}
       disabled={disabled}
@@ -82,104 +86,85 @@ jest.mock('twenty-ui/primitives/input', () => ({
   ),
 }));
 
-const source = '原始输入<script>not executed</script>';
-const draft = {
-  title: '后端工程师',
-  description: '维护服务',
-  preferences: '',
-  category: null,
-  employmentTypes: [],
-  workModes: [],
-  locations: [],
-  needsReview: false,
-  reviewNotes: [],
-};
-let jobItems: {
-  itemId: string;
-  jobId: string;
-  status: string;
-  draft: typeof draft;
-}[];
-
 beforeEach(() => {
-  jobItems = [{ itemId: 'item', jobId: 'new-job', status: 'DRAFT', draft }];
+  jest.resetAllMocks();
   jest.mocked(useRecruitingQuery).mockImplementation((path) => ({
     data:
-      path === 'resume-intakes/intake'
-        ? {
-            intakeId: 'intake',
-            files: [{ fileId: 'file', label: 'source.pdf' }],
-            detail: {
-              input: {
-                companyId: 'company',
-                files: [{ fileId: 'file', label: 'source.pdf' }],
-                text: source,
-                note: '原始补充说明',
-              },
-              jobItems,
-              previewExistingJobs: [
-                {
-                  id: 'existing',
-                  name: '后端工程师',
-                  companyId: 'company',
-                  jobStatus: 'CLOSED',
-                },
-              ],
-              duplicateCheck: { status: 'COMPLETE', checked: 1, total: 1 },
-            },
-          }
+      path === 'resume-intakes/existing'
+        ? { intakeId: 'existing', detail: { input: { companyId: 'company' } } }
         : path === 'companies/company'
           ? { id: 'company', name: '合成公司' }
           : undefined,
-    error: '',
     loading: false,
+    error: '',
     reload: jest.fn(),
   }));
 });
 
-it('shows batch originals separately and recalculates name hints as the operator edits', () => {
+it('uses two text-only steps, queues every JD independently, and retries only the failed entry', async () => {
+  const onSubmitted = jest.fn();
+  jest
+    .mocked(recruitingRequest)
+    .mockResolvedValueOnce({ intakeId: 'first' })
+    .mockRejectedValueOnce(new Error('temporary failure'))
+    .mockResolvedValueOnce({ intakeId: 'second' });
   const { container } = render(
     <RecruitingCompanyJobs
-      initialIntakeId="intake"
-      onSubmitted={jest.fn()}
+      initialIntakeId="existing"
+      onSubmitted={onSubmitted}
       onIntakeChange={jest.fn()}
     />,
   );
-  expect(screen.getByText('本批材料来源')).toBeTruthy();
-  expect(screen.getByText('source.pdf')).toBeTruthy();
-  expect(screen.getByDisplayValue(source)).toHaveAttribute('readonly');
-  expect(screen.getByDisplayValue('原始补充说明')).toHaveAttribute('readonly');
-  expect(container.querySelector('script')).toBeNull();
-  expect(screen.getByText('公司已有同名岗位')).toBeTruthy();
-  expect(screen.getByRole('link', { name: '后端工程师' })).toHaveAttribute(
-    'href',
-    '/object/recruitmentJob/existing',
+  expect(screen.queryByText('3. 核对并确认岗位')).toBeNull();
+  expect(container.querySelector('input[type=file]')).toBeNull();
+  fireEvent.change(screen.getByRole('textbox', { name: '岗位描述 1' }), {
+    target: { value: '第一份完整 JD' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '再添加一个 JD' }));
+  fireEvent.change(screen.getByRole('textbox', { name: '岗位描述 2' }), {
+    target: { value: '第二份完整 JD' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '提交到队列' }));
+  await screen.findByText('temporary failure');
+  expect(screen.getByText('已加入队列')).toBeInTheDocument();
+  expect(onSubmitted).toHaveBeenCalledTimes(1);
+  const first = JSON.parse(
+    jest.mocked(recruitingRequest).mock.calls[0][1]!.body as string,
   );
-  expect(screen.getByText('已停招')).toBeTruthy();
-  expect(screen.getByText(/未写明：岗位方向/)).toBeTruthy();
-  fireEvent.change(screen.getByDisplayValue('后端工程师'), {
-    target: { value: '产品经理' },
+  const second = JSON.parse(
+    jest.mocked(recruitingRequest).mock.calls[1][1]!.body as string,
+  );
+  expect(first).toMatchObject({
+    companyId: 'company',
+    text: '第一份完整 JD',
+    source: 'manual',
   });
-  expect(screen.queryByText('公司已有同名岗位')).toBeNull();
-  fireEvent.change(screen.getByDisplayValue('产品经理'), {
-    target: { value: '后端工程师' },
-  });
-  expect(screen.getByText('公司已有同名岗位')).toBeTruthy();
-  expect(
-    screen.getByRole('button', { name: '确认本批岗位' }),
-  ).not.toBeDisabled();
+  expect(second.text).toBe('第二份完整 JD');
+  expect(first.batchId).toBe(second.batchId);
+  expect(first.idempotencyKey).not.toBe(second.idempotencyKey);
+  fireEvent.click(screen.getByRole('button', { name: '提交到队列' }));
+  await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(2));
+  const retried = JSON.parse(
+    jest.mocked(recruitingRequest).mock.calls[2][1]!.body as string,
+  );
+  expect(retried).toEqual(second);
+  expect(screen.getAllByText('已加入队列')).toHaveLength(2);
 });
 
-it('keeps batch originals visible before extraction has produced any preview item', () => {
-  jobItems = [];
+it('preserves all draft JD text when navigating back to the selected company', () => {
   render(
     <RecruitingCompanyJobs
-      initialIntakeId="intake"
+      initialIntakeId="existing"
       onSubmitted={jest.fn()}
       onIntakeChange={jest.fn()}
     />,
   );
-  expect(screen.getByText('本批材料来源')).toBeTruthy();
-  expect(screen.getByDisplayValue(source)).toHaveAttribute('readonly');
-  expect(screen.queryByRole('button', { name: '确认本批岗位' })).toBeNull();
+  fireEvent.change(screen.getByRole('textbox', { name: '岗位描述 1' }), {
+    target: { value: '保留的岗位正文' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '返回选择公司' }));
+  fireEvent.click(screen.getByRole('button', { name: '下一步：填写 JD' }));
+  expect(screen.getByRole('textbox', { name: '岗位描述 1' })).toHaveValue(
+    '保留的岗位正文',
+  );
 });
