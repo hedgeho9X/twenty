@@ -8,7 +8,7 @@ import {
   StyledRecruitingError,
   StyledRecruitingMuted,
   StyledRecruitingRow,
-  StyledRecruitingScroll,
+  StyledRecruitingChoices,
   StyledRecruitingStack,
 } from '@/recruiting/components/recruitingStyles';
 
@@ -67,8 +67,8 @@ export const RecruitingRecordPicker = <T extends { id: string }>({
               {query.error}
             </StyledRecruitingError>
           )}
-          <StyledRecruitingScroll>
-            {query.data?.records.map((record) => (
+          <StyledRecruitingChoices>
+            {query.data?.records.slice(0, 8).map((record) => (
               <Button
                 key={record.id}
                 variant="ghost"
@@ -79,14 +79,15 @@ export const RecruitingRecordPicker = <T extends { id: string }>({
                 {renderHint?.(record) && ` · ${renderHint(record)}`}
               </Button>
             ))}
-          </StyledRecruitingScroll>
+          </StyledRecruitingChoices>
           {query.loading && (
             <StyledRecruitingMuted>{t`正在查找…`}</StyledRecruitingMuted>
           )}
           {!query.loading && query.data && !query.data.records.length && (
             <StyledRecruitingMuted>{t`没有找到对应记录，请修改搜索内容。`}</StyledRecruitingMuted>
           )}
-          {query.data?.hasNextPage && (
+          {(query.data?.hasNextPage ||
+            (query.data?.records.length ?? 0) > 8) && (
             <StyledRecruitingMuted>{t`还有更多记录，请继续输入名称缩小范围。`}</StyledRecruitingMuted>
           )}
         </StyledRecruitingStack>

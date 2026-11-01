@@ -9,6 +9,11 @@ jest.mock('@/recruiting/components/RecruitingContracts', () => ({
   RecruitingContracts: () => null,
 }));
 jest.mock('@/recruiting/components/recruitingStyles', () => ({
+  StyledRecruitingForm: 'div',
+  StyledRecruitingSteps: 'nav',
+  StyledRecruitingChoices: 'div',
+  StyledRecruitingStatus: 'span',
+  StyledRecruitingJobHover: 'div',
   StyledRecruitingError: 'div',
   StyledRecruitingMuted: 'p',
   StyledRecruitingPanel: 'section',
