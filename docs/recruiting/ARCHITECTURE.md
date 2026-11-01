@@ -35,7 +35,7 @@
 
 ## 4. 实习生界面
 
-- 公司与岗位：选公司 → 可就地建公司 → 添加/粘贴多份 JD → 预览列表逐行确认 → 批量提交与逐项进度。
+- 公司与岗位：选公司 → 可就地建公司 → 填写多条 JD 文字 → 提交后台队列 → 自动解析建岗与逐项进度。
 - 候选人：添加材料和可选说明 → 提交 → 队列查看阶段和失败 → 打开 Twenty 候选人记录。
 - 匹配：候选人/岗位两种视角共享结果；详情显示双方职业材料、公司上下文、明确冲突、待确认和模型能力分。
 - 多文件和批量编辑使用正常页面，不做层层弹窗；短进度查看保留队列弹窗。
@@ -76,3 +76,12 @@ CLIProxyAPI 同时包含旧 Codex OAuth 与 SIWC 实现，作为对照；必要�
 官方RichTextFieldEditor保存的是tiptap JSON，并将markdown/blocknote置空。招聘读取器原先只取markdown，会遗漏原生编辑后的JD、公司或岗位招聘偏好；当前复用twenty-shared的原生TipTap解析/Markdown转换和旧BlockNote转换，先读有效当前文档，再读旧格式，纯文本和原Markdown输入保持原值。编辑器元数据不作为招聘事实导出，转换后仍执行联系方式及带凭据URL的最小化。
 
 显式清空的原生正文或偏好保留为空，不再因逻辑或运算恢复旧recruitingProfile快照；仅原生字段未填充时保留历史profile兼容。新正文进入内容版本与公司版本，已有原生事件监听据此增量排队，不需要另起监听器或重跑无关组合。3套35项上下文/变更监听/匹配回归通过，包含格式、清空、脱敏及原生变更排队用例；服务端tsgo与相关lint通过。API39/worker33已重建加载，编译模块的原生偏好与清空正文回读已验证；随后本地邮件端到端也在该版本完成。
+
+
+## 代码目录与依赖入口
+
+- [前端业务目录](../../packages/twenty-front/src/modules/recruiting/README.md)：按公司/岗位、入库、邮件、队列、匹配、草稿、门户、跟进拆分，组件、类型和单域测试相邻；跨业务通用能力在 shared。
+- [服务端业务目录](../../packages/twenty-server/src/modules/recruiting/README.md)：api/auth、intake/files/ai、mail、matching、portal、drafts、activities、records 和共享锁分别归组。recruiting.module.ts 保留单一 Nest 组装入口，任务名和路由不随文件位置变化。
+- 例如旧 recruiting-intake.service.ts 位于 `intake/intake.service.ts`；旧 RecruitingMailSources.tsx 位于 `mail/components/MailList.tsx`。文件名减少重复模块前缀，现有导出类名保持稳定。
+
+本次重组只调整文件位置、引用、文档和相应测试路径，不改变接收、解析、评分或持久化协议。CLI 验收脚本中的编译产物路径也跟随业务目录更新。
