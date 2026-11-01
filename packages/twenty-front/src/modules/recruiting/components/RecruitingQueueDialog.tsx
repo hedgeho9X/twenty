@@ -1,49 +1,36 @@
-/** Shows short-lived progress views backed by persistent intake records, with explicit error recovery. */
+/** Separates material processing from matching jobs in a compact, paginated queue with on-demand details. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
 import { Dialog } from 'twenty-ui/primitives/surfaces';
-import { Badge } from 'twenty-ui/primitives/data-display';
-import { IconRefresh } from 'twenty-ui/icon';
+import { IconRefresh, IconX } from 'twenty-ui/icon';
 import { type RecruitingIntake } from '@/recruiting/types/RecruitingIntake';
+import { type RecruitingMatchRun } from '@/recruiting/types/RecruitingMatchRun';
 import { type RecruitingPage } from '@/recruiting/types/RecruitingPage';
 import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
-import { RecruitingMaterialLinks } from '@/recruiting/components/RecruitingMaterialLinks';
+import {
+  recruitingChannelLabel,
+  recruitingTaskLabel,
+  recruitingTaskTone,
+} from '../utils/taskLabels';
+import { RecruitingTaskDetail } from './RecruitingTaskDetail';
 import {
   recruitingDialogClass,
   StyledRecruitingError,
   StyledRecruitingMuted,
   StyledRecruitingRow,
-  StyledRecruitingScroll,
+  StyledRecruitingStatus,
   StyledRecruitingTable,
-} from '@/recruiting/components/recruitingStyles';
+  StyledRecruitingDenseQueue,
+} from './recruitingStyles';
 
-/** Presents business stages rather than implementation queue or model identifiers. */
-const stageLabel = (intake: RecruitingIntake) => {
-  const labels: Record<string, string> = {
-    QUEUED: t`排队中`,
-    PARSING: t`解析文件`,
-    EXTRACTING: t`整理资料`,
-    EXTRACTED: t`资料已整理`,
-    COPYING_FILES: t`保存附件`,
-    STORED: t`已入库`,
-    AWAITING_CONFIRMATION: t`待确认岗位`,
-    FAILED: t`需要处理`,
-    IDENTITY_REVIEW: t`需要核对候选人身份`,
-    MATERIAL_REVIEW: t`需要核对材料类型`,
-    CONFIRMATION_PARTIAL: t`部分岗位待修正`,
-    DISCARDED: t`已结束，未导入`,
-  };
-  return labels[intake.stage] ?? intake.stage;
-};
-
-/** Durable processing states can outlive a stopped worker; the server decides whether work is still in flight. */
+/** Nonterminal material jobs may need recovery, but awaiting operator confirmation is not a worker failure. */
 const canResumeIntake = (intake: RecruitingIntake) =>
   ['READY', 'PROCESSING'].includes(intake.state) &&
   intake.stage !== 'AWAITING_CONFIRMATION';
 
-/** Keeps detailed bulk editing outside this popup; accepted tasks remain available after refresh. */
+/** Displays the saved source and actual job state without equating stored material with completed matching. */
 export const RecruitingQueueDialog = ({
   open,
   onOpenChange,
@@ -51,22 +38,34 @@ export const RecruitingQueueDialog = ({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) => {
+  const [kind, setKind] = useState<'intake' | 'match'>('intake');
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState('');
   const [retryingId, setRetryingId] = useState<string>();
-  const query = useRecruitingQuery<RecruitingPage<RecruitingIntake>>(
-    open ? `resume-intakes?offset=${offset}` : null,
+  const [selected, setSelected] = useState<{
+    kind: 'intake' | 'match';
+    id: string;
+  }>();
+  const query = useRecruitingQuery<
+    RecruitingPage<RecruitingIntake & RecruitingMatchRun>
+  >(
+    open
+      ? `${kind === 'intake' ? 'resume-intakes' : 'match-runs'}?offset=${offset}`
+      : null,
     open ? 5000 : 0,
   );
+  const page = query.error ? undefined : query.data;
+  const pageCount = Math.max(1, Math.ceil((page?.count ?? 0) / 50));
+  /** Recovery stays an explicit queue action and reuses the existing durable task. */
   const retry = async (id: string) => {
     if (retryingId) return;
     setRetryingId(id);
+    setError('');
     try {
-      setError('');
-      await recruitingRequest(`resume-intakes/${id}/retry`, {
-        method: 'POST',
-        body: '{}',
-      });
+      await recruitingRequest(
+        `${kind === 'intake' ? 'resume-intakes' : 'match-runs'}/${id}/retry`,
+        { method: 'POST', body: '{}' },
+      );
       await query.reload();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : t`暂时无法重试`);
@@ -75,18 +74,69 @@ export const RecruitingQueueDialog = ({
     }
   };
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(value) => {
+        if (!value) setSelected(undefined);
+        onOpenChange(value);
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Backdrop />
         <Dialog.Viewport>
           <div className={recruitingDialogClass}>
             <Dialog.Popup size="xl">
               <Dialog.Header>
-                <Dialog.Title>{t`处理队列`}</Dialog.Title>
-                <Dialog.Description>{t`接收成功后会继续后台处理。材料入库与匹配分开进行，匹配失败不会删除候选人。`}</Dialog.Description>
+                <StyledRecruitingRow
+                  style={{ justifyContent: 'space-between' }}
+                >
+                  <Dialog.Title>{t`处理队列`}</Dialog.Title>
+                  <StyledRecruitingRow>
+                    <Button
+                      variant="ghost"
+                      aria-label={t`刷新队列`}
+                      disabled={query.loading}
+                      onClick={() => {
+                        void query.reload();
+                      }}
+                    >
+                      <IconRefresh size={16} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      aria-label={t`关闭队列`}
+                      onClick={() => {
+                        setSelected(undefined);
+                        onOpenChange(false);
+                      }}
+                    >
+                      <IconX size={16} />
+                    </Button>
+                  </StyledRecruitingRow>
+                </StyledRecruitingRow>
+                <StyledRecruitingRow>
+                  <Button
+                    variant={kind === 'intake' ? 'soft' : 'ghost'}
+                    aria-pressed={kind === 'intake'}
+                    onClick={() => {
+                      setKind('intake');
+                      setOffset(0);
+                    }}
+                  >{t`材料处理`}</Button>
+                  <Button
+                    variant={kind === 'match' ? 'soft' : 'ghost'}
+                    aria-pressed={kind === 'match'}
+                    onClick={() => {
+                      setKind('match');
+                      setOffset(0);
+                    }}
+                  >{t`岗位匹配`}</Button>
+                </StyledRecruitingRow>
               </Dialog.Header>
               <Dialog.Body>
-                {query.data?.records.some(canResumeIntake) && (
+                {page?.records.some(
+                  (row) => kind === 'intake' && canResumeIntake(row),
+                ) && (
                   <StyledRecruitingMuted>{t`长时间没有进展时可尝试恢复；仍在运行的任务会继续等待`}</StyledRecruitingMuted>
                 )}
                 {(query.error || error) && (
@@ -94,113 +144,127 @@ export const RecruitingQueueDialog = ({
                     {error || query.error}
                   </StyledRecruitingError>
                 )}
-                <StyledRecruitingScroll>
+                <StyledRecruitingDenseQueue>
                   <StyledRecruitingTable>
                     <thead>
                       <tr>
-                        <th>{t`材料`}</th>
-                        <th>{t`进度`}</th>
-                        <th>{t`处理结果`}</th>
+                        <th>{t`名称`}</th>
+                        <th>{t`类型`}</th>
+                        <th>{t`渠道`}</th>
+                        <th>{t`时间`}</th>
+                        <th>{kind === 'intake' ? t`材料状态` : t`匹配状态`}</th>
+                        {kind === 'match' && <th>{t`进度`}</th>}
+                        <th>{t`详情`}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {query.data?.records.map((intake) => (
-                        <tr key={intake.intakeId}>
-                          <td>
-                            <strong>
-                              {intake.name?.replace('[recruiting-v2] ', '')}
-                            </strong>
-                            <StyledRecruitingMuted>
-                              {new Date(intake.createdAt).toLocaleString()}
-                            </StyledRecruitingMuted>
-                            {Boolean(intake.files?.length) && (
-                              <details>
-                                <summary>{t`材料原件（${intake.files?.length ?? 0}）`}</summary>
-                                <RecruitingMaterialLinks
-                                  intakeId={intake.intakeId}
-                                  files={intake.files}
-                                />
-                              </details>
+                      {page?.records.map((row) => {
+                        const id = kind === 'intake' ? row.intakeId : row.runId;
+                        const state =
+                          kind === 'intake' ? row.stage : row.status;
+                        const direction =
+                          kind === 'intake'
+                            ? row.kind === 'JOB'
+                              ? 'JOB_TO_CANDIDATES'
+                              : 'CANDIDATE_TO_JOBS'
+                            : row.direction;
+                        const recover =
+                          kind === 'intake'
+                            ? canResumeIntake(row) ||
+                              (row.state === 'NEEDS_REVIEW' &&
+                                row.stage !== 'AWAITING_CONFIRMATION')
+                            : ['FAILED', 'PARTIAL'].includes(row.status);
+                        return (
+                          <tr key={id}>
+                            <td title={row.name ?? row.subjectLabel}>
+                              {kind === 'intake'
+                                ? row.name?.replace('[recruiting-v2] ', '')
+                                : row.subjectLabel}
+                            </td>
+                            <td>
+                              {direction === 'JOB_TO_CANDIDATES'
+                                ? t`岗找人`
+                                : direction === 'PAIR'
+                                  ? t`指定匹配`
+                                  : t`人找岗`}
+                            </td>
+                            <td>{recruitingChannelLabel(row.source)}</td>
+                            <td>{new Date(row.createdAt).toLocaleString()}</td>
+                            <td>
+                              <StyledRecruitingStatus
+                                data-tone={recruitingTaskTone(state)}
+                              >
+                                {recruitingTaskLabel(state)}
+                              </StyledRecruitingStatus>
+                            </td>
+                            {kind === 'match' && (
+                              <td>
+                                {row.counts.processed}/{row.counts.total}
+                              </td>
                             )}
-                          </td>
-                          <td>
-                            <Badge>{stageLabel(intake)}</Badge>
-                            {intake.error && (
-                              <StyledRecruitingMuted>
-                                {intake.error}
-                              </StyledRecruitingMuted>
-                            )}
-                          </td>
-                          <td>
-                            <StyledRecruitingRow>
-                              {intake.recordUrl && (
-                                <a href={intake.recordUrl}>{t`打开记录`}</a>
-                              )}
-                              {intake.kind === 'JOB' &&
-                                [
-                                  'AWAITING_CONFIRMATION',
-                                  'CONFIRMATION_PARTIAL',
-                                ].includes(intake.stage) && (
-                                  <a
-                                    href={`/recruiting-workspace?tab=companies&intakeId=${intake.intakeId}`}
-                                  >{t`打开岗位预览`}</a>
-                                )}
-                              {(canResumeIntake(intake) ||
-                                (intake.state === 'NEEDS_REVIEW' &&
-                                  intake.stage !==
-                                    'AWAITING_CONFIRMATION')) && (
+                            <td>
+                              <StyledRecruitingRow>
                                 <Button
                                   size="sm"
-                                  disabled={Boolean(retryingId)}
-                                  loading={retryingId === intake.intakeId}
-                                  onClick={() => {
-                                    void retry(intake.intakeId);
-                                  }}
-                                >
-                                  {canResumeIntake(intake)
-                                    ? t`恢复处理`
-                                    : t`重试`}
-                                </Button>
-                              )}
-                            </StyledRecruitingRow>
-                            {intake.matchingError && (
-                              <StyledRecruitingMuted>
-                                {intake.matchingError}
-                              </StyledRecruitingMuted>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                                  variant="ghost"
+                                  onClick={() => setSelected({ kind, id })}
+                                >{t`详情`}</Button>
+                                {recover && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    disabled={Boolean(retryingId)}
+                                    loading={retryingId === id}
+                                    onClick={() => {
+                                      void retry(id);
+                                    }}
+                                  >
+                                    {kind === 'intake' && canResumeIntake(row)
+                                      ? t`恢复处理`
+                                      : t`重试`}
+                                  </Button>
+                                )}
+                              </StyledRecruitingRow>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </StyledRecruitingTable>
-                </StyledRecruitingScroll>
-                {!query.loading && !query.data?.records.length && (
-                  <StyledRecruitingMuted>{t`还没有材料处理任务。`}</StyledRecruitingMuted>
+                </StyledRecruitingDenseQueue>
+                {!query.loading && !page?.records.length && (
+                  <StyledRecruitingMuted>{t`暂无处理任务`}</StyledRecruitingMuted>
                 )}
               </Dialog.Body>
               <Dialog.Footer>
-                <StyledRecruitingRow>
+                <StyledRecruitingRow
+                  style={{ justifyContent: 'center', width: '100%' }}
+                >
                   <Button
-                    startIcon={<IconRefresh size={14} />}
-                    onClick={() => {
-                      void query.reload();
-                    }}
-                  >{t`刷新`}</Button>
-                  <Button
-                    disabled={offset === 0}
+                    disabled={!offset}
                     onClick={() => setOffset(Math.max(0, offset - 50))}
                   >{t`上一页`}</Button>
+                  <span>
+                    {Math.floor(offset / 50) + 1} / {pageCount} {t`页`} ·{' '}
+                    {t`共`} {page?.count ?? 0} {t`条`}
+                  </span>
                   <Button
-                    disabled={!query.data?.hasNextPage}
+                    disabled={!page?.hasNextPage}
                     onClick={() => setOffset(offset + 50)}
                   >{t`下一页`}</Button>
                 </StyledRecruitingRow>
-                <Dialog.Close render={<Button>{t`关闭`}</Button>} />
               </Dialog.Footer>
             </Dialog.Popup>
           </div>
         </Dialog.Viewport>
       </Dialog.Portal>
+      {selected && open && (
+        <RecruitingTaskDetail
+          kind={selected.kind}
+          id={selected.id}
+          onClose={() => setSelected(undefined)}
+        />
+      )}
     </Dialog.Root>
   );
 };

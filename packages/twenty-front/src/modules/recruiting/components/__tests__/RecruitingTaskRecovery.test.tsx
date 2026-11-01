@@ -25,6 +25,8 @@ jest.mock('@/recruiting/components/recruitingStyles', () => ({
   StyledRecruitingChoices: 'div',
   StyledRecruitingStatus: 'span',
   StyledRecruitingJobHover: 'div',
+  StyledRecruitingSticky: 'div',
+  StyledRecruitingDenseQueue: 'div',
   StyledRecruitingError: 'div',
   StyledRecruitingMuted: 'p',
   StyledRecruitingPanel: 'section',
@@ -34,7 +36,10 @@ jest.mock('@/recruiting/components/recruitingStyles', () => ({
   StyledRecruitingTable: 'table',
   StyledRecruitingTitle: 'h2',
 }));
-jest.mock('twenty-ui/icon', () => ({ IconRefresh: () => null }));
+jest.mock('twenty-ui/icon', () => ({
+  IconRefresh: () => null,
+  IconX: () => null,
+}));
 jest.mock('twenty-ui/primitives/data-display', () => ({ Badge: 'span' }));
 jest.mock('twenty-ui/primitives/surfaces', () => ({
   Dialog: {
@@ -59,13 +64,19 @@ jest.mock('twenty-ui/primitives/input', () => ({
     onClick,
     disabled,
     loading,
+    'aria-label': ariaLabel,
   }: {
     children: React.ReactNode;
     onClick: () => void;
     disabled?: boolean;
     loading?: boolean;
+    'aria-label'?: string;
   }) => (
-    <button disabled={disabled || loading} onClick={onClick}>
+    <button
+      aria-label={ariaLabel}
+      disabled={disabled || loading}
+      onClick={onClick}
+    >
       {children}
     </button>
   ),
@@ -162,7 +173,12 @@ it('downloads a queued original with authentication and keeps download failures 
   jest
     .mocked(downloadRecruitingArtifact)
     .mockRejectedValueOnce(new Error('denied'));
-  fireEvent.click(screen.getByText('材料原件（1）'));
+  queryData['resume-intakes/fixture'] = {
+    ...((queryData['resume-intakes?offset=0'] as { records: unknown[] })
+      .records[0] as object),
+    detail: { extraction: { profile: { name: '合成候选人' } } },
+  };
+  fireEvent.click(screen.getByRole('button', { name: '详情' }));
   fireEvent.click(screen.getByRole('button', { name: '下载' }));
   await waitFor(() =>
     expect(screen.getByRole('alert')).toHaveTextContent('denied'),
@@ -172,6 +188,7 @@ it('downloads a queued original with authentication and keeps download failures 
     'resume.html',
   );
   expect(screen.queryByRole('link', { name: 'resume.html' })).toBeNull();
+  expect(screen.getByText(/合成候选人/)).toBeInTheDocument();
   jest.mocked(downloadRecruitingArtifact).mockResolvedValueOnce(undefined);
   fireEvent.click(screen.getByRole('button', { name: '下载' }));
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
@@ -358,3 +375,48 @@ it.each(['intake', 'mail', 'draft'] as const)(
     ).not.toBeInTheDocument();
   },
 );
+
+it('opens mail as a separate view with a reliable back action and no manual EML upload', () => {
+  renderTask('mail', 'READY');
+  expect(
+    screen.getByRole('button', { name: '返回邮件列表' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: '已接收邮件' })).toBeNull();
+  expect(screen.queryByLabelText('选择完整EML邮件')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '返回邮件列表' }));
+  expect(
+    screen.getByRole('heading', { name: '已接收邮件' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '返回邮件列表' })).toBeNull();
+});
+
+it('separates match tasks from material tasks and displays pages, channel and time', () => {
+  queryData['resume-intakes?offset=0'] = {
+    records: [],
+    count: 0,
+    hasNextPage: false,
+  };
+  queryData['match-runs?offset=0'] = {
+    records: [
+      {
+        runId: 'match',
+        subjectLabel: '合成候选人',
+        direction: 'CANDIDATE_TO_JOBS',
+        source: 'email',
+        status: 'PROCESSING',
+        createdAt: '2026-11-01T00:00:00Z',
+        counts: { processed: 2, total: 8 },
+      },
+    ],
+    count: 101,
+    hasNextPage: true,
+  };
+  render(<RecruitingQueueDialog open onOpenChange={jest.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: '岗位匹配' }));
+  expect(screen.getByText('合成候选人')).toBeInTheDocument();
+  expect(screen.getByText('邮件')).toBeInTheDocument();
+  expect(screen.getByText('匹配中')).toBeInTheDocument();
+  expect(screen.getByText(/1 \/ 3/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '刷新队列' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '关闭队列' })).toBeInTheDocument();
+});

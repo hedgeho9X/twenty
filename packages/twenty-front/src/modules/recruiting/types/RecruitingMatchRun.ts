@@ -8,6 +8,7 @@ export type RecruitingMatchRun = {
   subjectLabel?: string;
   expectedRoles?: string[];
   status: string;
+  source?: 'manual' | 'api' | 'email' | 'system';
   createdAt: string;
   reviewedAt?: string;
   error?: string;

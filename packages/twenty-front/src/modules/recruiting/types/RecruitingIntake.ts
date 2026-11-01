@@ -5,6 +5,7 @@ export type RecruitingIntake = {
   files?: { fileId: string; label: string }[];
   name?: string;
   kind: 'CANDIDATE' | 'JOB';
+  source?: 'manual' | 'api' | 'email';
   state: string;
   stage: string;
   error?: string;

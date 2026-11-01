@@ -20,20 +20,7 @@ import {
   StyledRecruitingStack,
   StyledRecruitingTable,
   StyledRecruitingTitle,
-  StyledRecruitingStatus,
 } from './recruitingStyles';
-
-/** Keeps the list status legible without repeating it inside completed subject details. */
-const runLabel = (status: string) =>
-  ({
-    QUEUED: t`排队中`,
-    PROCESSING: t`匹配中`,
-    COMPLETED: t`已完成`,
-    PARTIAL: t`部分结果`,
-    FAILED: t`需要处理`,
-    NO_RESULTS: t`暂无结果`,
-    SUPERSEDED: t`资料已更新`,
-  })[status] ?? status;
 
 /** Filters direction in the toolbar and preserves explicit warnings only when results are incomplete. */
 export const RecruitingMatchResults = ({
@@ -49,7 +36,7 @@ export const RecruitingMatchResults = ({
   const [offset, setOffset] = useState(0);
   const [direction, setDirection] = useState('CANDIDATE_TO_JOBS');
   const list = useRecruitingQuery<RecruitingPage<RecruitingMatchRun>>(
-    `match-runs?offset=${offset}&direction=${direction}`,
+    `match-runs?offset=${offset}&direction=${direction}&completed=true`,
     8000,
     active,
   );
@@ -212,8 +199,6 @@ export const RecruitingMatchResults = ({
             <tr>
               <th>{direction === 'JOB_TO_CANDIDATES' ? t`岗位` : t`姓名`}</th>
               {direction !== 'JOB_TO_CANDIDATES' && <th>{t`期望岗位`}</th>}
-              <th>{t`状态`}</th>
-              <th title={t`已处理组合数 / 本次匹配组合总数`}>{t`匹配进度`}</th>
               <th>{t`时间`}</th>
               <th />
             </tr>
@@ -238,26 +223,6 @@ export const RecruitingMatchResults = ({
                     </span>
                   </td>
                 )}
-                <td>
-                  <StyledRecruitingStatus
-                    data-tone={
-                      row.status === 'COMPLETED'
-                        ? 'green'
-                        : row.status === 'FAILED'
-                          ? 'red'
-                          : ['PARTIAL', 'SUPERSEDED', 'NO_RESULTS'].includes(
-                                row.status,
-                              )
-                            ? 'yellow'
-                            : 'blue'
-                    }
-                  >
-                    {runLabel(row.status)}
-                  </StyledRecruitingStatus>
-                </td>
-                <td>
-                  {row.counts.processed} / {row.counts.total}
-                </td>
                 <td>{new Date(row.createdAt).toLocaleDateString()}</td>
                 <td>
                   <Button
