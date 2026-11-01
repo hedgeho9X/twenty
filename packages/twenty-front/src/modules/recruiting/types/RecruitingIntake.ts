@@ -1,6 +1,7 @@
 /** Intake receipts remain useful after worker jobs are removed from Redis. */
 export type RecruitingIntake = {
   intakeId: string;
+  batchId?: string;
   name?: string;
   kind: 'CANDIDATE' | 'JOB';
   state: string;

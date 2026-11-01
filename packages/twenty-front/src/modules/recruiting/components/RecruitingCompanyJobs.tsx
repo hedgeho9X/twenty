@@ -3,6 +3,10 @@ import { useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button, Field, Input, Textarea } from 'twenty-ui/primitives/input';
 import { IconBuildingSkyscraper, IconPlus, IconUpload } from 'twenty-ui/icon';
+import {
+  getRecruitingPreviewNameWarnings,
+  type RecruitingPreviewExistingJob,
+} from 'twenty-shared/utils';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
 import {
   recruitingRequest,
@@ -30,9 +34,16 @@ import {
 /** A refreshed preview keeps local edits separate from authoritative per-item server outcomes. */
 type JobIntakeDetail = RecruitingIntake & {
   detail: {
-    input: { companyId: string };
+    input: {
+      companyId: string;
+      files?: { fileId: string; label: string }[];
+      text?: string;
+      note?: string;
+    };
     jobItems: RecruitingJobItem[];
     extraction?: { profile: { reviewNotes: string[] } };
+    previewExistingJobs?: RecruitingPreviewExistingJob[];
+    duplicateCheck?: { status: string; checked: number; total?: number };
   };
 };
 
@@ -86,6 +97,12 @@ export const RecruitingCompanyJobs = ({
   const actionable = items.filter(
     (item) => !['CREATED', 'DISCARDED'].includes(item.status),
   );
+  const previewNames = items.map((item) => ({
+    itemId: item.itemId,
+    jobId: item.jobId,
+    title: (overrides[item.itemId] ?? item.draft).title,
+    status: ignored.has(item.itemId) ? 'DISCARDED' : item.status,
+  }));
 
   /** Creates a company once without mutating the currently uploaded JD materials. */
   const saveCompany = async () => {
@@ -385,13 +402,58 @@ export const RecruitingCompanyJobs = ({
               {message}
             </StyledRecruitingMuted>
           ))}
-          {items.map((item) => (
+          {query.data && (
+            <details>
+              <summary>{t`本批材料来源`}</summary>
+              <StyledRecruitingStack>
+                {(query.data.detail.input.files ?? []).map((file) => (
+                  <StyledRecruitingMuted key={file.fileId}>
+                    {file.label}
+                  </StyledRecruitingMuted>
+                ))}
+                {query.data.detail.input.text && (
+                  <Field.Root>
+                    <Field.Label>{t`提交的岗位原文`}</Field.Label>
+                    <Textarea
+                      value={query.data.detail.input.text}
+                      readOnly
+                      rows={5}
+                    />
+                  </Field.Root>
+                )}
+                {query.data.detail.input.note && (
+                  <Field.Root>
+                    <Field.Label>{t`提交的补充说明`}</Field.Label>
+                    <Textarea
+                      value={query.data.detail.input.note}
+                      readOnly
+                      rows={3}
+                    />
+                  </Field.Root>
+                )}
+                <StyledRecruitingMuted>{t`以上是本批输入材料，具体岗位来源请对照原文核对。`}</StyledRecruitingMuted>
+              </StyledRecruitingStack>
+            </details>
+          )}
+          {query.data?.detail.duplicateCheck?.status === 'UNAVAILABLE' && (
+            <StyledRecruitingError role="status">{t`暂时无法核对已有岗位名称，请对照公司记录人工确认。`}</StyledRecruitingError>
+          )}
+          {query.data?.detail.duplicateCheck?.status === 'PARTIAL' && (
+            <StyledRecruitingMuted>{t`已有岗位名称只完成部分核对，未提示不代表没有重复。`}</StyledRecruitingMuted>
+          )}
+          {items.map((item, index) => (
             <RecruitingJobDraftEditor
               key={item.itemId}
               item={item}
               draft={overrides[item.itemId] ?? item.draft}
               ignored={ignored.has(item.itemId)}
               busy={busy}
+              nameWarnings={getRecruitingPreviewNameWarnings(
+                previewNames[index],
+                previewNames,
+                query.data?.detail.previewExistingJobs ?? [],
+                query.data?.detail.input.companyId ?? '',
+              )}
               onChange={(draft) =>
                 setOverrides((current) => ({
                   ...current,

@@ -1,6 +1,6 @@
 # 恢复执行入口
 
-更新时间：2026-11-01 11:33，Asia/Shanghai。先读DELIVERY_GOAL.md与PROGRESS.md。完整目标active；用户已明确改为本地邮件服务验收，原真实邮箱观察已中止并恢复关闭。
+更新时间：2026-11-01 11:57，Asia/Shanghai。先读DELIVERY_GOAL.md与PROGRESS.md。完整目标active；用户已明确改为本地邮件服务验收，原真实邮箱观察已中止并恢复关闭。
 
 ## 1. 固定底座和边界
 
@@ -11,8 +11,8 @@
 
 ## 2. 运行版本
 
-- 已运行API39，PID75721/session25966；招聘worker33，PID75720/session93957；AI-only worker9，PID75719/session87782；front11915。这些仅为恢复定位，停止前必须lsof/ps/cwd重新核对。
-- 最新9604源码文件构建已加载邮件canonical ownership、明确autoMatch=false和f2b1416d原生TipTap/清空语义修复，B保持true；本地邮件host允许配置已加载。55d7643e本地门户/订阅代理修复也已生效，正常页面可读。
+- 已运行API40，PID80648/session94750；招聘worker34，PID80649/session79935；AI-only worker10，PID80650/session50671；front11915。这些仅为恢复定位，停止前必须lsof/ps/cwd重新核对。
+- 最新9604源码文件构建已加载邮件canonical ownership、明确autoMatch=false和f2b1416d原生TipTap/清空语义修复，B保持true；本地邮件host允许配置及JD批次来源/缺失项/同名预览已加载。55d7643e本地门户/订阅代理修复也已生效，正常页面可读。
 - 10:30已完成idle后精确停止/构建/重启与健康核对，前端/API/parser200。今后只有新服务端变化才重复构建；只招聘两队列+ai-queue，无旧同步/工作流/发送队列或cron。
 - .git写、精确SIGTERM及Ego操作需require_escalated；本地repo写与network权限须按当前turn核对；本轮已request_permissions授权。普通sandbox EPERM不等于自动审核拒绝。曾一条代理只读输出过宽遭审核拒绝，收窄为聚合及固定合成ID后已允许，无剩余阻塞。
 
@@ -71,3 +71,7 @@
 - 当前原生IMAP测试连接69bdf809…仅用于本地，不改原75b3ee21…；native连接经官方API加密，测试连接历史同步/自动联系人关闭。929联系人/501候选人为最新含fixture计数，原497人未全量重解析。
 - 最新服务端build加载f2b1416d并已重启API39/worker33/AI9（见上方PID），固定源码构建9604files。已证明原生TipTap偏好读取/清空JD不会复活旧profile，且本轮邮件全部运行于新版本。
 - 用户交回Ego空间15的异步问题尚未回复；p1已交用户、p2/p3关闭。不能自行takeOver或新空间恢复；新ChatGPT授权仍0。只有两处展示页面复验、本人订阅授权和业务质量核对尚待完成，不把本地邮件误记为外部自然邮件成功。
+
+## 9. 最新预览补充恢复点
+
+JD预览来源、缺失信息、动态同名提示与稳定batchId已实现；共享3项、服务端17项、前端相关套件、类型与lint检查通过，真实HTTP/MCP/CLI证据job-preview-native-evidence.json。新同名fixture为CLOSED，真实在招仍46，不重跑模型。新增展示仍待空间15交回后浏览器复验。后续逐项核对队列材料原件链接，勿把来源文件名等同于可下载链接。

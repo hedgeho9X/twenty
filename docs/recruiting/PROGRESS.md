@@ -420,3 +420,10 @@
 - finally关闭测试接入，回读两邮箱enabled=false，三队列waiting/active/delayed/prioritized及scheduler0，原生邮件/日历同步和旧ACTIVEworkflow0；929联系人/501候选人（本轮增加一位合成样例）。默认重跑命令已只读复验原任务成功，新投递/新模型请求0；--new-case显式新建场景并保留旧状态/原件。证据在私有mail-test/reception-evidence-v1.json、reception-supplement-v1.json、final-health-v1.json。
 - 最初汇总使用pageCount而实际接口为pages，原证据materialPages为空；已另存独立API补充证据确认pages2/all_pages，没有改写原报告。后续脚本已修正并加入两页断言。
 - 可复现工具及说明已本地提交c08c4e6b、e44938cb、dc849ae7；本地邮件门槛已勾完成。GreenMail继续运行便于开发，自动接入保持关闭。本人ChatGPT新授权、两处新增展示的页面验收和业务质量核对仍未完成；已异步请求用户交回空间15，尚无回复，不擅自恢复浏览器控制。
+
+## 11:57 JD 预览来源与核对补充
+
+- 逐条复核4.2.4/4.2.5，补齐原始批次来源、缺失字段及同名提示。共享规则供后端与本地编辑复用；不把相同名称当重复业务实体，不猜未知字段，不改已保存原件。缺公司不扩大为跨公司查询，角色不可见名称不泄露，超过200可见记录标PARTIAL，权限失败标UNAVAILABLE。
+- 未指定batchId的JOB回执稳定使用intakeId；HTTP/MCP/CLI均回读相同身份、批次来源和提示。新增CLOSED合成同名岗位775a50f5-0098-5c40-91e1-ec80dd064b2e，只在确定的合成公司下创建；175总岗，在招仍46真岗，无模型调用或岗位确认。私有job-preview-native-evidence.json全断言成立，原input/extraction/items状态checksum不变。
+- 共享规则3项、服务端3套17项、前端相关3套及等待态测试通过；两包tsgo、相关type-aware lint及翻译检查通过。共享包与server9604文件重新构建；API40/PID80648/session94750，招聘worker34/PID80649/session79935，AI10/PID80650/session50671，front11915。构建前核对无待处理OAuth与队列空闲。新源已在HTTP实际生效，默认本地邮件旧任务只读复验通过。
+- 新增UI尚未实际浏览器验收，原截图不能替代。空间15仍已handOff用户，未擅自takeOver；新SIWC连接0、无pending，未生成授权链接。当前仍保留新UI与本人订阅授权验收未完成。
