@@ -1,3 +1,4 @@
+import { useClientConfig } from '@/client-config/hooks/useClientConfig';
 import { TextInput } from '@/ui/input/components/TextInput';
 /** Configures registered business features and shows account-reported quota without exposing credentials. */
 import { useCallback, useEffect, useState } from 'react';
@@ -41,6 +42,7 @@ export const SettingsRecruitingAiTab = ({
 }: {
   kind: 'subscription' | 'jev';
 }) => {
+  const { refetch: refreshClientConfig } = useClientConfig();
   const [config, setConfig] = useState<FeatureConfig>();
   const [quota, setQuota] = useState<Quota>();
   const [quotaError, setQuotaError] = useState('');
@@ -104,10 +106,8 @@ export const SettingsRecruitingAiTab = ({
     }
   };
   const features =
-    config?.features.filter((feature) =>
-      kind === 'jev'
-        ? feature.kind === 'evaluation'
-        : feature.kind === 'language',
+    config?.features.filter(
+      (feature) => kind === 'subscription' && feature.kind === 'language',
     ) ?? [];
   const models = kind === 'jev' ? config?.evaluationModels : config?.models;
   return (
@@ -144,6 +144,7 @@ export const SettingsRecruitingAiTab = ({
                     setConfig(
                       await subscriptionRequest<FeatureConfig>('/features'),
                     );
+                    await refreshClientConfig();
                     setNotice(t`已同步 ${result.count} 个可用模型`);
                   })
                 }
@@ -216,7 +217,6 @@ export const SettingsRecruitingAiTab = ({
         ))}
         {kind === 'jev' && jev && (
           <StyledSubscriptionPanel>
-            <strong>{jev.providerName}</strong>
             <label>
               {t`服务地址`}
               <TextInput
@@ -246,24 +246,43 @@ export const SettingsRecruitingAiTab = ({
                 }}
               />
             </label>
-            <Button
-              disabled={busy}
-              onClick={() =>
-                void execute(async () => {
-                  setJev(
-                    await subscriptionRequest<JevConfig>('/jev', {
+            <StyledSubscriptionRow>
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void execute(async () => {
+                    const result = await subscriptionRequest<{
+                      elapsedMs: number;
+                    }>('/jev/test', {
                       method: 'POST',
                       body: JSON.stringify({
                         baseUrl,
                         ...(apiKey ? { apiKey } : {}),
                       }),
-                    }),
-                  );
-                  setApiKey('');
-                  setNotice(t`Jev 配置已保存`);
-                })
-              }
-            >{t`保存连接`}</Button>
+                    });
+                    setNotice(t`Jev 测试成功，耗时 ${result.elapsedMs} ms`);
+                  })
+                }
+              >{t`测试连接`}</Button>
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void execute(async () => {
+                    setJev(
+                      await subscriptionRequest<JevConfig>('/jev', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          baseUrl,
+                          ...(apiKey ? { apiKey } : {}),
+                        }),
+                      }),
+                    );
+                    setApiKey('');
+                    setNotice(t`Jev 配置已保存`);
+                  })
+                }
+              >{t`保存连接`}</Button>
+            </StyledSubscriptionRow>
           </StyledSubscriptionPanel>
         )}
       </StyledSubscriptionStack>

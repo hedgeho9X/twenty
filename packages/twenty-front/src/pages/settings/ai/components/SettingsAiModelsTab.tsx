@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useClientConfig } from '@/client-config/hooks/useClientConfig';
 import { t } from '@lingui/core/macro';
 import { AI_MODEL_TIERS, type AiModelTier } from 'twenty-shared/ai';
 import { Section } from 'twenty-ui/components/layout';
@@ -26,6 +28,10 @@ import { SettingsAiWorkspaceInstructionsSection } from '~/pages/settings/ai/comp
 import { useSettingsAiModelsActions } from '~/pages/settings/ai/hooks/useSettingsAiModelsActions';
 
 export const SettingsAiModelsTab = () => {
+  const { refetch } = useClientConfig();
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
   const currentWorkspace = useAtomStateValue(currentWorkspaceState);
   const aiModels = useAtomStateValue(aiModelsState);
   const tiers = useAiModelTiers();
