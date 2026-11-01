@@ -41,3 +41,17 @@ GET mailboxes仅列本人原生IMAP摘要；configure记录接入/自动整理�
 接收入队移到归档锁释放之后，避免worker立即领取时碰锁却伪成功。worker碰锁会抛可重试冲突，原生队列最多6次指数退避，5秒起、共7次尝试；业务失败仍保存原件与checkpoint。材料选项先规范排序，反向选择同一组文件复用相同输入与任务。
 
 后台每次附件I/O后保存checkpoint、完成状态或错误状态前重查当前执行身份；失效直接停止，不用旧权限写FAILED。恢复操作在同一归档锁内检查in-flight，活跃任务不覆盖checkpoint；停止后可由有权限的新调用者重绑并恢复，锁释放后再入队。相关邮件/草稿竞态和权限回归已通过；这些测试不证明自然新邮件已经到达。
+
+## 7. 原生文件归属与容量验收（2026-11-01）
+
+canonical 邮件资源现在绑定同一归档记录的九个原生 FILES 槽：`sourceFiles`、`sourceFiles2` 至 `sourceFiles9`，布局 v1 每槽60，总容量540，覆盖500附件加raw/metadata/text/HTML最多504项。全局原生60上限和临时文件、所属字段规则保持；各 intake 使用其自己的原生文件副本，不把一个永久 fileId 同时绑定给归档和多个 intake。九个字段和物理列已实际回读，该工作区 deferred action 独立核对为0行；元数据设置及回退边界见 `MAIL_FILE_FIELDS.md`。
+
+3份现有、当前本人可见且签名有效的归档，连同18份资源，已通过带锁的 `MailService.ensureCanonicalOwnership` 完成原生 copy/bind迁移。原件及资源迁移前后共42次SHA256对比一致，0缺原文、0签名过滤、0错误；归档ID/sourceHash/sources/intakeIds不变，未删除旧文件、重新解析或重新入队。私有证据为 `mail-file-ownership-evidence-v1.json`，范围不扩张到当前权限看不到的归档。
+
+真实正常worker处理了一封固定Message-ID/Date、含text/HTML和500个极小TXT附件的合成EML，得到504份artifacts，九槽分布为 `[60,60,60,60,60,60,60,60,24]`。所有canonical引用的原生字段分区、owner、永久与未删除标志均核对通过；原件SHA正确，容量邮件另做12份首尾/槽边界SHA抽样。小合成CV邮件的4份canonical资源全量SHA通过；同一简历加两种note分别产生不同intake，各保留4份raw/body/metadata/简历引用，与canonical及彼此没有fileId交叉，8份副本SHA全量通过。
+
+重复选材仍返回相同intake与父归档key/fileId绑定，旧归档 `f2c854b0-0bf5-5fc1-979a-2440dced6e04` 使用原note仍返回旧 `ead17ffe-3cf0-572f-b4d3-56995621ee0e`。verifier进程的真实调用计数显示这些重复请求没有新增copy或排队；该计数范围明确为 verifier-process-only，不能外推为后台没有活动。完整证据为 `mail-file-ownership-smoke-v1.json`。
+
+新邮件intake `51b6e6ea-a3e6-555f-9f8f-427aa6a1aa4c` 与 `d1d131fb-8a21-515b-825f-80aa9cc83e9e` 已另行通过本地GET回读为 `COMPLETED / STORED`，各4份文件，所选简历TXT和正文均为 `complete / text_only`，结构化模型为 `chatgpt-subscription/gpt-5.6-sol`。smoke使用external-native-worker模式，`parsingAcceptedOnly=true` 只限定验收脚本本身没有直接执行intake处理；后台实际解析/匹配的模型用量未测量，不能写成零模型或免费。
+
+这些结果证明完整合成邮件和文件归属链路通过，仍没有自然新邮件到达的观测；不得将合成EML、旧单封读取或空轮询当作自然新投递验收。
