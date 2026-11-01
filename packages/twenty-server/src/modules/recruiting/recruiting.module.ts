@@ -50,6 +50,7 @@ import { RecruitingPortalService } from './recruiting-portal.service';
 import { RecruitingActivityService } from './recruiting-activity.service';
 import { RecruitingContractsService } from './recruiting-contracts.service';
 import { RecruitingContractRecordsService } from './recruiting-contract-records.service';
+import { RecruitingCandidateRecordsService } from './recruiting-candidate-records.service';
 import { RecruitingPortalActionsService } from './recruiting-portal-actions.service';
 import { RecruitingShareConsentService } from './recruiting-share-consent.service';
 import { RecruitingPortalController } from './recruiting-portal.controller';
@@ -102,6 +103,7 @@ import { RecruitingPortalController } from './recruiting-portal.controller';
     RecruitingActivityService,
     RecruitingContractsService,
     RecruitingContractRecordsService,
+    RecruitingCandidateRecordsService,
     RecruitingPortalActionsService,
     RecruitingShareConsentService,
     ResumeIngestJob,

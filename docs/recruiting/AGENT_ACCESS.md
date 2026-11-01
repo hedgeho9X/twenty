@@ -43,3 +43,9 @@ MCP activity_note/activity_list和CLI activity note/list共用人工记录服务
 ## 6. 合同兼容入口
 
 MCP contract_status/contract_reminder与CLI contract status/reminder --company-id ID共用合同服务。已真实验证两项MCP success=true和CLI状态查询；使用原合成公司及稳定内部任务，不创建新外部合同。资料/签署写入仅当前负责人直接本人会话；Agent不能声明已经签署。详见CONTRACTS.md。
+
+## 7. 入库保存时的权限和并发
+
+明确指定candidateId时必须指向仍有CANDIDATE角色的联系人，不能受理普通联系人后假报入库成功。每次耗时解析/生成返回后的checkpoint及候选人写入前重新解析当前执行身份；撤销或到期会停止，不能沿用旧context写候选人或FAILED。
+
+候选人附件按原生完整版本条件合并，冲突重新读当前附件，保留两个并发提交及原有引用；人工姓名和偏好不被模型修改。服务层真实回归命令为node ops/recruiting/smoke-candidate-cas.mjs，只操作确定合成资料、走原生上传/复制/ORM，禁该测试进程的自动匹配，不调用模型。它不能替代简历理解、页面或业务质量验收。

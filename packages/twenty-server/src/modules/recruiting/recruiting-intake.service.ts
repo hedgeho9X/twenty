@@ -35,6 +35,7 @@ import {
 import { RecruitingMatchingService } from './recruiting-matching.service';
 import { RecruitingUploadService } from './recruiting-upload.service';
 import { RecruitingJobConfirmationService } from './recruiting-job-confirmation.service';
+import { RecruitingCandidateRecordsService } from './recruiting-candidate-records.service';
 import {
   candidateProfileSchema,
   intakeInputSchema,
@@ -81,6 +82,7 @@ export class RecruitingIntakeService {
     private readonly matching: RecruitingMatchingService,
     private readonly uploads: RecruitingUploadService,
     private readonly jobs: RecruitingJobConfirmationService,
+    private readonly candidates: RecruitingCandidateRecordsService,
     @InjectMessageQueue(MessageQueue.recruitingQueue)
     private readonly queue: MessageQueueService,
   ) {}
@@ -109,8 +111,20 @@ export class RecruitingIntakeService {
     const actor = this.actors.capture(context);
     if (input.companyId)
       await this.records.one(context, 'company', input.companyId);
-    if (input.candidateId)
-      await this.records.one(context, 'person', input.candidateId);
+    if (input.candidateId) {
+      const candidate = await this.records.one(
+        context,
+        'person',
+        input.candidateId,
+      );
+      if (
+        !Array.isArray(candidate.contactRoles) ||
+        !candidate.contactRoles.includes('CANDIDATE')
+      )
+        throw new BadRequestException(
+          '目标联系人不属于候选人，请先核对候选人记录',
+        );
+    }
     for (const file of input.files) await this.parser.file(actor, file.fileId);
     const inputHash = createHash('sha256')
       .update(JSON.stringify(input))
@@ -267,7 +281,7 @@ export class RecruitingIntakeService {
 
   /** The queue handler validates current access before reading or mutating any business record. */
   async process(data: RecruitingIntakeJobData) {
-    const context = await this.actors.resolve(data.actor);
+    let context = await this.actors.resolve(data.actor);
     const record = await this.records.one(
       context,
       'recruitingIntake',
@@ -279,6 +293,7 @@ export class RecruitingIntakeService {
       stage: string,
       patch: Partial<IntakeEnvelope> = {},
     ) => {
+      context = await this.actors.resolve(data.actor);
       envelope = { ...envelope, ...patch, stage };
       await this.records.update(context, 'recruitingIntake', record.id, {
         state: 'PROCESSING',
@@ -376,9 +391,6 @@ export class RecruitingIntakeService {
       }
       const candidateId =
         envelope.input.candidateId ?? v5(`${record.id}:candidate`, v5.URL);
-      const existing = envelope.input.candidateId
-        ? await this.records.one(context, 'person', candidateId)
-        : await this.optional(context, 'person', candidateId);
       const candidateFiles = envelope.candidateFiles ?? [];
       for (const file of envelope.input.files.filter(
         (entry) => entry.role !== 'archive',
@@ -409,36 +421,17 @@ export class RecruitingIntakeService {
         modelId: extraction.modelId,
         generatedAt: new Date().toISOString(),
       };
-      if (existing) {
-        const previous = Array.isArray(existing.candidateResumes)
-          ? existing.candidateResumes
-          : [];
-        await this.records.update(context, 'person', candidateId, {
+      context = await this.actors.resolve(data.actor);
+      try {
+        await this.candidates.replaceProfile(
+          context,
+          candidateId,
           recruitingProfile,
-          candidateResumes: [
-            ...previous
-              .filter(
-                (old) =>
-                  !files.some(
-                    (file) => isPlainObject(old) && old.fileId === file.fileId,
-                  ),
-              )
-              .map((old) => {
-                if (
-                  !isPlainObject(old) ||
-                  typeof old.fileId !== 'string' ||
-                  typeof old.label !== 'string'
-                )
-                  throw new BadRequestException(
-                    '既有简历附件引用需要核对，系统未覆盖原有附件',
-                  );
-                // Native reads enrich refs with readonly URL/extension fields which cannot be written back.
-                return { fileId: old.fileId, label: old.label };
-              }),
-            ...files,
-          ],
-        });
-      } else {
+          files,
+        );
+      } catch (error) {
+        if (!(error instanceof NotFoundException) || envelope.input.candidateId)
+          throw error;
         await this.records.create(context, 'person', {
           id: candidateId,
           name: { firstName: profile.name || '待补全姓名', lastName: '' },
@@ -482,8 +475,11 @@ export class RecruitingIntakeService {
         [candidateId],
       );
     } catch (error) {
+      // A revoked caller cannot persist even a failure using the authority captured before inference.
+      context = await this.actors.resolve(data.actor);
       const message =
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
           ? String(error.message)
           : '处理失败，请查看材料后重试';
       await this.records.update(context, 'recruitingIntake', record.id, {
