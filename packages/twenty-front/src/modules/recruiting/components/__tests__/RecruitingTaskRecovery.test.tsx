@@ -11,7 +11,10 @@ import { RecruitingQueueDialog } from '@/recruiting/components/RecruitingQueueDi
 import { RecruitingMailSources } from '@/recruiting/components/RecruitingMailSources';
 import { RecruitingDrafts } from '@/recruiting/components/RecruitingDrafts';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
-import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
+import {
+  downloadRecruitingArtifact,
+  recruitingRequest,
+} from '@/recruiting/utils/recruitingRequest';
 import { type RecruitingDraft } from '@/recruiting/types/RecruitingDraft';
 
 jest.mock('@/recruiting/hooks/useRecruitingQuery');
@@ -135,6 +138,39 @@ const renderTask = (kind: TaskKind, status: string) => {
   fireEvent.click(screen.getByRole('button', { name: '打开' }));
   return 'drafts/fixture/retry';
 };
+
+it('downloads a queued original with authentication and keeps download failures retryable', async () => {
+  queryData['resume-intakes?offset=0'] = {
+    records: [
+      {
+        intakeId: 'fixture',
+        kind: 'CANDIDATE',
+        name: 'Fixture',
+        state: 'COMPLETED',
+        stage: 'STORED',
+        createdAt: '2026-11-01T00:00:00Z',
+        files: [{ fileId: 'source', label: 'resume.html' }],
+      },
+    ],
+  };
+  render(<RecruitingQueueDialog open onOpenChange={jest.fn()} />);
+  jest
+    .mocked(downloadRecruitingArtifact)
+    .mockRejectedValueOnce(new Error('denied'));
+  fireEvent.click(screen.getByText('材料原件（1）'));
+  fireEvent.click(screen.getByRole('button', { name: '下载' }));
+  await waitFor(() =>
+    expect(screen.getByRole('alert')).toHaveTextContent('denied'),
+  );
+  expect(downloadRecruitingArtifact).toHaveBeenCalledWith(
+    'resume-intakes/fixture/files/source',
+    'resume.html',
+  );
+  expect(screen.queryByRole('link', { name: 'resume.html' })).toBeNull();
+  jest.mocked(downloadRecruitingArtifact).mockResolvedValueOnce(undefined);
+  fireEvent.click(screen.getByRole('button', { name: '下载' }));
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+});
 
 it.each([
   ['intake', 'READY'],

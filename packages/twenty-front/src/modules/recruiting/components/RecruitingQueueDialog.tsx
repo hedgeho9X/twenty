@@ -9,6 +9,7 @@ import { type RecruitingIntake } from '@/recruiting/types/RecruitingIntake';
 import { type RecruitingPage } from '@/recruiting/types/RecruitingPage';
 import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
+import { RecruitingMaterialLinks } from '@/recruiting/components/RecruitingMaterialLinks';
 import {
   StyledRecruitingError,
   StyledRecruitingMuted,
@@ -110,6 +111,15 @@ export const RecruitingQueueDialog = ({
                           <StyledRecruitingMuted>
                             {new Date(intake.createdAt).toLocaleString()}
                           </StyledRecruitingMuted>
+                          {Boolean(intake.files?.length) && (
+                            <details>
+                              <summary>{t`材料原件（${intake.files?.length ?? 0}）`}</summary>
+                              <RecruitingMaterialLinks
+                                intakeId={intake.intakeId}
+                                files={intake.files}
+                              />
+                            </details>
+                          )}
                         </td>
                         <td>
                           <Badge>{stageLabel(intake)}</Badge>

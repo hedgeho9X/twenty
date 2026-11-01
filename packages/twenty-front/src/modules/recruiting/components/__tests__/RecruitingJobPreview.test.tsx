@@ -104,6 +104,8 @@ beforeEach(() => {
     data:
       path === 'resume-intakes/intake'
         ? {
+            intakeId: 'intake',
+            files: [{ fileId: 'file', label: 'source.pdf' }],
             detail: {
               input: {
                 companyId: 'company',

@@ -8,6 +8,7 @@ import {
   type RecruitingPreviewExistingJob,
 } from 'twenty-shared/utils';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
+import { RecruitingMaterialLinks } from '@/recruiting/components/RecruitingMaterialLinks';
 import {
   recruitingRequest,
   uploadRecruitingFile,
@@ -406,11 +407,11 @@ export const RecruitingCompanyJobs = ({
             <details>
               <summary>{t`本批材料来源`}</summary>
               <StyledRecruitingStack>
-                {(query.data.detail.input.files ?? []).map((file) => (
-                  <StyledRecruitingMuted key={file.fileId}>
-                    {file.label}
-                  </StyledRecruitingMuted>
-                ))}
+                <RecruitingMaterialLinks
+                  key={query.data.intakeId}
+                  intakeId={query.data.intakeId}
+                  files={query.data.files ?? []}
+                />
                 {query.data.detail.input.text && (
                   <Field.Root>
                     <Field.Label>{t`提交的岗位原文`}</Field.Label>

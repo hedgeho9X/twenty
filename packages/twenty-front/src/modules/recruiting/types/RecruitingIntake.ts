@@ -2,6 +2,7 @@
 export type RecruitingIntake = {
   intakeId: string;
   batchId?: string;
+  files?: { fileId: string; label: string }[];
   name?: string;
   kind: 'CANDIDATE' | 'JOB';
   state: string;

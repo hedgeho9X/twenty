@@ -427,3 +427,11 @@
 - 未指定batchId的JOB回执稳定使用intakeId；HTTP/MCP/CLI均回读相同身份、批次来源和提示。新增CLOSED合成同名岗位775a50f5-0098-5c40-91e1-ec80dd064b2e，只在确定的合成公司下创建；175总岗，在招仍46真岗，无模型调用或岗位确认。私有job-preview-native-evidence.json全断言成立，原input/extraction/items状态checksum不变。
 - 共享规则3项、服务端3套17项、前端相关3套及等待态测试通过；两包tsgo、相关type-aware lint及翻译检查通过。共享包与server9604文件重新构建；API40/PID80648/session94750，招聘worker34/PID80649/session79935，AI10/PID80650/session50671，front11915。构建前核对无待处理OAuth与队列空闲。新源已在HTTP实际生效，默认本地邮件旧任务只读复验通过。
 - 新增UI尚未实际浏览器验收，原截图不能替代。空间15仍已handOff用户，未擅自takeOver；新SIWC连接0、无pending，未生成授权链接。当前仍保留新UI与本人订阅授权验收未完成。
+
+## 12:01 原件下载与本轮收尾
+
+- JD预览共享规则、受限来源接口和动态编辑展示已分别提交d157dfe2、995bb55c、0756860a。继续核对目标10后补齐队列材料链接：可展开原件下载，JD来源复用同组件；不把文件名当已有可下载入口。读取同时验证父记录、原生files FLS和不可变input引用，再走原生工作区/上传状态/目录验证。HTML以附件下载，不在CRM执行。
+- 服务端3套18项、前端2套24项通过，两包tsgo及9文件type-aware lint通过。实际API下载邮件PDF618683字节，与独立原件SHA完全一致；JD422字节可读，跨父/未知404、匿名403，响应头attachment/octet-stream/nosniff/private-no-store成立。最初匿名断言预期401，与原生403不同，已按拒绝语义和实际状态记录，未改鉴权。私有intake-material-download-evidence.json。
+- 队列idle、无pending授权后精确停API40/两worker并重建9604文件。当前API41/PID82354/session54168，招聘worker35/PID82365/session28938，AI11/PID82377/session20053。新功能已在HTTP实际加载；既有邮件任务与JD HTTP/MCP/CLI预览均只读复验成功，新上传/投递/模型请求0。
+- 12:01最终前端、parser及鉴权API均200，三队列waiting/active/delayed/prioritized和scheduler均0，两邮箱接入enabled=false；新SIWC连接0/pending无。Vite三个新增相关模块200。私有material-final-health.json，running-work.json已更新当前运行点。
+- 新UI仍未取得实际点击证据；浏览器空间15此前交给用户，遵循Ego指南“After the user confirms, resume the same space”，未绕过或重新创建空间。整个目标保持active，不把新增下载接口成功当页面或招聘业务质量验收。
