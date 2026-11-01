@@ -21,7 +21,6 @@ import {
 import { type AiSdkPackage } from 'twenty-shared/ai';
 import { isDefined } from 'twenty-shared/utils';
 
-import { loadLocalCodexCredential } from 'src/engine/core-modules/chatgpt-subscription/local-codex-credential';
 import { SiwcStoreService } from 'src/engine/core-modules/chatgpt-subscription/siwc-store.service';
 import {
   createSubscriptionFetch,
@@ -137,13 +136,13 @@ export class SdkProviderFactoryService {
     config: AiProviderConfig,
   ): AiSdkProviderInstance {
     if (config.authType === 'chatgpt') {
+      if (!config.subscriptionConnectionId)
+        throw new Error('请在设置中连接 ChatGPT 账号');
+      const connectionId = config.subscriptionConnectionId;
       const provider = createOpenAI({
         apiKey: 'subscription-managed',
         fetch: createSubscriptionFetch({
-          loadCredential: () =>
-            config.subscriptionConnectionId
-              ? this.subscriptions.credential(config.subscriptionConnectionId)
-              : loadLocalCodexCredential(config.subscriptionAccountId),
+          loadCredential: () => this.subscriptions.credential(connectionId),
           upstreamFetch: createSubscriptionTransport(
             process.env.RECRUITING_MODEL_PROXY_URL,
           ),

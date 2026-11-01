@@ -10,7 +10,6 @@ import {
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
-import { loadLocalCodexCredential } from './local-codex-credential';
 
 const windowSchema = z.object({
   used_percent: z.number().min(0).max(100),
@@ -64,11 +63,11 @@ export class SubscriptionAccountService {
     const binding =
       bindings.find((provider) => provider.subscriptionConnectionId) ??
       bindings[0];
+    if (!selected && !binding?.subscriptionConnectionId)
+      throw new BadRequestException('请先连接并启用 ChatGPT 账号');
     const credential =
       selected ??
-      (binding?.subscriptionConnectionId
-        ? await this.store.credential(binding.subscriptionConnectionId)
-        : await loadLocalCodexCredential(binding?.subscriptionAccountId));
+      (await this.store.credential(binding!.subscriptionConnectionId!));
     if (credential.protocol !== 'codex')
       throw new BadRequestException('此连接不支持 Codex 额度查询');
     const transport = createSubscriptionTransport(

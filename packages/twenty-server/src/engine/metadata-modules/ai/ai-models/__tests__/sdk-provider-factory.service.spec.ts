@@ -26,3 +26,18 @@ describe('AI Gateway provider', () => {
     ).not.toBe(provider);
   });
 });
+
+it('rejects a legacy subscription configuration instead of reading a local Codex login', () => {
+  const credentials = jest.fn();
+  const factory = new SdkProviderFactoryService({
+    credential: credentials,
+  } as unknown as SiwcStoreService);
+  expect(() =>
+    factory.createProvider('legacy', {
+      npm: '@ai-sdk/openai',
+      authType: 'chatgpt',
+      subscriptionAccountId: 'old-account',
+    }),
+  ).toThrow('请在设置中连接');
+  expect(credentials).not.toHaveBeenCalled();
+});

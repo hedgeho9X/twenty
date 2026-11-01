@@ -5,16 +5,7 @@ jest.mock('ai', () => ({
 }));
 /** Verifies quota accuracy and prevents credential disclosure in management results. */
 import { SubscriptionAccountService } from './subscription-account.service';
-import { loadLocalCodexCredential } from './local-codex-credential';
-jest.mock('./local-codex-credential', () => ({
-  loadLocalCodexCredential: jest.fn(),
-}));
 const setup = (body: unknown, status = 200) => {
-  jest.mocked(loadLocalCodexCredential).mockResolvedValue({
-    accessToken: 'private-token',
-    accountId: 'bound-account',
-    protocol: 'codex',
-  });
   jest
     .spyOn(global, 'fetch')
     .mockImplementation(async () => Response.json(body, { status }));
@@ -22,7 +13,7 @@ const setup = (body: unknown, status = 200) => {
     source: {
       npm: '@ai-sdk/openai',
       authType: 'chatgpt',
-      subscriptionAccountId: 'bound-account',
+      subscriptionConnectionId: 'managed',
       models: [],
     },
     unrelated: { npm: '@ai-sdk/anthropic' },
@@ -47,7 +38,7 @@ const setup = (body: unknown, status = 200) => {
 };
 afterEach(() => jest.restoreAllMocks());
 it('reports real quota windows without exposing upstream account data', async () => {
-  const { service } = setup({
+  const { service, store } = setup({
     email: 'private@example.test',
     plan_type: 'pro',
     rate_limit: {
@@ -68,7 +59,7 @@ it('reports real quota windows without exposing upstream account data', async ()
     },
   ]);
   expect(JSON.stringify(result)).not.toContain('private');
-  expect(loadLocalCodexCredential).toHaveBeenCalledWith('bound-account');
+  expect(store.credential).toHaveBeenCalledWith('managed');
 });
 it('does not invent quota when a window is absent', async () => {
   const { service } = setup({ rate_limit: null });
@@ -121,12 +112,6 @@ it('uses the current client version and excludes hidden or unavailable catalog e
       { slug: 'unsupported-model', supported_in_api: false },
     ],
   });
-  jest.mocked(loadLocalCodexCredential).mockResolvedValue({
-    accessToken: 'private-token',
-    accountId: 'bound-account',
-    protocol: 'codex',
-    clientVersion: '0.166.0',
-  });
   expect(await service.syncModels()).toEqual({ count: 1 });
   expect(jest.mocked(global.fetch).mock.calls[0][0]).toBe(
     'https://chatgpt.com/backend-api/codex/models?client_version=0.166.0',
@@ -145,7 +130,6 @@ it('uses the managed registration without reading local Codex credentials', asyn
   jest
     .spyOn(global, 'fetch')
     .mockResolvedValue(Response.json({ rate_limit: null }));
-  jest.mocked(loadLocalCodexCredential).mockClear();
   const config = {
     get: () => ({
       source: { authType: 'chatgpt', subscriptionConnectionId: 'managed' },
@@ -165,7 +149,6 @@ it('uses the managed registration without reading local Codex credentials', asyn
   );
   await service.usage();
   expect(store.credential).toHaveBeenCalledWith('managed');
-  expect(loadLocalCodexCredential).not.toHaveBeenCalled();
 });
 
 it('activates only after refreshing and validating the independent credential', async () => {
@@ -175,11 +158,9 @@ it('activates only after refreshing and validating the independent credential', 
   jest
     .mocked(generateText)
     .mockResolvedValue({ output: { ok: true } } as never);
-  jest.mocked(loadLocalCodexCredential).mockClear();
   const result = await service.activate('managed-id');
   expect(result.refreshVerified).toBe(true);
   expect(store.credential).toHaveBeenCalledWith('managed-id', true);
-  expect(loadLocalCodexCredential).not.toHaveBeenCalled();
   expect(config.set).toHaveBeenCalledWith(
     'AI_PROVIDERS',
     expect.objectContaining({
@@ -195,4 +176,19 @@ it('retains the active provider when an independent connection fails inference',
   jest.mocked(generateText).mockRejectedValue(new Error('private-failure'));
   await expect(service.activate('managed-id')).rejects.toThrow('原连接保留');
   expect(config.set).not.toHaveBeenCalled();
+});
+
+it('rejects legacy local-file configuration instead of silently reading local credentials', async () => {
+  const config = {
+    get: () => ({
+      legacy: { authType: 'chatgpt', subscriptionAccountId: 'old' },
+    }),
+  };
+  const store = { credential: jest.fn() };
+  const service = new SubscriptionAccountService(
+    config as never,
+    store as never,
+  );
+  await expect(service.usage()).rejects.toThrow('请先连接');
+  expect(store.credential).not.toHaveBeenCalled();
 });

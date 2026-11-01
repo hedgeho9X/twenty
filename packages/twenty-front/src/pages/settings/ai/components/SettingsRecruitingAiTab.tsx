@@ -56,7 +56,7 @@ export const SettingsRecruitingAiTab = ({
   const loadQuota = useCallback(async (signal?: AbortSignal) => {
     setQuotaError('');
     try {
-      const result = await subscriptionRequest<Quota>('/local/usage', {
+      const result = await subscriptionRequest<Quota>('/usage', {
         signal,
       });
       if (!signal?.aborted) setQuota(result);
@@ -136,7 +136,7 @@ export const SettingsRecruitingAiTab = ({
           <StyledSubscriptionPanel>
             <StyledSubscriptionRow>
               <strong>
-                {quota?.plan ? `ChatGPT ${quota.plan}` : t`当前 Codex 账号`}
+                {quota?.plan ? `ChatGPT ${quota.plan}` : t`当前 ChatGPT 账号`}
               </strong>
               <Button
                 variant="ghost"
@@ -148,7 +148,7 @@ export const SettingsRecruitingAiTab = ({
                 onClick={() =>
                   void execute(async () => {
                     const result = await subscriptionRequest<{ count: number }>(
-                      '/local/models/sync',
+                      '/models/sync',
                       { method: 'POST' },
                     );
                     setConfig(

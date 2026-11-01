@@ -32,7 +32,6 @@ type Connection = {
 };
 type Accounts = {
   connections: Connection[];
-  localCodex: { available: boolean };
   pendingAttempt?: Attempt & { authorizeUrl?: string };
 };
 type Attempt = {
@@ -187,7 +186,7 @@ export const SettingsChatgptSubscriptions = ({
         inputCostPerMillionTokens: 0,
         outputCostPerMillionTokens: 0,
       };
-      if (providers[providerName]) {
+      if (Object.hasOwn(providers, providerName)) {
         if (providers[providerName].subscriptionConnectionId !== account.id)
           throw new Error(t`提供方连接不一致，请刷新设置后核对`);
         await admin.mutate({
@@ -228,9 +227,7 @@ export const SettingsChatgptSubscriptions = ({
       <StyledSubscriptionStack>
         <StyledSubscriptionPanel>
           <StyledSubscriptionMuted>
-            {accounts?.localCodex.available
-              ? t`已发现本机Codex登录。当前来源只读，令牌由原应用维护，可在现有提供方中管理模型。`
-              : t`未发现可用的本机Codex登录，可由本人新建订阅授权。`}
+            {t`账号连接请在设置 → AI → 订阅与功能中管理。`}
           </StyledSubscriptionMuted>
           {error && (
             <StyledSubscriptionError role="alert">

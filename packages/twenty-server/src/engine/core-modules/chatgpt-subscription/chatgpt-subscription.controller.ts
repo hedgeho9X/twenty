@@ -21,7 +21,6 @@ import { isImpersonating } from 'src/engine/guards/utils/is-impersonating.util';
 import { userIsFullAdmin } from 'src/engine/core-modules/impersonation/utils/user-is-full-admin.util';
 import { SiwcStoreService } from './siwc-store.service';
 import { SiwcLoginService } from './siwc-login.service';
-import { loadLocalCodexCredential } from './local-codex-credential';
 
 @Controller('chatgpt-subscriptions')
 @UseGuards(
@@ -47,29 +46,22 @@ export class ChatgptSubscriptionController {
     private readonly account: SubscriptionAccountService,
     private readonly features: AiFeatureModelsService,
   ) {}
-  /** Lists account state and availability of the existing read-only local login. */
+  /** Lists only independently managed account registrations. */
   @Get() async list(@Req() request: Request) {
     const ownerId = this.owner(request);
-    let localCodex: object = { available: false };
-    try {
-      if (this.account.activeConnectionId()) throw new Error('managed');
-      const account = await loadLocalCodexCredential();
-      localCodex = { available: true, accountId: account.accountId };
-    } catch {
-      /* An absent local login is an ordinary source state. */
-    }
     return {
       connections: await this.store.list(),
       activeConnectionId: this.account.activeConnectionId(),
-      localCodex,
       pendingAttempt: this.login.active(ownerId),
     };
   }
-  @Get('local/usage') usage(@Req() request: Request) {
+  @Get(['usage', 'local/usage']) usage(@Req() request: Request) {
     this.owner(request);
     return this.account.usage();
   }
-  @Post('local/models/sync') syncModels(@Req() request: Request) {
+  @Post(['models/sync', 'local/models/sync']) syncModels(
+    @Req() request: Request,
+  ) {
     this.owner(request);
     return this.account.syncModels();
   }
