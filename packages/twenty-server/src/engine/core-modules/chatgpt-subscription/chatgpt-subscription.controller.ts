@@ -88,6 +88,10 @@ export class ChatgptSubscriptionController {
     if (!parsed.success) throw new BadRequestException('请选择模型');
     return this.features.set(id, parsed.data.modelId);
   }
+  @Post('jev/test') testJev(@Req() request: Request, @Body() input: unknown) {
+    this.owner(request);
+    return this.features.testJev(input);
+  }
   @Get('jev') jevConfig(@Req() request: Request) {
     this.owner(request);
     return this.features.jevConfig();

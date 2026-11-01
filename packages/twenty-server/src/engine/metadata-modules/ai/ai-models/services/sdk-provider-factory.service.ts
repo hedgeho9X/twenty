@@ -79,6 +79,11 @@ export class SdkProviderFactoryService {
     return instance;
   }
 
+  /** Tests unsaved connection details without caching credentials or replacing a configured provider. */
+  createTransientProvider(config: AiProviderConfig): AiSdkProviderInstance {
+    return this.buildProviderInstance(config);
+  }
+
   getRawProvider<T>(
     providerName: string,
     ...allowedPackages: string[]

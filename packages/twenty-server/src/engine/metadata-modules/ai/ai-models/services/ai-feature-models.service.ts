@@ -1,3 +1,5 @@
+import { experimental_evaluate as evaluate } from 'ai';
+import { SdkProviderFactoryService } from './sdk-provider-factory.service';
 import { z } from 'zod';
 import { ProviderConfigService } from './provider-config.service';
 /** Registers application model purposes and persists validated bindings in native instance configuration. */
@@ -19,6 +21,7 @@ export class AiFeatureModelsService {
     private readonly config: TwentyConfigService,
     private readonly registry: AiModelRegistryService,
     private readonly providers: ProviderConfigService,
+    private readonly factory: SdkProviderFactoryService,
   ) {}
 
   /** Resolves settings for every new operation; existing job checkpoints retain their generated output. */
@@ -93,6 +96,72 @@ export class AiFeatureModelsService {
       },
     });
     return this.jevConfig();
+  }
+
+  /** Runs a small synthetic score using form values without saving them or touching recruiting records. */
+  async testJev(input: unknown) {
+    const parsed = z
+      .object({
+        baseUrl: z.union([z.literal(''), z.url()]),
+        apiKey: z.string().min(1).max(4096).optional(),
+      })
+      .strict()
+      .safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestException('请填写有效的服务地址和凭据');
+    const { modelId, providerName } = this.jevConfig();
+    const provider = this.providers.getResolvedProviders()[providerName];
+    if (!provider) throw new BadRequestException('评分提供方不存在');
+    const started = performance.now();
+    try {
+      const connection = this.factory.createTransientProvider({
+        ...provider,
+        baseUrl: parsed.data.baseUrl || undefined,
+        ...(parsed.data.apiKey ? { apiKey: parsed.data.apiKey } : {}),
+      });
+      const model = connection.createEvaluationModel?.(
+        modelId.slice(providerName.length + 1),
+      );
+      if (!model) throw new Error('unsupported');
+      const result = await evaluate({
+        model,
+        state:
+          '合成测试：岗位要求两年 JavaScript 经验。候选人明确拥有两年 JavaScript 开发经验。',
+        questions: {
+          match: {
+            type: 'score',
+            instructions: '候选人经验与岗位要求匹配吗？',
+            criteria: [
+              '完全不匹配',
+              '少量匹配',
+              '部分匹配',
+              '大体匹配',
+              '完全匹配',
+            ],
+          },
+        },
+        maxRetries: 0,
+        abortSignal: AbortSignal.timeout(20_000),
+      });
+      const answer = result.answers.match;
+      if (
+        answer.type !== 'score' ||
+        !Number.isFinite(answer.score) ||
+        answer.score < 0 ||
+        answer.score > 4
+      )
+        throw new Error('invalid-score');
+      return {
+        success: true,
+        modelId,
+        elapsedMs: Math.round(performance.now() - started),
+        score: answer.score,
+      };
+    } catch {
+      throw new BadRequestException(
+        'Jev 测试失败，请检查服务地址、API Key 或网络连接',
+      );
+    }
   }
 
   /** Rejects arbitrary feature names and incompatible models before changing persistent configuration. */
