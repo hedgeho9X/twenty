@@ -1,3 +1,4 @@
+import { RecruitingTaskDetail } from '@/recruiting/queue/components/TaskDetail';
 /** Verifies durable nonterminal tasks can be recovered without claiming failure or duplicating operator requests. */
 import {
   act,
@@ -40,6 +41,7 @@ jest.mock('@/recruiting/shared/styles', () => ({
 }));
 jest.mock('twenty-ui/icon', () => ({
   IconRefresh: () => null,
+  IconArrowLeft: () => null,
   IconX: () => null,
 }));
 jest.mock('twenty-ui/primitives/data-display', () => ({ Badge: 'span' }));
@@ -186,6 +188,7 @@ it('downloads a queued original with authentication and keeps download failures 
     detail: { extraction: { profile: { name: '合成候选人' } } },
   };
   fireEvent.click(screen.getByRole('button', { name: '详情' }));
+  fireEvent.click(screen.getByRole('button', { name: '原始材料' }));
   fireEvent.click(screen.getByRole('button', { name: '下载' }));
   await waitFor(() =>
     expect(screen.getByRole('alert')).toHaveTextContent('denied'),
@@ -196,11 +199,15 @@ it('downloads a queued original with authentication and keeps download failures 
   );
   expect(screen.queryByRole('link', { name: 'resume.html' })).toBeNull();
   expect(
-    screen.getByRole('heading', { name: '合成候选人' }),
+    screen.getByRole('button', { name: '返回解析详情' }),
   ).toBeInTheDocument();
   jest.mocked(downloadRecruitingArtifact).mockResolvedValueOnce(undefined);
   fireEvent.click(screen.getByRole('button', { name: '下载' }));
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  fireEvent.click(screen.getByRole('button', { name: '返回解析详情' }));
+  expect(
+    screen.getByRole('heading', { name: '合成候选人' }),
+  ).toBeInTheDocument();
 });
 
 it.each([
@@ -424,4 +431,33 @@ it('shows matching as a stage of the same intake task', () => {
   expect(screen.getByText('2/8')).toBeInTheDocument();
   expect(screen.getByText(/1 \/ 3/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '岗位匹配' })).toBeNull();
+});
+
+it('opens unchanged submitted JD text and returns to the same parsed details without submitting again', () => {
+  const original = '原始 JD\n  第二行保留缩进 <script>not executable</script>';
+  queryData['resume-intakes/source-job'] = {
+    name: '岗位文字',
+    kind: 'JOB',
+    createdAt: '2026-11-01T00:00:00Z',
+    stage: 'STORED',
+    files: [{ fileId: 'legacy-file', label: 'legacy.docx' }],
+    detail: {
+      input: { text: original },
+      extraction: {
+        profile: { jobs: [{ title: '岗位', description: '模型整理正文' }] },
+      },
+    },
+  };
+  render(
+    <RecruitingTaskDetail kind="intake" id="source-job" onClose={jest.fn()} />,
+  );
+  expect(screen.queryByText(/第二行保留缩进/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '原始材料' }));
+  expect(screen.getByText(/第二行保留缩进/).textContent).toBe(original);
+  expect(screen.queryByText('原始附件')).toBeNull();
+  expect(screen.queryByText('模型整理正文')).toBeNull();
+  expect(document.querySelector('script')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: '返回解析详情' }));
+  expect(screen.getByText('模型整理正文')).toBeInTheDocument();
+  expect(recruitingRequest).not.toHaveBeenCalled();
 });
