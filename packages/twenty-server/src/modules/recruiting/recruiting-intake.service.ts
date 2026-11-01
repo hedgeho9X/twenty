@@ -237,6 +237,25 @@ export class RecruitingIntakeService {
     };
   }
 
+  /** Reads an original only when both the authorized parent files field and immutable submission reference it. */
+  async material(context: WorkspaceAuthContext, id: string, fileId: string) {
+    const record = await this.records.one(context, 'recruitingIntake', id);
+    const source = this.envelope(record).input.files.find(
+      (file) => file.fileId === fileId,
+    );
+    const visible =
+      Array.isArray(record.files) &&
+      record.files.some(
+        (file) => isPlainObject(file) && file.fileId === fileId,
+      );
+    if (!source || !visible)
+      throw new NotFoundException('当前记录没有可读取的这份材料');
+    return {
+      label: source.label,
+      bytes: await this.parser.original(this.actors.capture(context), fileId),
+    };
+  }
+
   /** Returns only a previously archive-accepted mail binding after verifying its signed origin. */
   async mailBinding(
     context: WorkspaceAuthContext,

@@ -59,3 +59,9 @@ JOB 提交未指定 batchId 时，受理回执与后续 task_get 均以 intakeId
 预览逐项返回 missingFields 与 nameWarnings。只对当前公司、当前角色可读的最多200条岗位核对名称，并返回 duplicateCheck 的 COMPLETE/PARTIAL/UNAVAILABLE/NOT_REQUIRED 及核对数；部分或权限失败不能当作不存在重复。名称仅归一化大小写、全半角和空白，保留 C++/C#、地点、级别等差异。已有岗位及同批未创建项的同名只提示人工核对，不合并、不阻止创建。未知分类、雇佣类型、方式和地点继续保持未知；标题与岗位正文仍由既有创建校验要求填写。预览读取不修改原件、解析结果或人工编辑，不触发模型。
 
 node ops/recruiting/smoke-job-preview.mjs 复用既有合成预览，在独立合成公司创建或复用固定 CLOSED 同名岗位，校验 HTTP/MCP/CLI 三入口的一致性与读取不变性。不会确认预览、启用岗位或调用模型；详情证据私存 job-preview-native-evidence.json。
+
+## 9. 任务原件下载
+
+GET /recruiting/resume-intakes/:id/files/:fileId 返回材料原件。请求同时要求当前主体能读取父任务、父任务原生files字段仍列出该文件、原始提交input.files包含同一引用；工作区、上传状态与文件目录继续由原生文件服务检查。返回attachment、application/octet-stream、nosniff和private/no-store，不把HTML/Markdown直接打开在CRM来源。未知或跨父引用404，未登录由原生鉴权拒绝。MCP/CLI取得任务files后可使用已有鉴权HTTP下载，不另造公开下载凭据。
+
+node ops/recruiting/smoke-intake-materials.mjs 只读复验已有合成邮件PDF和批量JD原件；PDF逐字节SHA一致、跨父/未知引用与匿名拒绝均实测，不新上传、不重试任务、不调用模型。证据私存intake-material-download-evidence.json。

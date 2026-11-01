@@ -582,6 +582,29 @@ export class RecruitingController {
     return this.intakes.one(buildWorkspaceAuthContextFromRequest(request), id);
   }
 
+  /** Downloads parent-authorized originals without executing HTML or MIME assets in the CRM origin. */
+  @Get('resume-intakes/:id/files/:fileId')
+  async intakeMaterial(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+    @Res() response: Response,
+  ) {
+    const artifact = await this.intakes.material(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      fileId,
+    );
+    response.setHeader('Content-Type', 'application/octet-stream');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(artifact.label)}`,
+    );
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.send(artifact.bytes);
+  }
+
   /** Retries failed work under the currently authenticated caller. */
   @Post('resume-intakes/:id/retry')
   @HttpCode(202)
