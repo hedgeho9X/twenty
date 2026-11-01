@@ -247,7 +247,8 @@ it('recovers a queue acceptance failure without reuploading or losing the IMAP s
   });
   const archive = await service.receive(context, raw, source);
   const final = await service.one(context, archive.archiveId);
-  expect(final.status).toBe('NEEDS_SELECTION');
+  expect(final.status).toBe('READY');
+  expect(final.intakeIds).toEqual(['stable-intake']);
   expect(final.detail.sources).toEqual([source]);
   expect(
     uploads.buffer.mock.calls.filter(
@@ -652,4 +653,61 @@ it('uses different copy bindings for different notes and retries an interrupted 
     (intakes.submit.mock.calls[0][1] as { files: unknown[] }).files,
   );
   expect(intakes.mailBinding).not.toHaveBeenCalled();
+});
+
+it('automatically submits body and every attachment including inline images for incoming IMAP mail', async () => {
+  const { service, intakes, parser } = setup();
+  const message = Buffer.from(
+    [
+      'From: Candidate <candidate@example.test>',
+      'Subject: Candidate introduction',
+      'Content-Type: multipart/mixed; boundary="all"',
+      '',
+      '--all',
+      'Content-Type: text/plain',
+      '',
+      'Looking for TypeScript roles.',
+      '--all',
+      'Content-Type: image/png',
+      'Content-Disposition: inline; filename="profile.png"',
+      'Content-Transfer-Encoding: base64',
+      '',
+      'aW1hZ2U=',
+      '--all--',
+      '',
+    ].join('\r\n'),
+  );
+  parser.original.mockResolvedValue(message);
+  const archive = await service.receive(context, message, source, false);
+  await service.process({ archiveId: archive.archiveId, actor });
+  const detail = await service.one(context, archive.archiveId);
+  expect(detail.attachmentCount).toBe(1);
+  expect(intakes.submit).toHaveBeenCalledWith(
+    context,
+    expect.objectContaining({
+      kind: 'CANDIDATE',
+      source: 'email',
+      files: expect.arrayContaining([
+        expect.objectContaining({ label: 'profile.png', role: 'primary' }),
+        expect.objectContaining({ label: 'mail-body.txt', role: 'primary' }),
+        expect.objectContaining({ label: 'original.eml', role: 'archive' }),
+      ]),
+    }),
+  );
+  await service.process({ archiveId: archive.archiveId, actor });
+  expect(intakes.submit).toHaveBeenCalledTimes(1);
+});
+
+it('accepts a body-only candidate email without requiring a resume attachment', async () => {
+  const { service, intakes, parser } = setup();
+  const message = Buffer.from(
+    'Subject: Self introduction\r\nContent-Type: text/plain\r\n\r\nCandidate experience and expected roles',
+  );
+  parser.original.mockResolvedValue(message);
+  const archive = await service.receive(context, message, source);
+  await service.process({ archiveId: archive.archiveId, actor });
+  expect((await service.one(context, archive.archiveId)).attachmentCount).toBe(
+    0,
+  );
+  expect(intakes.submit).toHaveBeenCalledTimes(1);
 });

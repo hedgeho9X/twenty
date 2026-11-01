@@ -1,4 +1,4 @@
-/** Archives complete email bytes and MIME assets before handing selected material to the unified intake queue. */
+/** Archives complete email bytes and MIME assets before handing complete candidate material to the unified intake queue. */
 import {
   BadRequestException,
   ConflictException,
@@ -165,7 +165,7 @@ export class RecruitingMailService {
               actor,
               sources: [source],
               artifacts: [],
-              autoSubmit,
+              autoSubmit: source.transport === 'IMAP' || autoSubmit,
               intakeIds: [],
             };
         if (!record)
@@ -237,14 +237,31 @@ export class RecruitingMailService {
   async one(context: WorkspaceAuthContext, id: string) {
     const record = await this.records.one(context, 'recruitingMailArchive', id);
     const payload = this.payload(record);
+    const previews = new Map<string, { intakeId: string; fileId: string }>();
+    for (const intakeId of payload.intakeIds) {
+      try {
+        const intake = await this.intakes.one(context, intakeId);
+        for (const material of intake.detail.materials ?? []) {
+          const original = Object.values(payload.intakeCopies ?? {})
+            .flat()
+            .find((file) => file.fileId === material.fileId);
+          if (original)
+            previews.set(original.key, { intakeId, fileId: material.fileId });
+        }
+      } catch {
+        /* An inaccessible intake must not expose its files through the mail archive. */
+      }
+    }
     return {
       ...this.receipt(record),
+      processingStatus: await this.processingStatus(context, record),
       detail: {
         sources: payload.sources,
         metadata: payload.metadata,
         parserVersion: payload.parserVersion,
         artifacts: payload.artifacts.map((file) => ({
           ...file,
+          preview: previews.get(file.key),
           downloadPath: `/recruiting/mail-archives/${record.id}/artifacts/${encodeURIComponent(file.key)}`,
         })),
       },
@@ -276,8 +293,14 @@ export class RecruitingMailService {
     });
     return {
       ...page,
-      records: page.records.map((record) =>
-        this.receipt(record as RecruitingRecord),
+      records: await Promise.all(
+        page.records.map(async (record) => ({
+          ...this.receipt(record as RecruitingRecord),
+          processingStatus: await this.processingStatus(
+            context,
+            record as RecruitingRecord,
+          ),
+        })),
       ),
     };
   }
@@ -298,7 +321,10 @@ export class RecruitingMailService {
           throw new BadRequestException(
             '原文尚未上传完成，请重新提交同一封EML',
           );
-        if (['READY', 'NEEDS_SELECTION'].includes(String(record.status)))
+        if (
+          ['READY', 'NEEDS_SELECTION'].includes(String(record.status)) &&
+          (!payload.autoSubmit || payload.intakeIds.length > 0)
+        )
           return { record, enqueue: false };
         const active =
           await this.queue.getInFlightJobs<RecruitingMailJobData>();
@@ -353,14 +379,14 @@ export class RecruitingMailService {
   ) {
     const parsed = z
       .object({
-        artifactKeys: z.array(z.string()).min(1).max(24),
+        artifactKeys: z.array(z.string()).min(1).max(28),
         candidateId: z.string().uuid().optional(),
         note: z.string().max(90_000).default(''),
       })
       .strict()
       .safeParse(value);
     if (!parsed.success)
-      throw new BadRequestException('请选择1至24份候选人材料，并检查补充说明');
+      throw new BadRequestException('请选择1至28份候选人材料，并检查补充说明');
     const record = await this.records.one(context, 'recruitingMailArchive', id);
     if (!['READY', 'NEEDS_SELECTION'].includes(String(record.status)))
       throw new BadRequestException('请等待邮件归档完成后选择材料');
@@ -447,7 +473,7 @@ export class RecruitingMailService {
     return intake;
   }
 
-  /** Expands every MIME artifact with independent checkpoints; automatic selection excludes inline logos without deleting them. */
+  /** Expands every MIME artifact with independent checkpoints; all bodies and attachments enter candidate parsing, including inline images. */
   async process(data: RecruitingMailJobData) {
     const locked = await this.locks.tryWithLock(
       `recruiting-mail:${data.archiveId}`,
@@ -463,7 +489,10 @@ export class RecruitingMailService {
           record.id,
         );
         let payload = this.payload(record);
-        if (['READY', 'NEEDS_SELECTION'].includes(String(record.status)))
+        if (
+          ['READY', 'NEEDS_SELECTION'].includes(String(record.status)) &&
+          (!payload.autoSubmit || payload.intakeIds.length > 0)
+        )
           return;
         /** Rebuilds current authority after attachment I/O and before every durable checkpoint. */
         const update = async (patch: Record<string, unknown>) => {
@@ -514,28 +543,30 @@ export class RecruitingMailService {
             );
             payload = this.payload(record);
           }
-          const suggested = payload.artifacts.filter(
-            (file) => file.suggestedResume,
+          const materials = payload.artifacts.filter(
+            (file) => !['raw', 'metadata'].includes(file.kind),
           );
           const automatic =
             payload.autoSubmit &&
-            suggested.length > 0 &&
-            suggested.length <= 24;
+            materials.length > 0 &&
+            materials.length <= 28;
           await update({
             status: automatic ? 'READY' : 'NEEDS_SELECTION',
-            error: '',
+            error:
+              payload.autoSubmit && materials.length > 28
+                ? '附件和正文超过单封邮件处理上限，全部原件已保留，请拆分后处理'
+                : '',
             payload,
           });
           if (automatic) {
             try {
               context = await this.actors.resolve(data.actor);
               await this.submitIntakeUnderLock(context, record.id, {
-                artifactKeys: suggested.map((file) => file.key),
+                artifactKeys: materials.map((file) => file.key),
               });
             } catch {
               await update({
-                error:
-                  '邮件已完整归档，候选人入库尚未受理，请核对后重新提交所选材料',
+                error: '邮件已完整归档，候选人处理尚未受理，请重试处理',
               });
             }
           }
@@ -611,6 +642,34 @@ export class RecruitingMailService {
   private payload(record: RecruitingRecord) {
     return record.payload as MailPayload;
   }
+  /** Reports actual downstream intake progress without exposing inaccessible candidate records. */
+  private async processingStatus(
+    context: WorkspaceAuthContext,
+    record: RecruitingRecord,
+  ) {
+    const ids = this.payload(record).intakeIds;
+    if (!ids.length) return record.error ? 'FAILED' : record.status;
+    const states: string[] = [];
+    for (const id of ids) {
+      try {
+        const intake = await this.intakes.one(context, id);
+        states.push(
+          intake.state === 'COMPLETED'
+            ? 'COMPLETED'
+            : intake.state === 'NEEDS_REVIEW'
+              ? 'NEEDS_REVIEW'
+              : intake.stage,
+        );
+      } catch {
+        states.push('UNAVAILABLE');
+      }
+    }
+    return (
+      states.find((state) => ['FAILED', 'NEEDS_REVIEW'].includes(state)) ??
+      states.find((state) => state !== 'COMPLETED') ??
+      'COMPLETED'
+    );
+  }
   /** Omits full email text and addresses from polling rows. */
   private receipt(record: RecruitingRecord) {
     const payload = this.payload(record);
@@ -622,6 +681,9 @@ export class RecruitingMailService {
       createdAt: record.createdAt,
       sourceHash: record.sourceHash,
       artifactCount: payload.artifacts.length,
+      attachmentCount: payload.artifacts.filter(
+        (file) => file.kind === 'attachment',
+      ).length,
       intakeIds: payload.intakeIds,
     };
   }
