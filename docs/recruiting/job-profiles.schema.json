@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "jobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "preferences": {
+            "type": "string"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "engineering",
+                  "product",
+                  "design",
+                  "operations",
+                  "growth_marketing",
+                  "sales_business",
+                  "data_ai",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "employmentTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "full_time",
+                "part_time",
+                "internship",
+                "contract"
+              ]
+            }
+          },
+          "workModes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "onsite",
+                "hybrid",
+                "remote"
+              ]
+            }
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "needsReview": {
+            "type": "boolean"
+          },
+          "reviewNotes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "preferences",
+          "category",
+          "employmentTypes",
+          "workModes",
+          "locations",
+          "needsReview",
+          "reviewNotes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "needsReview": {
+      "type": "boolean"
+    },
+    "reviewNotes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "jobs",
+    "needsReview",
+    "reviewNotes"
+  ],
+  "additionalProperties": false
+}
