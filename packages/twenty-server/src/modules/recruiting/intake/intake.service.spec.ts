@@ -346,3 +346,35 @@ it('creates extracted job items in the worker without a separate operator confir
     expect.objectContaining({ state: 'NEEDS_REVIEW' }),
   );
 });
+
+it.each([null, undefined, []])(
+  'returns an empty attachment list for a text-only JD stored with files=%j',
+  async (files) => {
+    const record = {
+      id: 'text-jd',
+      kind: 'JOB',
+      state: 'NEEDS_REVIEW',
+      files,
+      result: {
+        schemaVersion: 2,
+        input: { kind: 'JOB', files: [] },
+        stage: 'FAILED',
+      },
+    };
+    const service = new RecruitingIntakeService(
+      { one: jest.fn(async () => record) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {
+        preview: () => [],
+        describePreview: async () => ({ jobItems: [] }),
+      } as never,
+      {} as never,
+      {} as never,
+    );
+    expect((await service.one({} as never, 'text-jd')).files).toEqual([]);
+  },
+);

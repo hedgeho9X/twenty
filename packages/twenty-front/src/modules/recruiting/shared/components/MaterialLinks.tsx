@@ -20,12 +20,14 @@ type RecruitingMaterialLinksProps = Pick<
 /** Keeps failed downloads retryable without changing material processing or displaying signed file URLs. */
 export const RecruitingMaterialLinks = ({
   intakeId,
-  files = [],
+  files,
 }: RecruitingMaterialLinksProps) => {
   const [preview, setPreview] =
     useState<NonNullable<RecruitingIntake['files']>[number]>();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState('');
+  // Native FILES fields can represent a text-only intake with null rather than an empty array.
+  const materials = files ?? [];
   /** Serializes downloads for this list and presents authorization or transport failures without retrying ingestion. */
   const download = async (
     file: NonNullable<RecruitingIntake['files']>[number],
@@ -48,7 +50,7 @@ export const RecruitingMaterialLinks = ({
   };
   return (
     <StyledRecruitingStack>
-      {files.map((file) => (
+      {materials.map((file) => (
         <StyledRecruitingRow key={file.fileId}>
           <span>{file.label}</span>
           <Button

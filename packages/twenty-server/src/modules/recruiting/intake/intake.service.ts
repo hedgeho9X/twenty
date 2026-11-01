@@ -681,7 +681,7 @@ export class RecruitingIntakeService {
       matchingStatus: envelope.matchingStatus,
       matchingRunIds: envelope.matchingRunIds,
       matchingError: envelope.matchingError,
-      files: record.files,
+      files: Array.isArray(record.files) ? record.files : [],
     };
   }
 
