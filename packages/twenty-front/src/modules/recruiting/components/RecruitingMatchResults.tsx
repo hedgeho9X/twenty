@@ -8,6 +8,7 @@ import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/utils/recruitingRequest';
 import { type RecruitingMatchRun } from '@/recruiting/types/RecruitingMatchRun';
 import { type RecruitingPage } from '@/recruiting/types/RecruitingPage';
+import { RecruitingMatchCompanyContext } from '@/recruiting/components/RecruitingMatchCompanyContext';
 import {
   StyledRecruitingError,
   StyledRecruitingMuted,
@@ -122,7 +123,7 @@ export const RecruitingMatchResults = ({
               <thead>
                 <tr>
                   <th>{t`候选人`}</th>
-                  <th>{t`岗位`}</th>
+                  <th>{t`岗位与公司`}</th>
                   <th>{t`能力匹配`}</th>
                   <th>{t`意向与条件`}</th>
                   <th>{t`后续操作`}</th>
@@ -136,6 +137,11 @@ export const RecruitingMatchResults = ({
                     </td>
                     <td>
                       <a href={pair.jobUrl}>{pair.jobLabel}</a>
+                      <RecruitingMatchCompanyContext
+                        key={pair.companyId ?? 'unbound'}
+                        companyId={pair.companyId}
+                        active={active}
+                      />
                     </td>
                     <td>{pair.score?.toFixed(2)} / 4</td>
                     <td>
@@ -176,7 +182,7 @@ export const RecruitingMatchResults = ({
                   <thead>
                     <tr>
                       <th>{t`候选人`}</th>
-                      <th>{t`岗位`}</th>
+                      <th>{t`岗位与公司`}</th>
                       <th>{t`状态`}</th>
                       <th>{t`需要核对`}</th>
                     </tr>
@@ -189,6 +195,11 @@ export const RecruitingMatchResults = ({
                         </td>
                         <td>
                           <a href={pair.jobUrl}>{pair.jobLabel}</a>
+                          <RecruitingMatchCompanyContext
+                            key={pair.companyId ?? 'unbound'}
+                            companyId={pair.companyId}
+                            active={active}
+                          />
                         </td>
                         <td>
                           <Badge>

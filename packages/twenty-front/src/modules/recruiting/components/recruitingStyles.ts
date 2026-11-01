@@ -41,6 +41,11 @@ export const StyledRecruitingMuted = styled.p`
   line-height: 1.65;
   margin: 0;
 `;
+export const StyledRecruitingContextText = styled.p`
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+`;
 export const StyledRecruitingTitle = styled.h2`
   color: ${theme.font.color.primary};
   font-size: ${theme.font.size.lg};
