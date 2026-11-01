@@ -43,7 +43,7 @@ export const RecruitingSharing = ({
   initialCandidateId?: string;
   initialJobId?: string;
 }) => {
-  const [candidate, setCandidate] = useState<RecruitingCandidate>();
+  const [candidate, setCandidate] = useState<RecruitingCandidate | null>();
   const [job, setJob] = useState<RecruitingJob | null>();
   const linkedCandidate = useRecruitingQuery<RecruitingCandidate>(
     initialCandidateId ? `candidates/${initialCandidateId}` : null,
@@ -51,7 +51,8 @@ export const RecruitingSharing = ({
   const linkedJob = useRecruitingQuery<RecruitingJob>(
     initialJobId ? `jobs/${initialJobId}` : null,
   );
-  const selectedCandidate = candidate ?? linkedCandidate.data;
+  const selectedCandidate =
+    candidate === undefined ? linkedCandidate.data : (candidate ?? undefined);
   const selectedJob = job === undefined ? linkedJob.data : (job ?? undefined);
   const [key, setKey] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
@@ -114,7 +115,7 @@ export const RecruitingSharing = ({
           selected={selectedCandidate}
           disabled={busy}
           onSelect={(value) => {
-            setCandidate(value);
+            setCandidate(value ?? null);
             setKey(crypto.randomUUID());
           }}
           renderLabel={(record) =>
@@ -127,7 +128,7 @@ export const RecruitingSharing = ({
           selected={selectedJob}
           disabled={busy}
           onSelect={(value) => {
-            setJob(value);
+            setJob(value ?? null);
             setKey(crypto.randomUUID());
           }}
           renderLabel={(record) => record.name}

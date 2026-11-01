@@ -43,7 +43,7 @@ export const RecruitingDrafts = ({
   active?: boolean;
 }) => {
   const [kind, setKind] = useState('GREETING');
-  const [candidate, setCandidate] = useState<RecruitingCandidate>();
+  const [candidate, setCandidate] = useState<RecruitingCandidate | null>();
   const [job, setJob] = useState<RecruitingJob | null>();
   const linkedCandidate = useRecruitingQuery<RecruitingCandidate>(
     initialCandidateId ? `candidates/${initialCandidateId}` : null,
@@ -51,11 +51,15 @@ export const RecruitingDrafts = ({
   const linkedJob = useRecruitingQuery<RecruitingJob>(
     initialJobId ? `jobs/${initialJobId}` : null,
   );
-  const selectedCandidate = candidate ?? linkedCandidate.data;
+  const selectedCandidate =
+    candidate === undefined ? linkedCandidate.data : (candidate ?? undefined);
   const selectedJob = job === undefined ? linkedJob.data : (job ?? undefined);
   const [note, setNote] = useState('');
   const [key, setKey] = useState(() => crypto.randomUUID());
   const [draftId, setDraftId] = useState<string>();
+  const [replacementKeys, setReplacementKeys] = useState<
+    Record<string, string>
+  >({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [offset, setOffset] = useState(0);
@@ -69,6 +73,68 @@ export const RecruitingDrafts = ({
     draftId ? 4000 : 0,
     active,
   );
+  const canResume = ['QUEUED', 'PROCESSING'].includes(
+    detail.data?.status ?? '',
+  );
+  /** Rebinds recovery to the current caller while the server preserves any task already in flight. */
+  const retry = async () => {
+    if (!draftId || busy || detail.data?.status === 'APPROVED') return;
+    setBusy(true);
+    setError('');
+    try {
+      await recruitingRequest(`drafts/${draftId}/retry`, {
+        method: 'POST',
+        body: '{}',
+      });
+      await detail.reload();
+      await list.reload();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : t`暂时无法重试`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  /** Creates a separate current-source draft while preserving the reviewed original and a recoverable submission identity. */
+  const replaceApproved = async () => {
+    const original = detail.data;
+    if (!original || busy || original.status !== 'APPROVED' || !original.stale)
+      return;
+    const idempotencyKey =
+      replacementKeys[original.draftId] ?? crypto.randomUUID();
+    setReplacementKeys((current) => ({
+      ...current,
+      [original.draftId]: idempotencyKey,
+    }));
+    setBusy(true);
+    setError('');
+    try {
+      const draft = await recruitingRequest<RecruitingDraft>('drafts', {
+        method: 'POST',
+        body: JSON.stringify({
+          kind: original.kind,
+          candidateId: original.candidateId,
+          jobId: original.jobId,
+          note: original.note ?? '',
+          idempotencyKey,
+        }),
+      });
+      setDraftId(draft.draftId);
+      setReplacementKeys((current) => {
+        const next = { ...current };
+        delete next[original.draftId];
+        return next;
+      });
+      await list.reload();
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : t`新稿请求未完成，原稿已保留`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
   const submit = async () => {
     setBusy(true);
     setError('');
@@ -119,7 +185,7 @@ export const RecruitingDrafts = ({
             selected={selectedCandidate}
             disabled={busy}
             onSelect={(value) => {
-              setCandidate(value);
+              setCandidate(value ?? null);
               setKey(crypto.randomUUID());
             }}
             renderLabel={(record) =>
@@ -133,7 +199,7 @@ export const RecruitingDrafts = ({
           selected={selectedJob}
           disabled={busy}
           onSelect={(value) => {
-            setJob(value);
+            setJob(value ?? null);
             setKey(crypto.randomUUID());
           }}
           renderLabel={(record) => record.name}
@@ -188,7 +254,10 @@ export const RecruitingDrafts = ({
           <StyledRecruitingRow>
             <StyledRecruitingTitle>{detail.data.name}</StyledRecruitingTitle>
             <span>{draftLabel(detail.data.status)}</span>
-            <Button onClick={() => setDraftId(undefined)}>{t`收起`}</Button>
+            <Button
+              disabled={busy}
+              onClick={() => setDraftId(undefined)}
+            >{t`收起`}</Button>
           </StyledRecruitingRow>
           {detail.data.error && (
             <StyledRecruitingError>{detail.data.error}</StyledRecruitingError>
@@ -202,17 +271,33 @@ export const RecruitingDrafts = ({
               onSaved={detail.reload}
             />
           )}
-          {(detail.data.status === 'FAILED' || detail.data.stale) && (
+          {canResume && (
+            <StyledRecruitingMuted>{t`长时间没有进展时可尝试恢复；仍在运行的任务会继续等待`}</StyledRecruitingMuted>
+          )}
+          {(canResume ||
+            detail.data.status === 'FAILED' ||
+            (detail.data.stale && detail.data.status !== 'APPROVED')) && (
             <Button
+              disabled={busy}
+              loading={busy}
               onClick={() => {
-                void recruitingRequest(`drafts/${draftId}/retry`, {
-                  method: 'POST',
-                  body: '{}',
-                })
-                  .then(() => detail.reload())
-                  .catch((failure) => setError(failure.message));
+                void retry();
               }}
-            >{t`重试生成`}</Button>
+            >
+              {canResume ? t`恢复处理` : t`重试生成`}
+            </Button>
+          )}
+          {detail.data.status === 'APPROVED' && detail.data.stale && (
+            <>
+              <StyledRecruitingMuted>{t`原稿已核对并保留。可根据当前资料另起新稿，完成后重新核对。`}</StyledRecruitingMuted>
+              <Button
+                disabled={busy}
+                loading={busy}
+                onClick={() => {
+                  void replaceApproved();
+                }}
+              >{t`以当前资料另起新稿`}</Button>
+            </>
           )}
         </StyledRecruitingPanel>
       )}
@@ -233,6 +318,7 @@ export const RecruitingDrafts = ({
                 <td>{draftLabel(draft.status)}</td>
                 <td>
                   <Button
+                    disabled={busy}
                     onClick={() => setDraftId(draft.draftId)}
                   >{t`打开`}</Button>
                 </td>

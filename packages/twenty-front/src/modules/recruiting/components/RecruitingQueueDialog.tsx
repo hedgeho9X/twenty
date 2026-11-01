@@ -36,6 +36,11 @@ const stageLabel = (intake: RecruitingIntake) => {
   return labels[intake.stage] ?? intake.stage;
 };
 
+/** Durable processing states can outlive a stopped worker; the server decides whether work is still in flight. */
+const canResumeIntake = (intake: RecruitingIntake) =>
+  ['READY', 'PROCESSING'].includes(intake.state) &&
+  intake.stage !== 'AWAITING_CONFIRMATION';
+
 /** Keeps detailed bulk editing outside this popup; accepted tasks remain available after refresh. */
 export const RecruitingQueueDialog = ({
   open,
@@ -46,11 +51,14 @@ export const RecruitingQueueDialog = ({
 }) => {
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState('');
+  const [retryingId, setRetryingId] = useState<string>();
   const query = useRecruitingQuery<RecruitingPage<RecruitingIntake>>(
     open ? `resume-intakes?offset=${offset}` : null,
     open ? 5000 : 0,
   );
   const retry = async (id: string) => {
+    if (retryingId) return;
+    setRetryingId(id);
     try {
       setError('');
       await recruitingRequest(`resume-intakes/${id}/retry`, {
@@ -60,6 +68,8 @@ export const RecruitingQueueDialog = ({
       await query.reload();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : t`暂时无法重试`);
+    } finally {
+      setRetryingId(undefined);
     }
   };
   return (
@@ -73,6 +83,9 @@ export const RecruitingQueueDialog = ({
               <Dialog.Description>{t`接收成功后会继续后台处理。材料入库与匹配分开进行，匹配失败不会删除候选人。`}</Dialog.Description>
             </Dialog.Header>
             <Dialog.Body>
+              {query.data?.records.some(canResumeIntake) && (
+                <StyledRecruitingMuted>{t`长时间没有进展时可尝试恢复；仍在运行的任务会继续等待`}</StyledRecruitingMuted>
+              )}
               {(query.error || error) && (
                 <StyledRecruitingError role="alert">
                   {error || query.error}
@@ -120,15 +133,22 @@ export const RecruitingQueueDialog = ({
                                   href={`/recruiting-workspace?tab=companies&intakeId=${intake.intakeId}`}
                                 >{t`打开岗位预览`}</a>
                               )}
-                            {intake.state === 'NEEDS_REVIEW' &&
-                              intake.stage !== 'AWAITING_CONFIRMATION' && (
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    void retry(intake.intakeId);
-                                  }}
-                                >{t`重试`}</Button>
-                              )}
+                            {(canResumeIntake(intake) ||
+                              (intake.state === 'NEEDS_REVIEW' &&
+                                intake.stage !== 'AWAITING_CONFIRMATION')) && (
+                              <Button
+                                size="sm"
+                                disabled={Boolean(retryingId)}
+                                loading={retryingId === intake.intakeId}
+                                onClick={() => {
+                                  void retry(intake.intakeId);
+                                }}
+                              >
+                                {canResumeIntake(intake)
+                                  ? t`恢复处理`
+                                  : t`重试`}
+                              </Button>
+                            )}
                           </StyledRecruitingRow>
                           {intake.matchingError && (
                             <StyledRecruitingMuted>

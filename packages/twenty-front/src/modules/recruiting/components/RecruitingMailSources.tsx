@@ -76,6 +76,27 @@ export const RecruitingMailSources = ({
     }
   };
   const mail = detail.data;
+  const canResume = Boolean(
+    mail && ['QUEUED', 'EXPANDING'].includes(mail.status),
+  );
+  /** Reuses archive checkpoints; the server keeps an in-flight task waiting instead of starting it twice. */
+  const retry = async () => {
+    if (!mail || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await recruitingRequest(`mail-archives/${mail.archiveId}/retry`, {
+        method: 'POST',
+        body: '{}',
+      });
+      await detail.reload();
+      await list.reload();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : t`暂时无法重试`);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <StyledRecruitingStack>
       <RecruitingMailboxSettings
@@ -123,7 +144,10 @@ export const RecruitingMailSources = ({
           <StyledRecruitingRow>
             <StyledRecruitingTitle>{mail.name}</StyledRecruitingTitle>
             <span>{mailLabel(mail.status)}</span>
-            <Button onClick={() => setArchiveId(undefined)}>{t`收起`}</Button>
+            <Button
+              disabled={busy}
+              onClick={() => setArchiveId(undefined)}
+            >{t`收起`}</Button>
           </StyledRecruitingRow>
           <StyledRecruitingMuted>
             {[mail.detail?.metadata?.from?.address, mail.detail?.metadata?.date]
@@ -133,17 +157,19 @@ export const RecruitingMailSources = ({
           {mail.error && (
             <StyledRecruitingError>{mail.error}</StyledRecruitingError>
           )}
-          {mail.status === 'FAILED' && (
+          {canResume && (
+            <StyledRecruitingMuted>{t`长时间没有进展时可尝试恢复；仍在运行的任务会继续等待`}</StyledRecruitingMuted>
+          )}
+          {(mail.status === 'FAILED' || canResume) && (
             <Button
+              disabled={busy}
+              loading={busy}
               onClick={() => {
-                void recruitingRequest(
-                  `mail-archives/${mail.archiveId}/retry`,
-                  { method: 'POST', body: '{}' },
-                )
-                  .then(() => detail.reload())
-                  .catch((failure) => setError(failure.message));
+                void retry();
               }}
-            >{t`重试归档`}</Button>
+            >
+              {canResume ? t`恢复处理` : t`重试归档`}
+            </Button>
           )}
           {['READY', 'NEEDS_SELECTION'].includes(mail.status) && (
             <RecruitingMailSelection
@@ -173,6 +199,7 @@ export const RecruitingMailSources = ({
                 <td>{item.artifactCount}</td>
                 <td>
                   <Button
+                    disabled={busy}
                     onClick={() => setArchiveId(item.archiveId)}
                   >{t`查看与选择材料`}</Button>
                 </td>

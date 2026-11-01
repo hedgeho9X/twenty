@@ -3,6 +3,9 @@ export type RecruitingDraft = {
   draftId: string;
   name: string;
   kind: 'GREETING' | 'JOB_PUBLICATION';
+  candidateId?: string;
+  jobId?: string;
+  note?: string;
   status: string;
   error?: string;
   title?: string;

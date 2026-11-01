@@ -59,6 +59,8 @@ export const RecruitingMatchResults = ({
     active,
   );
   const run = detail.data;
+  const unscored =
+    run?.results?.filter((pair) => pair.status !== 'SCORED') ?? [];
 
   /** Retry never marks a recommendation as sent or a candidate as contacted. */
   const action = async (suffix: 'retry' | 'reviewed') => {
@@ -165,6 +167,58 @@ export const RecruitingMatchResults = ({
             </StyledRecruitingTable>
             {!run.top?.length && (
               <StyledRecruitingMuted>{t`当前没有可展示的有效前五。可检查资料、等待处理完成或重试匹配。`}</StyledRecruitingMuted>
+            )}
+            {unscored.length > 0 && (
+              <>
+                <StyledRecruitingTitle>{t`未评分组合`}</StyledRecruitingTitle>
+                <StyledRecruitingMuted>{t`以下组合没有能力分。原因来自条件校验或处理状态，请先核对资料，再决定是否重试。`}</StyledRecruitingMuted>
+                <StyledRecruitingTable>
+                  <thead>
+                    <tr>
+                      <th>{t`候选人`}</th>
+                      <th>{t`岗位`}</th>
+                      <th>{t`状态`}</th>
+                      <th>{t`需要核对`}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unscored.map((pair) => (
+                      <tr key={`${pair.candidateId}:${pair.jobId}`}>
+                        <td>
+                          <a href={pair.candidateUrl}>{pair.candidateLabel}</a>
+                        </td>
+                        <td>
+                          <a href={pair.jobUrl}>{pair.jobLabel}</a>
+                        </td>
+                        <td>
+                          <Badge>
+                            {{
+                              EXCLUDED: t`明确条件冲突`,
+                              NEEDS_REVIEW: t`待补资料或人工核对`,
+                              FAILED: t`处理失败`,
+                            }[pair.status] ?? pair.status}
+                          </Badge>
+                        </td>
+                        <td>
+                          {pair.eligibility.reasons.map((reason) => (
+                            <StyledRecruitingMuted key={reason.code}>
+                              {reason.message}
+                            </StyledRecruitingMuted>
+                          ))}
+                          {pair.error && (
+                            <StyledRecruitingMuted>
+                              {pair.error}
+                            </StyledRecruitingMuted>
+                          )}
+                          {!pair.error && !pair.eligibility.reasons.length && (
+                            <StyledRecruitingMuted>{t`暂无更多处理说明，请核对原资料后重试。`}</StyledRecruitingMuted>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </StyledRecruitingTable>
+              </>
             )}
             <StyledRecruitingMuted>{t`分数表示材料中的能力匹配，不是录用概率。查看结果不会自动发送消息、推荐候选人或更新联系状态。`}</StyledRecruitingMuted>
             <StyledRecruitingRow>

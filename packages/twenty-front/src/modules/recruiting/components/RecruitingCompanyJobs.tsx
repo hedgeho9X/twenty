@@ -194,6 +194,13 @@ export const RecruitingCompanyJobs = ({
     setError('');
   };
 
+  /** Reopens a failed submission without discarding its source text or completed uploads. */
+  const resumeEditing = () => {
+    setAttempted(false);
+    setKey(crypto.randomUUID());
+    setError('');
+  };
+
   return (
     <StyledRecruitingStack>
       <StyledRecruitingPanel>
@@ -343,7 +350,10 @@ export const RecruitingCompanyJobs = ({
               }}
             >{t`整理并预览岗位`}</Button>
             {attempted && (
-              <Button disabled={busy} onClick={reset}>{t`重新编辑材料`}</Button>
+              <Button
+                disabled={busy}
+                onClick={resumeEditing}
+              >{t`重新编辑材料`}</Button>
             )}
           </StyledRecruitingRow>
         </StyledRecruitingPanel>
