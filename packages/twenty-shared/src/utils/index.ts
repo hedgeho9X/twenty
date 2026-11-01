@@ -1,3 +1,4 @@
+/** Exports shared utilities to browser and server consumers. */
 /*
  * _____                    _
  *|_   _|_      _____ _ __ | |_ _   _
@@ -400,3 +401,13 @@ export {
 } from './variable-resolver';
 export { getViewLayoutFromViewType } from './views/getViewLayoutFromViewType';
 export { isWidgetViewType } from './views/isWidgetViewType';
+export {
+  getRecruitingPreviewMissingFields,
+  getRecruitingPreviewNameWarnings,
+  normalizeRecruitingPreviewName,
+} from './recruiting/job-preview';
+export type {
+  RecruitingPreviewExistingJob,
+  RecruitingPreviewName,
+  RecruitingPreviewNameWarning,
+} from './recruiting/job-preview';
