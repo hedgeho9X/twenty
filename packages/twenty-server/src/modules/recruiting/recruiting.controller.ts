@@ -501,10 +501,15 @@ export class RecruitingController {
 
   /** Lists persistent matching progress independently of ingestion. */
   @Get('match-runs')
-  matchQueue(@Req() request: Request, @Query('offset') offset = '0') {
+  matchQueue(
+    @Req() request: Request,
+    @Query('offset') offset = '0',
+    @Query('direction') direction?: string,
+  ) {
     return this.matching.list(
       buildWorkspaceAuthContextFromRequest(request),
       Math.max(0, Number.parseInt(offset, 10) || 0),
+      direction,
     );
   }
 

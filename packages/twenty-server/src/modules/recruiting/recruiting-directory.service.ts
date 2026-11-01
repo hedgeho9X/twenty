@@ -29,7 +29,14 @@ export class RecruitingDirectoryService {
     const page = await this.records.list(context, 'person', {
       filter: { id: { eq: id }, contactRoles: { containsAny: ['CANDIDATE'] } },
       limit: 1,
-      select: ['id', 'name', 'jobTitle'],
+      select: [
+        'id',
+        'name',
+        'jobTitle',
+        'recruitingProfile',
+        'candidatePreferences',
+        'candidateSearchJson',
+      ],
     });
     if (!page.records[0])
       throw new NotFoundException('候选人不存在或当前无权访问');
@@ -41,7 +48,7 @@ export class RecruitingDirectoryService {
     const page = await this.records.list(context, 'recruitmentJob', {
       filter: { id: { eq: id } },
       limit: 1,
-      select: ['id', 'name', 'companyId', 'jobStatus'],
+      select: ['id', 'name', 'companyId', 'jobStatus', 'jobDescription'],
     });
     if (!page.records[0])
       throw new NotFoundException('岗位不存在或当前无权访问');

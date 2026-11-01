@@ -239,3 +239,39 @@ describe('recruiting matching runs', () => {
     expect(result.complete).toBe(true);
   });
 });
+
+it.each(['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES'])(
+  'filters %s before native pagination',
+  async (direction) => {
+    const records = {
+      list: jest.fn(async () => ({
+        records: [],
+        count: 0,
+        hasNextPage: false,
+      })),
+    };
+    const service = new RecruitingMatchingService(
+      records as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    await service.list({} as never, 50, direction);
+    expect(records.list).toHaveBeenCalledWith(
+      {},
+      'recruitingMatchRun',
+      expect.objectContaining({
+        offset: 50,
+        filter:
+          direction === 'CANDIDATE_TO_JOBS'
+            ? {
+                or: [
+                  { direction: { eq: 'CANDIDATE_TO_JOBS' } },
+                  { direction: { eq: 'PAIR' } },
+                ],
+              }
+            : { direction: { eq: 'JOB_TO_CANDIDATES' } },
+      }),
+    );
+  },
+);

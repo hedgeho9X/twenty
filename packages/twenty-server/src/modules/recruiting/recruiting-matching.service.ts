@@ -155,8 +155,26 @@ export class RecruitingMatchingService {
   }
 
   /** Returns small queue rows; a detail request revalidates the underlying record permissions. */
-  async list(context: WorkspaceAuthContext, offset = 0) {
+  async list(context: WorkspaceAuthContext, offset = 0, direction?: string) {
+    if (
+      direction &&
+      !['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES'].includes(direction)
+    )
+      throw new BadRequestException('匹配方向无效');
     const page = await this.records.list(context, 'recruitingMatchRun', {
+      ...(direction
+        ? {
+            filter:
+              direction === 'CANDIDATE_TO_JOBS'
+                ? {
+                    or: [
+                      { direction: { eq: 'CANDIDATE_TO_JOBS' } },
+                      { direction: { eq: 'PAIR' } },
+                    ],
+                  }
+                : { direction: { eq: direction } },
+          }
+        : {}),
       offset,
       limit: 50,
       orderBy: [{ createdAt: OrderByDirection.DescNullsLast }],
@@ -174,6 +192,10 @@ export class RecruitingMatchingService {
         );
         visible.push({
           ...this.receipt(record),
+          expectedRoles:
+            payload.input.direction === 'JOB_TO_CANDIDATES'
+              ? []
+              : buildCandidateMatchContext(subject).context.expectedRoles,
           subjectLabel:
             payload.input.direction === 'JOB_TO_CANDIDATES'
               ? buildJobMatchContext(subject).label
