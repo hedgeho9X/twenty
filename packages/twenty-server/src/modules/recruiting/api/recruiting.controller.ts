@@ -1,3 +1,4 @@
+import { decodeMultipartFilename } from '../files/domain/multipart-filename';
 import { ProcessingTasksService } from '../intake/processing-tasks.service';
 /** Exposes recruiting operations through the same authenticated workspace used by native APIs. */
 import {
@@ -407,6 +408,10 @@ export class RecruitingController {
     @Headers('idempotency-key') key?: string,
   ) {
     if (!file) throw new BadRequestException('请上传简历文件（file）');
+    file = {
+      ...file,
+      originalname: decodeMultipartFilename(file.originalname),
+    };
     const parsed = z
       .object({
         note: z.string().max(100_000).optional(),

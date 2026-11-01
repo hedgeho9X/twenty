@@ -1,3 +1,4 @@
+import { decodeMultipartFilename } from '../files/domain/multipart-filename';
 /** Archives unified submissions and coordinates resumable parsing, extraction and native record writes. */
 import {
   BadRequestException,
@@ -699,7 +700,10 @@ export class RecruitingIntakeService {
     return {
       intakeId: record.id,
       jobId: record.id,
-      name: record.name,
+      name:
+        typeof record.name === 'string'
+          ? decodeMultipartFilename(record.name)
+          : record.name,
       kind: record.kind,
       source: envelope.input.source,
       state: record.state,
@@ -731,7 +735,15 @@ export class RecruitingIntakeService {
       matchingStatus: envelope.matchingStatus,
       matchingRunIds: envelope.matchingRunIds,
       matchingError: envelope.matchingError,
-      files: Array.isArray(record.files) ? record.files : [],
+      files: Array.isArray(record.files)
+        ? record.files.map((file) => ({
+            ...file,
+            label:
+              typeof file.label === 'string'
+                ? decodeMultipartFilename(file.label)
+                : file.label,
+          }))
+        : [],
     };
   }
 

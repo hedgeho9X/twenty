@@ -264,7 +264,11 @@ export const RecruitingCandidateIntake = ({
                 setError('');
                 setGroupKey(crypto.randomUUID());
               }}
-            >{t`新建一批材料`}</Button>
+            >
+              {entries.some((entry) => entry.intake) || groupIntake
+                ? t`继续上传简历`
+                : t`清空选择`}
+            </Button>
           )}
         </StyledRecruitingRow>
       </StyledRecruitingPanel>
