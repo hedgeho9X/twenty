@@ -52,6 +52,7 @@ export class ChatgptSubscriptionController {
     const ownerId = this.owner(request);
     let localCodex: object = { available: false };
     try {
+      if (this.account.activeConnectionId()) throw new Error('managed');
       const account = await loadLocalCodexCredential();
       localCodex = { available: true, accountId: account.accountId };
     } catch {
@@ -59,6 +60,7 @@ export class ChatgptSubscriptionController {
     }
     return {
       connections: await this.store.list(),
+      activeConnectionId: this.account.activeConnectionId(),
       localCodex,
       pendingAttempt: this.login.active(ownerId),
     };
@@ -104,11 +106,18 @@ export class ChatgptSubscriptionController {
   @Post('authorize') start(@Req() request: Request, @Body() value: unknown) {
     const owner = this.owner(request);
     const parsed = z
-      .object({ connectionId: z.string().uuid().optional() })
+      .object({
+        connectionId: z.string().uuid().optional(),
+        protocol: z.enum(['codex', 'siwc']).default('codex'),
+      })
       .strict()
       .safeParse(value);
     if (!parsed.success) throw new BadRequestException('请选择有效的账号连接');
-    return this.login.start(owner, parsed.data.connectionId);
+    return this.login.start(
+      owner,
+      parsed.data.connectionId,
+      parsed.data.protocol,
+    );
   }
   /** Returns one administrator's own authorization attempt. */
   @Get('attempts/:id') status(
@@ -128,6 +137,13 @@ export class ChatgptSubscriptionController {
   @Get(':id/models') models(@Req() request: Request, @Param('id') id: string) {
     this.owner(request);
     return this.store.models(z.uuid().parse(id));
+  }
+  @Post(':id/activate') activate(
+    @Req() request: Request,
+    @Param('id') id: string,
+  ) {
+    this.owner(request);
+    return this.account.activate(z.uuid().parse(id));
   }
   /** Clears local use and reports remote renewable-session revocation separately. */
   @Post(':id/disconnect') disconnect(

@@ -1,3 +1,8 @@
+import { generateText } from 'ai';
+jest.mock('ai', () => ({
+  generateText: jest.fn(),
+  Output: { object: jest.fn() },
+}));
 /** Verifies quota accuracy and prevents credential disclosure in management results. */
 import { SubscriptionAccountService } from './subscription-account.service';
 import { loadLocalCodexCredential } from './local-codex-credential';
@@ -12,7 +17,7 @@ const setup = (body: unknown, status = 200) => {
   });
   jest
     .spyOn(global, 'fetch')
-    .mockResolvedValue(Response.json(body, { status }));
+    .mockImplementation(async () => Response.json(body, { status }));
   const configured = {
     source: {
       npm: '@ai-sdk/openai',
@@ -26,7 +31,19 @@ const setup = (body: unknown, status = 200) => {
     get: jest.fn(() => configured),
     set: jest.fn(async () => undefined),
   };
-  return { service: new SubscriptionAccountService(config as never), config };
+  const store = {
+    credential: jest.fn(async () => ({
+      accessToken: 'independent-token',
+      protocol: 'codex',
+      accountId: 'managed-account',
+      clientVersion: '0.166.0',
+    })),
+  };
+  return {
+    service: new SubscriptionAccountService(config as never, store as never),
+    config,
+    store,
+  };
 };
 afterEach(() => jest.restoreAllMocks());
 it('reports real quota windows without exposing upstream account data', async () => {
@@ -104,14 +121,12 @@ it('uses the current client version and excludes hidden or unavailable catalog e
       { slug: 'unsupported-model', supported_in_api: false },
     ],
   });
-  jest
-    .mocked(loadLocalCodexCredential)
-    .mockResolvedValue({
-      accessToken: 'private-token',
-      accountId: 'bound-account',
-      protocol: 'codex',
-      clientVersion: '0.166.0',
-    });
+  jest.mocked(loadLocalCodexCredential).mockResolvedValue({
+    accessToken: 'private-token',
+    accountId: 'bound-account',
+    protocol: 'codex',
+    clientVersion: '0.166.0',
+  });
   expect(await service.syncModels()).toEqual({ count: 1 });
   expect(jest.mocked(global.fetch).mock.calls[0][0]).toBe(
     'https://chatgpt.com/backend-api/codex/models?client_version=0.166.0',
@@ -124,4 +139,60 @@ it('uses the current client version and excludes hidden or unavailable catalog e
       }),
     }),
   );
+});
+
+it('uses the managed registration without reading local Codex credentials', async () => {
+  jest
+    .spyOn(global, 'fetch')
+    .mockResolvedValue(Response.json({ rate_limit: null }));
+  jest.mocked(loadLocalCodexCredential).mockClear();
+  const config = {
+    get: () => ({
+      source: { authType: 'chatgpt', subscriptionConnectionId: 'managed' },
+    }),
+  };
+  const store = {
+    credential: jest.fn(async () => ({
+      accessToken: 'managed-token',
+      accountId: 'managed-account',
+      protocol: 'codex',
+      clientVersion: '0.166.0',
+    })),
+  };
+  const service = new SubscriptionAccountService(
+    config as never,
+    store as never,
+  );
+  await service.usage();
+  expect(store.credential).toHaveBeenCalledWith('managed');
+  expect(loadLocalCodexCredential).not.toHaveBeenCalled();
+});
+
+it('activates only after refreshing and validating the independent credential', async () => {
+  const { service, config, store } = setup({
+    models: [{ slug: 'gpt-6.1-sol' }],
+  });
+  jest
+    .mocked(generateText)
+    .mockResolvedValue({ output: { ok: true } } as never);
+  jest.mocked(loadLocalCodexCredential).mockClear();
+  const result = await service.activate('managed-id');
+  expect(result.refreshVerified).toBe(true);
+  expect(store.credential).toHaveBeenCalledWith('managed-id', true);
+  expect(loadLocalCodexCredential).not.toHaveBeenCalled();
+  expect(config.set).toHaveBeenCalledWith(
+    'AI_PROVIDERS',
+    expect.objectContaining({
+      source: expect.objectContaining({
+        subscriptionConnectionId: 'managed-id',
+        subscriptionAccountId: undefined,
+      }),
+    }),
+  );
+});
+it('retains the active provider when an independent connection fails inference', async () => {
+  const { service, config } = setup({ models: [{ slug: 'gpt-6.1-sol' }] });
+  jest.mocked(generateText).mockRejectedValue(new Error('private-failure'));
+  await expect(service.activate('managed-id')).rejects.toThrow('原连接保留');
+  expect(config.set).not.toHaveBeenCalled();
 });

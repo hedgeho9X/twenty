@@ -1,9 +1,16 @@
+import { createOpenAI } from '@ai-sdk/openai';
+import { generateText, Output } from 'ai';
+import { SiwcStoreService } from './siwc-store.service';
+import {
+  createSubscriptionFetch,
+  createSubscriptionTransport,
+  type SubscriptionCredential,
+} from './subscription-fetch';
 /** Reads the account's own quota and model catalog without exposing credentials or modifying upstream usage. */
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { loadLocalCodexCredential } from './local-codex-credential';
-import { createSubscriptionTransport } from './subscription-fetch';
 
 const windowSchema = z.object({
   used_percent: z.number().min(0).max(100),
@@ -34,18 +41,36 @@ const catalogSchema = z.object({
 
 @Injectable()
 export class SubscriptionAccountService {
-  constructor(private readonly config: TwentyConfigService) {}
+  constructor(
+    private readonly config: TwentyConfigService,
+    private readonly store: SiwcStoreService,
+  ) {}
+
+  activeConnectionId() {
+    return (
+      Object.values(this.config.get('AI_PROVIDERS')).find(
+        (provider) =>
+          provider.authType === 'chatgpt' && provider.subscriptionConnectionId,
+      )?.subscriptionConnectionId ?? null
+    );
+  }
 
   /** Pins requests to the Codex account bound to the active provider, preventing silent account switches. */
-  private async request(path: string) {
+  private async request(path: string, selected?: SubscriptionCredential) {
     const providers = this.config.get('AI_PROVIDERS');
-    const binding = Object.values(providers).find(
-      (provider) =>
-        provider.authType === 'chatgpt' && !provider.subscriptionConnectionId,
+    const bindings = Object.values(providers).filter(
+      (provider) => provider.authType === 'chatgpt',
     );
-    const credential = await loadLocalCodexCredential(
-      binding?.subscriptionAccountId,
-    );
+    const binding =
+      bindings.find((provider) => provider.subscriptionConnectionId) ??
+      bindings[0];
+    const credential =
+      selected ??
+      (binding?.subscriptionConnectionId
+        ? await this.store.credential(binding.subscriptionConnectionId)
+        : await loadLocalCodexCredential(binding?.subscriptionAccountId));
+    if (credential.protocol !== 'codex')
+      throw new BadRequestException('此连接不支持 Codex 额度查询');
     const transport = createSubscriptionTransport(
       process.env.RECRUITING_MODEL_PROXY_URL,
     );
@@ -67,7 +92,7 @@ export class SubscriptionAccountService {
     });
     if (!response.ok)
       throw new BadRequestException('订阅信息暂不可用，请检查账号连接后刷新');
-    return { body: await response.json(), accountId: credential.accountId };
+    return { body: await response.json(), credential };
   }
 
   async usage() {
@@ -100,8 +125,8 @@ export class SubscriptionAccountService {
   }
 
   /** Explicit catalog refresh adds usable models without changing selected feature models. */
-  async syncModels() {
-    const { body, accountId } = await this.request('codex/models');
+  async syncModels(selected?: SubscriptionCredential, connectionId?: string) {
+    const { body, credential } = await this.request('codex/models', selected);
     const parsed = catalogSchema.safeParse(body);
     if (!parsed.success || !parsed.data.models.length)
       throw new BadRequestException('未获取到可用模型');
@@ -113,8 +138,7 @@ export class SubscriptionAccountService {
     const providers = this.config.get('AI_PROVIDERS');
     const name =
       Object.entries(providers).find(
-        ([, provider]) =>
-          provider.authType === 'chatgpt' && !provider.subscriptionConnectionId,
+        ([, provider]) => provider.authType === 'chatgpt',
       )?.[0] ?? 'chatgpt-subscription';
     const previous = providers[name];
     await this.config.set('AI_PROVIDERS', {
@@ -123,7 +147,11 @@ export class SubscriptionAccountService {
         ...previous,
         npm: '@ai-sdk/openai',
         authType: 'chatgpt',
-        subscriptionAccountId: accountId,
+        subscriptionAccountId:
+          connectionId || previous?.subscriptionConnectionId
+            ? undefined
+            : credential.accountId,
+        ...(connectionId ? { subscriptionConnectionId: connectionId } : {}),
         label: 'ChatGPT 订阅',
         models: models.map((model) => ({
           ...previous?.models?.find((existing) => existing.name === model.slug),
@@ -139,5 +167,49 @@ export class SubscriptionAccountService {
       },
     });
     return { count: models.length };
+  }
+  /** Activates a connection only after its own credential can discover models and produce structured output. */
+  async activate(id: string) {
+    const credential = await this.store.credential(id, true);
+    const { body } = await this.request('codex/models', credential);
+    const catalog = catalogSchema
+      .parse(body)
+      .models.filter(
+        (model) =>
+          model.visibility !== 'hide' && model.supported_in_api !== false,
+      );
+    const modelId =
+      catalog.find((model) => model.slug === 'gpt-6.1-sol')?.slug ??
+      catalog[0]?.slug;
+    if (!modelId) throw new BadRequestException('此账号没有可用模型');
+    const provider = createOpenAI({
+      apiKey: 'managed-subscription',
+      fetch: createSubscriptionFetch({
+        loadCredential: () => this.store.credential(id),
+        upstreamFetch: createSubscriptionTransport(
+          process.env.RECRUITING_MODEL_PROXY_URL,
+        ),
+      }),
+    });
+    try {
+      const result = await generateText({
+        model: provider.responses(modelId),
+        output: Output.object({ schema: z.object({ ok: z.boolean() }) }),
+        prompt:
+          'This is a connection test. Return an object with ok set to true.',
+        maxRetries: 0,
+        abortSignal: AbortSignal.timeout(45_000),
+      });
+      if (result.output?.ok !== true) throw new Error('invalid');
+    } catch {
+      throw new BadRequestException('独立账号推理验证未通过，原连接保留');
+    }
+    const result = await this.syncModels(credential, id);
+    return {
+      ...result,
+      activeConnectionId: id,
+      verifiedModel: modelId,
+      refreshVerified: true,
+    };
   }
 }
