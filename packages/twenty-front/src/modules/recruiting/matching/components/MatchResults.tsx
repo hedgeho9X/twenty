@@ -6,6 +6,7 @@ import { IconArrowLeft, IconRefresh } from 'twenty-ui/icon';
 import { Select } from '@/ui/input/components/Select';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { type RecruitingMatchRun } from '@/recruiting/matching/types/MatchRun';
+import { matchResultNotice } from '@/recruiting/matching/utils/resultNotice';
 import { type RecruitingPage } from '@/recruiting/shared/types/Page';
 import {
   RecruitingCandidateFacts,
@@ -46,6 +47,7 @@ export const RecruitingMatchResults = ({
     active,
   );
   const run = detail.error ? undefined : detail.data;
+  const notice = run ? matchResultNotice(run) : undefined;
   if (runId)
     return (
       <StyledRecruitingStack>
@@ -77,11 +79,16 @@ export const RecruitingMatchResults = ({
               </StyledRecruitingPanel>
             )}
             <StyledRecruitingPanel>
-              {!run.complete && (
-                <StyledRecruitingError role="status">
-                  {run.error || t`当前结果尚未完成，或资料已经更新。`}
-                </StyledRecruitingError>
-              )}
+              {notice &&
+                (notice.error ? (
+                  <StyledRecruitingError role="alert">
+                    {notice.message}
+                  </StyledRecruitingError>
+                ) : (
+                  <StyledRecruitingMuted role="status">
+                    {notice.message}
+                  </StyledRecruitingMuted>
+                ))}
               <StyledRecruitingTable>
                 <thead>
                   <tr>
@@ -194,7 +201,7 @@ export const RecruitingMatchResults = ({
         <StyledRecruitingError role="alert">{list.error}</StyledRecruitingError>
       )}
       <div style={{ overflowX: 'auto' }}>
-        <StyledRecruitingTable style={{ minWidth: 620 }}>
+        <StyledRecruitingTable style={{ minWidth: 760 }}>
           <thead>
             <tr>
               <th>{direction === 'JOB_TO_CANDIDATES' ? t`岗位` : t`姓名`}</th>
@@ -223,7 +230,24 @@ export const RecruitingMatchResults = ({
                     </span>
                   </td>
                 )}
-                <td>{new Date(row.createdAt).toLocaleDateString()}</td>
+                <td
+                  style={{
+                    whiteSpace: 'nowrap',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  <time dateTime={row.createdAt}>
+                    {new Date(row.createdAt).toLocaleString('zh-CN', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: false,
+                    })}
+                  </time>
+                </td>
                 <td>
                   <Button
                     size="sm"

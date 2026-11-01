@@ -85,7 +85,7 @@ export const StyledRecruitingTable = styled.table`
   td {
     border-bottom: 1px solid ${theme.border.color.medium};
     padding: ${theme.spacing[3]};
-    vertical-align: top;
+    vertical-align: middle;
   }
   a {
     color: ${theme.color.blue};

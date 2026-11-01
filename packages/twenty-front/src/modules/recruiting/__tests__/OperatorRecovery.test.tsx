@@ -258,3 +258,23 @@ it('shows a single candidate header and compact job results without follow-up co
   expect(screen.queryByRole('button', { name: '标记为已查看' })).toBeNull();
   expect(screen.queryByRole('button', { name: '重试或刷新匹配' })).toBeNull();
 });
+
+it('shows the full matching timestamp including seconds', () => {
+  queryData['match-runs?offset=0&direction=CANDIDATE_TO_JOBS&completed=true'] =
+    {
+      records: [
+        {
+          runId: 'time-fixture',
+          direction: 'CANDIDATE_TO_JOBS',
+          subjectLabel: '时间显示验收',
+          expectedRoles: [],
+          createdAt: '2026-11-01T03:04:05.000Z',
+        },
+      ],
+      hasNextPage: false,
+    };
+  render(<RecruitingMatchResults />);
+  const timestamp = screen.getByText(/03:04:05/);
+  expect(timestamp.tagName).toBe('TIME');
+  expect(timestamp).toHaveAttribute('datetime', '2026-11-01T03:04:05.000Z');
+});
