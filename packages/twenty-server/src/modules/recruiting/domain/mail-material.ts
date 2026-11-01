@@ -1,6 +1,7 @@
 /** Expands bounded MIME input into complete archive artifacts without executing HTML or discarding inline resources. */
 import { createHash } from 'node:crypto';
 import PostalMime from 'postal-mime';
+import { MAX_RECRUITING_MAIL_ATTACHMENTS } from './mail-file-layout';
 
 /** Bytes are uploaded through the native file lifecycle before entering persistent archive metadata. */
 export type RecruitingMailArtifact = {
@@ -33,7 +34,7 @@ export const expandRecruitingMail = async (raw: Buffer) => {
     maxHeadersSize: 1024 * 1024,
     rfc822Attachments: true,
   });
-  if (parsed.attachments.length > 500)
+  if (parsed.attachments.length > MAX_RECRUITING_MAIL_ATTACHMENTS)
     throw new Error('邮件附件超过自动展开上限，完整EML仍已归档');
   const sha = (content: Buffer) =>
     createHash('sha256').update(content).digest('hex');
