@@ -18,6 +18,7 @@ import { WorkspaceCacheService } from 'src/engine/workspace-cache/services/works
 import { RecruitingActorService } from './recruiting-actor.service';
 import { RecruitingRecordsService } from './recruiting-records.service';
 import { contentVersion } from './domain/match-context';
+import { RECRUITING_MAIL_FILE_LAYOUT } from './domain/mail-file-layout';
 import {
   signRecruitingUploadReceipt,
   verifyRecruitingUploadReceipt,
@@ -51,6 +52,7 @@ export class RecruitingUploadService {
     context: WorkspaceAuthContext,
     archiveId: string,
     keys: string[],
+    bindingKey?: string,
   ) {
     const archive = await this.records.one(
       context,
@@ -59,11 +61,19 @@ export class RecruitingUploadService {
     );
     const payload = archive.payload as {
       artifacts: { key: string; fileId: string; label: string }[];
+      intakeCopies?: Record<
+        string,
+        { key: string; fileId: string; label: string }[]
+      >;
     };
     const principal = await this.assertUploadPermission(context);
     return keys.map((key) => {
-      const file = payload.artifacts.find((entry) => entry.key === key);
-      if (!file) throw new BadRequestException('所选材料不属于这封归档邮件');
+      const source = payload.artifacts.find((entry) => entry.key === key);
+      const file = bindingKey
+        ? payload.intakeCopies?.[bindingKey]?.find((entry) => entry.key === key)
+        : source;
+      if (!source || !file)
+        throw new BadRequestException('所选材料不属于这封归档邮件');
       return {
         fileId: file.fileId,
         label: file.label,
@@ -140,8 +150,40 @@ export class RecruitingUploadService {
     return this.complete(context, { uploadReceipt: target.uploadReceipt });
   }
 
+  /** Uploads canonical bytes directly into one fixed archive ownership slot, without creating an intake-owned original. */
+  async bufferForMailArchive(
+    context: WorkspaceAuthContext,
+    file: { buffer: Buffer; originalname: string },
+    fieldName: string,
+  ) {
+    if (!RECRUITING_MAIL_FILE_LAYOUT.fields.includes(fieldName))
+      throw new BadRequestException('邮件原件字段无效');
+    const target = await this.targetForField(
+      context,
+      { filename: file.originalname, size: file.buffer.byteLength },
+      'recruitingMailArchive',
+      fieldName,
+    );
+    await this.nativeUploads.receiveFileStream({
+      workspaceId: context.workspace.id,
+      fileId: target.fileId,
+      stream: Readable.from(file.buffer),
+    });
+    return this.complete(context, { uploadReceipt: target.uploadReceipt });
+  }
+
   /** Creates a new file in the intake field partition under the native upload permission flag. */
   async target(context: WorkspaceAuthContext, value: unknown) {
+    return this.targetForField(context, value, 'recruitingIntake', 'files');
+  }
+
+  /** Resolves an internal object field; public upload targets remain restricted to intake files. */
+  private async targetForField(
+    context: WorkspaceAuthContext,
+    value: unknown,
+    objectName: string,
+    fieldName: string,
+  ) {
     const parsed = targetSchema.safeParse(value);
     if (!parsed.success)
       throw new BadRequestException(
@@ -155,12 +197,12 @@ export class RecruitingUploadService {
       ]);
     const object = Object.values(
       flatObjectMetadataMaps.byUniversalIdentifier,
-    ).find((entry) => entry?.nameSingular === 'recruitingIntake');
+    ).find((entry) => entry?.nameSingular === objectName);
     const field = Object.values(
       flatFieldMetadataMaps.byUniversalIdentifier,
     ).find(
       (entry) =>
-        entry?.objectMetadataId === object?.id && entry?.name === 'files',
+        entry?.objectMetadataId === object?.id && entry?.name === fieldName,
     );
     if (!field) throw new BadRequestException('招聘上传字段尚未配置');
     const target = await this.nativeUploads.createFileUpload({

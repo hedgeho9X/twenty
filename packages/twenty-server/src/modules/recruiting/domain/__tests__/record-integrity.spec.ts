@@ -3,9 +3,68 @@ import {
   sealRecruitingRecord,
   verifyRecruitingRecord,
 } from '../record-integrity';
+import { RECRUITING_MAIL_FILE_LAYOUT } from '../mail-file-layout';
 
 describe('recruiting record integrity', () => {
   const secret = 'unit-test-state-key';
+  it('keeps old mail MACs readable and authenticates every native ownership slot after migration', () => {
+    const legacy = {
+      id: 'mail',
+      status: 'READY',
+      sourceHash: 'sha',
+      payload: { version: 1, intakeIds: ['accepted'] },
+    };
+    const old = sealRecruitingRecord(
+      'workspace',
+      'recruitingMailArchive',
+      legacy,
+      secret,
+    );
+    expect(
+      verifyRecruitingRecord(
+        'workspace',
+        'recruitingMailArchive',
+        { ...old, sourceFiles: [] },
+        secret,
+      ),
+    ).toBe(true);
+    const migrated = sealRecruitingRecord(
+      'workspace',
+      'recruitingMailArchive',
+      {
+        ...legacy,
+        payload: { ...legacy.payload, fileOwnershipVersion: 1 },
+        sourceFiles: [{ fileId: 'canonical', label: 'original.eml' }],
+      },
+      secret,
+    );
+    expect(
+      verifyRecruitingRecord(
+        'workspace',
+        'recruitingMailArchive',
+        {
+          ...migrated,
+          sourceFiles: [
+            {
+              fileId: 'canonical',
+              label: 'original.eml',
+              url: 'presentation-only',
+            },
+          ],
+        },
+        secret,
+      ),
+    ).toBe(true);
+    for (const slot of RECRUITING_MAIL_FILE_LAYOUT.fields)
+      expect(
+        verifyRecruitingRecord(
+          'workspace',
+          'recruitingMailArchive',
+          { ...migrated, [slot]: [{ fileId: 'other', label: 'changed' }] },
+          secret,
+        ),
+      ).toBe(false);
+  });
   it('protects approved draft text and normalizes native empty UUID and text defaults', () => {
     const draft = {
       id: 'draft',

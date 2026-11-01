@@ -1,6 +1,7 @@
 /** Seals server-owned task state so generic CRM writes cannot become trusted queue instructions. */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { stableSerialize } from './match-context';
+import { RECRUITING_MAIL_FILE_LAYOUT } from './mail-file-layout';
 
 /** Protected objects retain native storage and permissions while authenticating their internal envelopes. */
 const envelopeKeys: Record<string, string> = {
@@ -96,6 +97,31 @@ const canonicalRecord = (
                         status: record.status,
                         sourceHash: record.sourceHash,
                         error: record.error || '',
+                        ...((envelope as { fileOwnershipVersion?: number })
+                          .fileOwnershipVersion === 1
+                          ? {
+                              sourceFiles:
+                                RECRUITING_MAIL_FILE_LAYOUT.fields.map(
+                                  (name) => ({
+                                    name,
+                                    files: (Array.isArray(record[name])
+                                      ? record[name]
+                                      : []
+                                    )
+                                      .map((file) => ({
+                                        fileId: file?.fileId,
+                                        label: file?.label,
+                                      }))
+                                      .sort((a, b) =>
+                                        String(a.fileId).localeCompare(
+                                          String(b.fileId),
+                                          'en',
+                                        ),
+                                      ),
+                                  }),
+                                ),
+                            }
+                          : {}),
                       }
                     : object === 'recruitingDraft'
                       ? {

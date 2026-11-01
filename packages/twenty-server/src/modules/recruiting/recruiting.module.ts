@@ -40,6 +40,7 @@ import { provideWorkspaceScopedRepository } from 'src/engine/twenty-orm/workspac
 import { RecruitingDraftsService } from './recruiting-drafts.service';
 import { RecruitingDraftJob } from './recruiting-draft.job';
 import { RecruitingMailService } from './recruiting-mail.service';
+import { RecruitingMailFilesService } from './recruiting-mail-files.service';
 import { RecruitingMailJob } from './recruiting-mail.job';
 import { RecruitingMailboxService } from './recruiting-mailbox.service';
 import { RecruitingMailboxPollJob } from './recruiting-mailbox-poll.job';
@@ -96,6 +97,7 @@ import { RecruitingPortalController } from './recruiting-portal.controller';
     RecruitingDraftsService,
     RecruitingDraftJob,
     RecruitingMailService,
+    RecruitingMailFilesService,
     RecruitingMailJob,
     RecruitingMailboxService,
     RecruitingMailboxPollJob,

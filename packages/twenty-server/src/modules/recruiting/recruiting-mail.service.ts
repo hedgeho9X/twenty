@@ -33,6 +33,7 @@ import {
 } from './domain/mail-material';
 import { contentVersion } from './domain/match-context';
 import { intakeFileSchema } from './recruiting-schemas';
+import { RecruitingMailFilesService } from './recruiting-mail-files.service';
 
 /** Transport identifiers are produced by the trusted receiver, never interpreted as authorization. */
 export type RecruitingMailSource =
@@ -60,7 +61,7 @@ const mailSourceKey = (source: RecruitingMailSource) =>
 type ArchivedAsset = Omit<RecruitingMailArtifact, 'content'> & {
   fileId: string;
 };
-type MailPayload = {
+export type MailPayload = {
   version: 1;
   actor: RecruitingActor;
   sources: RecruitingMailSource[];
@@ -70,6 +71,15 @@ type MailPayload = {
   autoSubmit: boolean;
   intakeIds: string[];
   parserVersion?: string;
+  fileOwnershipVersion?: 1;
+  canonicalCopies?: Record<
+    string,
+    { fileId: string; label: string; fieldName: string }
+  >;
+  intakeCopies?: Record<
+    string,
+    { key: string; fileId: string; label: string }[]
+  >;
 };
 /** Queue payloads retain stable identity, not raw email bodies or credentials. */
 export type RecruitingMailJobData = {
@@ -90,6 +100,7 @@ export class RecruitingMailService {
     private readonly locks: PostgresAdvisoryLockService,
     @InjectMessageQueue(MessageQueue.recruitingQueue)
     private readonly queue: MessageQueueService,
+    private readonly mailFiles: RecruitingMailFilesService,
   ) {}
 
   /** Accepts an Agent-owned completed upload, preserving the same parent archive and file authorization boundary. */
@@ -185,7 +196,7 @@ export class RecruitingMailService {
         if (!payload.rawFile) {
           const file =
             uploaded ??
-            (await this.uploads.buffer(context, {
+            (await this.mailFiles.upload(context, id, {
               buffer: raw,
               originalname: 'original.eml',
             }));
@@ -199,6 +210,7 @@ export class RecruitingMailService {
             id,
             { status: 'QUEUED', payload },
           );
+          record = await this.mailFiles.ensureCanonicalOwnership(context, id);
         }
         return record;
       },
@@ -209,6 +221,16 @@ export class RecruitingMailService {
     if (!['READY', 'NEEDS_SELECTION'].includes(String(locked.value.status)))
       await this.enqueue(id, actor);
     return this.receipt(locked.value);
+  }
+
+  /** Migrates only this authorized archive's canonical files without reprocessing materials or changing existing intakes. */
+  async ensureCanonicalOwnership(context: WorkspaceAuthContext, id: string) {
+    const locked = await this.locks.tryWithLock(`recruiting-mail:${id}`, () =>
+      this.mailFiles.ensureCanonicalOwnership(context, id),
+    );
+    if (!locked.acquired)
+      throw new ConflictException('邮件正在处理，请稍后重试');
+    return locked.value;
   }
 
   /** Exposes raw metadata and owned artifact identities only after native parent-record access. */
@@ -366,7 +388,28 @@ export class RecruitingMailService {
         ...(metadata ? [metadata.key] : []),
       ]),
     ];
-    const bound = await this.uploads.fromMailArchive(context, id, allKeys);
+    const digest = contentVersion({
+      selection,
+      candidateId: parsed.data.candidateId,
+      note: parsed.data.note,
+    });
+    const idempotencyKey = `mail:${id}:${digest}`;
+    const intakeId = v5(
+      `${context.workspace.id}:CANDIDATE:email:${idempotencyKey}`,
+      v5.URL,
+    );
+    if (payload.intakeIds.includes(intakeId))
+      return this.intakes.mailBinding(context, intakeId, {
+        archiveId: id,
+        sourceHash: String(record.sourceHash),
+        idempotencyKey,
+      });
+    const bound = await this.mailFiles.intakeFiles(
+      context,
+      id,
+      digest,
+      allKeys,
+    );
     const files = bound.map((file, index) => ({
       ...file,
       role: selection.includes(allKeys[index])
@@ -376,11 +419,6 @@ export class RecruitingMailService {
           : ('supplement' as const),
     }));
     const note = `${parsed.data.note}\n邮件主题：${payload.metadata?.subject ?? ''}\n邮件原始信息：${JSON.stringify({ from: payload.metadata?.from, to: payload.metadata?.to, date: payload.metadata?.date })}`;
-    const digest = contentVersion({
-      selection,
-      candidateId: parsed.data.candidateId,
-      note: parsed.data.note,
-    });
     const intake = await this.intakes.submit(context, {
       kind: 'CANDIDATE',
       files,
@@ -388,7 +426,7 @@ export class RecruitingMailService {
       candidateId: parsed.data.candidateId,
       source: 'email',
       sourceId: id,
-      idempotencyKey: `mail:${id}:${digest}`,
+      idempotencyKey,
       mail: {
         archiveId: id,
         sourceHash: record.sourceHash,
@@ -420,6 +458,10 @@ export class RecruitingMailService {
           'recruitingMailArchive',
           data.archiveId,
         );
+        record = await this.mailFiles.ensureCanonicalOwnership(
+          context,
+          record.id,
+        );
         let payload = this.payload(record);
         if (['READY', 'NEEDS_SELECTION'].includes(String(record.status)))
           return;
@@ -448,7 +490,7 @@ export class RecruitingMailService {
             const file =
               artifact.kind === 'raw'
                 ? payload.rawFile!
-                : await this.uploads.buffer(context, {
+                : await this.mailFiles.upload(context, record.id, {
                     buffer: artifact.content,
                     originalname: artifact.label,
                   });
@@ -466,6 +508,11 @@ export class RecruitingMailService {
               name: expanded.metadata.subject?.slice(0, 180) || '无主题邮件',
               payload,
             });
+            record = await this.mailFiles.ensureCanonicalOwnership(
+              context,
+              record.id,
+            );
+            payload = this.payload(record);
           }
           const suggested = payload.artifacts.filter(
             (file) => file.suggestedResume,
@@ -493,6 +540,10 @@ export class RecruitingMailService {
             }
           }
         } catch {
+          context = await this.actors.resolve(data.actor);
+          payload = this.payload(
+            await this.records.one(context, 'recruitingMailArchive', record.id),
+          );
           await update({
             status: 'FAILED',
             error: '邮件展开未完成，原始EML已保留；请核对格式或重试归档',

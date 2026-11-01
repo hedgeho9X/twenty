@@ -12,12 +12,14 @@ import {
 } from './recruiting-actor.service';
 import { RecruitingUploadService } from './recruiting-upload.service';
 import { type RecruitingRecordsService } from './recruiting-records.service';
+import { RECRUITING_MAIL_FILE_LAYOUT } from './domain/mail-file-layout';
 
 const context = { workspace: { id: 'workspace' } } as WorkspaceAuthContext;
 
 /** Mirrors native interfaces with isolated values and no actual credentials. */
 const setup = () => {
   const native = {
+    receiveFileStream: jest.fn(async () => undefined),
     createFileUpload: jest.fn(async () => ({
       fileId: 'new-file',
       uploadUrl: 'https://storage.example.test/upload',
@@ -29,12 +31,10 @@ const setup = () => {
     })),
   };
   const actors = {
-    capture: jest.fn(
-      (): RecruitingActor => ({
-        workspaceId: 'workspace',
-        userWorkspaceId: 'caller',
-      }),
-    ),
+    capture: jest.fn((): RecruitingActor => ({
+      workspaceId: 'workspace',
+      userWorkspaceId: 'caller',
+    })),
   };
   const permissions = {
     userHasWorkspaceSettingPermission: jest.fn(
@@ -46,11 +46,18 @@ const setup = () => {
       flatObjectMetadataMaps: {
         byUniversalIdentifier: {
           intake: { id: 'intake', nameSingular: 'recruitingIntake' },
+          archive: { id: 'archive', nameSingular: 'recruitingMailArchive' },
         },
       },
       flatFieldMetadataMaps: {
         byUniversalIdentifier: {
           files: { id: 'field', objectMetadataId: 'intake', name: 'files' },
+          ...Object.fromEntries(
+            RECRUITING_MAIL_FILE_LAYOUT.fields.map((name) => [
+              name,
+              { id: `field-${name}`, objectMetadataId: 'archive', name },
+            ]),
+          ),
         },
       },
     }),
@@ -68,6 +75,57 @@ const setup = () => {
 };
 
 describe('recruiting native upload boundary', () => {
+  it('uploads canonical bytes only to a fixed archive slot and refuses arbitrary target fields', async () => {
+    const { service, native } = setup();
+    await service.bufferForMailArchive(
+      context,
+      { buffer: Buffer.from('raw'), originalname: 'original.eml' },
+      'sourceFiles2',
+    );
+    expect(native.createFileUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fieldMetadataId: 'field-sourceFiles2',
+        fileFolder: 'files-field',
+      }),
+    );
+    expect(native.receiveFileStream).toHaveBeenCalledTimes(1);
+    await expect(
+      service.bufferForMailArchive(
+        context,
+        { buffer: Buffer.from('raw'), originalname: 'original.eml' },
+        'otherField',
+      ),
+    ).rejects.toThrow('字段无效');
+    expect(native.createFileUpload).toHaveBeenCalledTimes(1);
+  });
+
+  it('issues intake submission proofs only for checkpointed copies of the authorized parent archive', async () => {
+    const { service, records } = setup();
+    records.one.mockResolvedValue({
+      payload: {
+        artifacts: [{ key: 'owned', fileId: 'canonical', label: 'resume.pdf' }],
+        intakeCopies: {
+          binding: [
+            { key: 'owned', fileId: 'intake-copy', label: 'resume.pdf' },
+          ],
+        },
+      },
+    });
+    const refs = await service.fromMailArchive(
+      context,
+      'mail',
+      ['owned'],
+      'binding',
+    );
+    expect(refs[0].fileId).toBe('intake-copy');
+    expect(() => service.authorize(context, refs[0])).not.toThrow();
+    await expect(
+      service.fromMailArchive(context, 'mail', ['owned'], 'fake-binding'),
+    ).rejects.toThrow('不属于');
+    await expect(
+      service.fromMailArchive(context, 'mail', ['foreign'], 'binding'),
+    ).rejects.toThrow('不属于');
+  });
   it('rebinds only artifacts of a readable signed archive, never a supplied foreign file ID', async () => {
     const { service, records } = setup();
     records.one.mockResolvedValue({

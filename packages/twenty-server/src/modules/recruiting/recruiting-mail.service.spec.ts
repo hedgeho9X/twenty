@@ -15,6 +15,9 @@ import { type RecruitingRecordsService } from './recruiting-records.service';
 import { type RecruitingUploadService } from './recruiting-upload.service';
 import { type RecruitingParserService } from './recruiting-parser.service';
 import { type RecruitingIntakeService } from './recruiting-intake.service';
+import { type RecruitingMailFilesService } from './recruiting-mail-files.service';
+import { v5 } from 'uuid';
+import { contentVersion } from './domain/match-context';
 import {
   RecruitingMailService,
   type RecruitingMailJobData,
@@ -115,6 +118,10 @@ const setup = () => {
   };
   const parser = { original: jest.fn(async () => raw) };
   const intakes = {
+    mailBinding: jest.fn(async () => ({
+      intakeId: 'legacy-intake',
+      state: 'COMPLETED',
+    })),
     submit: jest.fn(
       async (_context: WorkspaceAuthContext, _request: unknown) => ({
         intakeId: 'stable-intake',
@@ -133,6 +140,27 @@ const setup = () => {
       async () => [] as { id: string; data: RecruitingMailJobData }[],
     ),
   };
+  const mailFiles = {
+    upload: jest.fn(
+      async (
+        caller: WorkspaceAuthContext,
+        _id: string,
+        file: { originalname: string },
+      ) => uploads.buffer(caller, file),
+    ),
+    ensureCanonicalOwnership: jest.fn(
+      async (caller: WorkspaceAuthContext, id: string) =>
+        records.one(caller, 'recruitingMailArchive', id),
+    ),
+    intakeFiles: jest.fn(
+      async (
+        caller: WorkspaceAuthContext,
+        id: string,
+        _binding: string,
+        keys: string[],
+      ) => uploads.fromMailArchive(caller, id, keys),
+    ),
+  };
   const service = new RecruitingMailService(
     records as unknown as RecruitingRecordsService,
     actors as unknown as RecruitingActorService,
@@ -141,6 +169,7 @@ const setup = () => {
     intakes as unknown as RecruitingIntakeService,
     locks as unknown as PostgresAdvisoryLockService,
     queue as unknown as MessageQueueService,
+    mailFiles as unknown as RecruitingMailFilesService,
   );
   return {
     service,
@@ -152,6 +181,7 @@ const setup = () => {
     actors,
     locks,
     queue,
+    mailFiles,
   };
 };
 
@@ -498,4 +528,128 @@ it('reuses one intake with identical ordered files when the same material select
   expect((await service.one(context, archive.archiveId)).intakeIds).toEqual([
     first.intakeId,
   ]);
+});
+
+it('returns only an archive-accepted legacy binding after canonical file IDs change', async () => {
+  const { service, records, intakes, mailFiles } = setup();
+  const archive = await service.receive(context, raw, {
+    transport: 'EML_UPLOAD',
+  });
+  await service.process({ archiveId: archive.archiveId, actor });
+  const detail = (await service.one(context, archive.archiveId)).detail;
+  const selected = detail.artifacts.find((file) => file.kind === 'attachment')!;
+  const digest = contentVersion({
+    selection: [selected.key],
+    candidateId: undefined,
+    note: '',
+  });
+  const key = `mail:${archive.archiveId}:${digest}`;
+  const id = v5(`workspace:CANDIDATE:email:${key}`, v5.URL);
+  const record = await records.one(
+    context,
+    'recruitingMailArchive',
+    archive.archiveId,
+  );
+  const payload = record.payload as {
+    artifacts: { fileId: string }[];
+    intakeIds: string[];
+  };
+  await records.update(context, 'recruitingMailArchive', archive.archiveId, {
+    payload: {
+      ...payload,
+      artifacts: payload.artifacts.map((file) => ({
+        ...file,
+        fileId: `migrated-${file.fileId}`,
+      })),
+      intakeIds: [id],
+    },
+  });
+  mailFiles.intakeFiles.mockClear();
+  const receipt = await service.submitIntake(context, archive.archiveId, {
+    artifactKeys: [selected.key],
+  });
+  expect(receipt.intakeId).toBe('legacy-intake');
+  expect(intakes.mailBinding).toHaveBeenCalledWith(context, id, {
+    archiveId: archive.archiveId,
+    sourceHash: record.sourceHash,
+    idempotencyKey: key,
+  });
+  expect(intakes.submit).not.toHaveBeenCalled();
+  expect(mailFiles.intakeFiles).not.toHaveBeenCalled();
+});
+
+it('does not adopt a child merely because it claimed the deterministic email source key', async () => {
+  const { service, intakes } = setup();
+  const archive = await service.receive(context, raw, {
+    transport: 'EML_UPLOAD',
+  });
+  await service.process({ archiveId: archive.archiveId, actor });
+  const selected = (
+    await service.one(context, archive.archiveId)
+  ).detail.artifacts.find((file) => file.kind === 'attachment')!;
+  intakes.submit.mockRejectedValue(
+    new ConflictException('key already belongs to different files'),
+  );
+  await expect(
+    service.submitIntake(context, archive.archiveId, {
+      artifactKeys: [selected.key],
+    }),
+  ).rejects.toBeInstanceOf(ConflictException);
+  expect(intakes.mailBinding).not.toHaveBeenCalled();
+  expect((await service.one(context, archive.archiveId)).intakeIds).toEqual([]);
+});
+
+it('uses different copy bindings for different notes and retries an interrupted intake receipt with the same copies', async () => {
+  const { service, mailFiles, intakes, records } = setup();
+  const archive = await service.receive(context, raw, {
+    transport: 'EML_UPLOAD',
+  });
+  await service.process({ archiveId: archive.archiveId, actor });
+  const selected = (
+    await service.one(context, archive.archiveId)
+  ).detail.artifacts.find((file) => file.kind === 'attachment')!;
+  mailFiles.intakeFiles.mockImplementation(
+    async (_caller, _id, binding, keys) =>
+      keys.map((key) => ({
+        fileId: `${binding}:${key}`,
+        label: key,
+        uploadReceipt: 'proof',
+      })),
+  );
+  const original = records.update.getMockImplementation()!;
+  let interrupted = false;
+  records.update.mockImplementation(async (...args) => {
+    if (
+      !interrupted &&
+      (args[3].payload as { intakeIds?: string[] } | undefined)?.intakeIds
+        ?.length
+    ) {
+      interrupted = true;
+      throw new Error('receipt interrupted');
+    }
+    return original(...args);
+  });
+  await expect(
+    service.submitIntake(context, archive.archiveId, {
+      artifactKeys: [selected.key],
+      note: 'first',
+    }),
+  ).rejects.toThrow('receipt interrupted');
+  await service.submitIntake(context, archive.archiveId, {
+    artifactKeys: [selected.key],
+    note: 'first',
+  });
+  await service.submitIntake(context, archive.archiveId, {
+    artifactKeys: [selected.key],
+    note: 'second',
+  });
+  expect(intakes.submit.mock.calls[1][1]).toEqual(
+    intakes.submit.mock.calls[0][1],
+  );
+  expect(
+    (intakes.submit.mock.calls[2][1] as { files: unknown[] }).files,
+  ).not.toEqual(
+    (intakes.submit.mock.calls[0][1] as { files: unknown[] }).files,
+  );
+  expect(intakes.mailBinding).not.toHaveBeenCalled();
 });

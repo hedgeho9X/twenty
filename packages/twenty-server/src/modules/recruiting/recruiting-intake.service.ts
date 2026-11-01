@@ -237,6 +237,27 @@ export class RecruitingIntakeService {
     };
   }
 
+  /** Returns only a previously archive-accepted mail binding after verifying its signed origin. */
+  async mailBinding(
+    context: WorkspaceAuthContext,
+    id: string,
+    binding: { archiveId: string; sourceHash: string; idempotencyKey: string },
+  ) {
+    const record = await this.records.one(context, 'recruitingIntake', id);
+    const envelope = this.envelope(record);
+    const input = envelope.input;
+    if (
+      input.kind !== 'CANDIDATE' ||
+      input.source !== 'email' ||
+      input.sourceId !== binding.archiveId ||
+      input.idempotencyKey !== binding.idempotencyKey ||
+      input.mail?.archiveId !== binding.archiveId ||
+      input.mail?.sourceHash !== binding.sourceHash
+    )
+      throw new ConflictException('邮件入库绑定不一致，请核对原处理记录');
+    return this.receipt(record);
+  }
+
   /** Reuses successful material and extraction stages while binding the retry to its current caller. */
   async retry(context: WorkspaceAuthContext, id: string) {
     const record = await this.records.one(context, 'recruitingIntake', id);
