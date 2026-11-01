@@ -200,14 +200,15 @@ export class RecruitingMailService {
             { status: 'QUEUED', payload },
           );
         }
-        if (!['READY', 'NEEDS_SELECTION'].includes(String(record.status)))
-          await this.enqueue(id, actor);
-        return this.receipt(record);
+        return record;
       },
     );
     if (!locked.acquired)
       throw new BadRequestException('同一邮件正在接收，请稍后重试');
-    return locked.value;
+    // A worker may start as soon as Redis accepts the job, so release the archive lock before enqueueing.
+    if (!['READY', 'NEEDS_SELECTION'].includes(String(locked.value.status)))
+      await this.enqueue(id, actor);
+    return this.receipt(locked.value);
   }
 
   /** Exposes raw metadata and owned artifact identities only after native parent-record access. */
@@ -261,18 +262,49 @@ export class RecruitingMailService {
 
   /** Requeues archive expansion under current authority without discarding already uploaded MIME assets. */
   async retry(context: WorkspaceAuthContext, id: string) {
-    const record = await this.records.one(context, 'recruitingMailArchive', id);
-    const payload = this.payload(record);
-    if (!payload.rawFile)
-      throw new BadRequestException('原文尚未上传完成，请重新提交同一封EML');
-    if (['READY', 'NEEDS_SELECTION'].includes(String(record.status)))
-      return this.receipt(record);
     const actor = this.actors.capture(context);
-    await this.records.update(context, 'recruitingMailArchive', id, {
-      status: 'QUEUED',
-      error: '',
-      payload: { ...payload, actor },
-    });
+    const locked = await this.locks.tryWithLock(
+      `recruiting-mail:${id}`,
+      async () => {
+        const record = await this.records.one(
+          context,
+          'recruitingMailArchive',
+          id,
+        );
+        const payload = this.payload(record);
+        if (!payload.rawFile)
+          throw new BadRequestException(
+            '原文尚未上传完成，请重新提交同一封EML',
+          );
+        if (['READY', 'NEEDS_SELECTION'].includes(String(record.status)))
+          return { record, enqueue: false };
+        const active =
+          await this.queue.getInFlightJobs<RecruitingMailJobData>();
+        if (
+          active.some(
+            (entry) =>
+              entry.data.archiveId === id &&
+              entry.data.actor.workspaceId === context.workspace.id,
+          )
+        )
+          return { record, enqueue: false };
+        const authorized = await this.actors.resolve(actor);
+        const updated = await this.records.update(
+          authorized,
+          'recruitingMailArchive',
+          id,
+          {
+            status: 'QUEUED',
+            error: '',
+            payload: { ...payload, actor },
+          },
+        );
+        return { record: updated, enqueue: true };
+      },
+    );
+    if (!locked.acquired)
+      throw new ConflictException('邮件正在接收或处理，请稍后重试');
+    if (!locked.value.enqueue) return this.receipt(locked.value.record);
     await this.enqueue(id, actor);
     return this.one(context, id);
   }
@@ -311,7 +343,7 @@ export class RecruitingMailService {
     if (!['READY', 'NEEDS_SELECTION'].includes(String(record.status)))
       throw new BadRequestException('请等待邮件归档完成后选择材料');
     const payload = this.payload(record);
-    const selection = [...new Set(parsed.data.artifactKeys)];
+    const selection = [...new Set(parsed.data.artifactKeys)].sort();
     if (
       selection.some(
         (key) =>
@@ -345,7 +377,7 @@ export class RecruitingMailService {
     }));
     const note = `${parsed.data.note}\n邮件主题：${payload.metadata?.subject ?? ''}\n邮件原始信息：${JSON.stringify({ from: payload.metadata?.from, to: payload.metadata?.to, date: payload.metadata?.date })}`;
     const digest = contentVersion({
-      selection: selection.sort(),
+      selection,
       candidateId: parsed.data.candidateId,
       note: parsed.data.note,
     });
@@ -379,10 +411,10 @@ export class RecruitingMailService {
 
   /** Expands every MIME artifact with independent checkpoints; automatic selection excludes inline logos without deleting them. */
   async process(data: RecruitingMailJobData) {
-    await this.locks.tryWithLock(
+    const locked = await this.locks.tryWithLock(
       `recruiting-mail:${data.archiveId}`,
       async () => {
-        const context = await this.actors.resolve(data.actor);
+        let context = await this.actors.resolve(data.actor);
         let record = await this.records.one(
           context,
           'recruitingMailArchive',
@@ -391,13 +423,18 @@ export class RecruitingMailService {
         let payload = this.payload(record);
         if (['READY', 'NEEDS_SELECTION'].includes(String(record.status)))
           return;
-        try {
-          await this.records.update(
+        /** Rebuilds current authority after attachment I/O and before every durable checkpoint. */
+        const update = async (patch: Record<string, unknown>) => {
+          context = await this.actors.resolve(data.actor);
+          return this.records.update(
             context,
             'recruitingMailArchive',
             record.id,
-            { status: 'EXPANDING', error: '' },
+            patch,
           );
+        };
+        try {
+          await update({ status: 'EXPANDING', error: '' });
           const raw = await this.parser.original(
             data.actor,
             payload.rawFile!.fileId,
@@ -425,15 +462,10 @@ export class RecruitingMailService {
                 { ...description, fileId: file.fileId },
               ],
             };
-            record = await this.records.update(
-              context,
-              'recruitingMailArchive',
-              record.id,
-              {
-                name: expanded.metadata.subject?.slice(0, 180) || '无主题邮件',
-                payload,
-              },
-            );
+            record = await update({
+              name: expanded.metadata.subject?.slice(0, 180) || '无主题邮件',
+              payload,
+            });
           }
           const suggested = payload.artifacts.filter(
             (file) => file.suggestedResume,
@@ -442,47 +474,35 @@ export class RecruitingMailService {
             payload.autoSubmit &&
             suggested.length > 0 &&
             suggested.length <= 24;
-          await this.records.update(
-            context,
-            'recruitingMailArchive',
-            record.id,
-            {
-              status: automatic ? 'READY' : 'NEEDS_SELECTION',
-              error: '',
-              payload,
-            },
-          );
+          await update({
+            status: automatic ? 'READY' : 'NEEDS_SELECTION',
+            error: '',
+            payload,
+          });
           if (automatic) {
             try {
+              context = await this.actors.resolve(data.actor);
               await this.submitIntakeUnderLock(context, record.id, {
                 artifactKeys: suggested.map((file) => file.key),
               });
             } catch {
-              await this.records.update(
-                context,
-                'recruitingMailArchive',
-                record.id,
-                {
-                  error:
-                    '邮件已完整归档，候选人入库尚未受理，请核对后重新提交所选材料',
-                },
-              );
+              await update({
+                error:
+                  '邮件已完整归档，候选人入库尚未受理，请核对后重新提交所选材料',
+              });
             }
           }
         } catch {
-          await this.records.update(
-            context,
-            'recruitingMailArchive',
-            record.id,
-            {
-              status: 'FAILED',
-              error: '邮件展开未完成，原始EML已保留；请核对格式或重试归档',
-              payload,
-            },
-          );
+          await update({
+            status: 'FAILED',
+            error: '邮件展开未完成，原始EML已保留；请核对格式或重试归档',
+            payload,
+          });
         }
       },
     );
+    if (!locked.acquired)
+      throw new ConflictException('邮件正在接收或处理，稍后自动重试');
   }
 
   /** Uses only native not-found as permission-preserving absence. */
@@ -563,7 +583,11 @@ export class RecruitingMailService {
         id: `recruiting-mail-${id}-${v4()}`,
         workspaceId: actor.workspaceId,
         isWorkspaceJob: true,
-        retryLimit: 1,
+        retryLimit: 6,
+        backoff: {
+          strategy: 'exponential',
+          initialDelayMilliseconds: 5_000,
+        },
         deduplication: { id: `recruiting-mail-${id}` },
       },
     );
