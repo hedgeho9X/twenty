@@ -1,20 +1,20 @@
 # 恢复执行入口
 
-更新时间：2026-11-01 10:49，Asia/Shanghai。先读DELIVERY_GOAL.md与PROGRESS.md，再核对本文件和实时进程。完整目标仍active，未缩小范围。用户已经醒来，明确要求代理恢复本地登录；不得沿用旧的“浏览器恢复未获准”结论。
+更新时间：2026-11-01 11:00，Asia/Shanghai。先读DELIVERY_GOAL.md与PROGRESS.md，再核对本文件和实时进程。完整目标仍active，未缩小范围。用户已经醒来，明确要求代理恢复本地登录；不得沿用旧的“浏览器恢复未获准”结论。
 
 ## 1. 固定底座和边界
 
 - 唯一开发仓库 /Users/jerry/code/personal/projects/twenty，个人fork hedgeho9X/twenty，分支codex/fanhan-local-rebuild；官方base c0ad263b35a734dbd2528bf82c5dd38d3b18dc1b，源码2.55.0。
 - 本地B：UI23000，API23001，parser23003，PG25432/recruiting，Valkey26379。保留A13000及所有fanhan-local-*。不碰无关AirJelly/Supabase；不push、Issue、PR、生产写入、发送或发布。
 - 固定Node .local/recruiting/runtime/node-v26.12.1-darwin-arm64/bin/node。私有配置、会话、原件、截图、报告在.local/recruiting，Git忽略、Vite禁止提供；凭据不打印或提交。
-- 最新developer要求并行子Agent，覆盖目标文件原有默认限制；已由三位代理审查，任务状态需用collaboration核对。
+- 本轮最新developer已关闭主动委派；没有用户或适用指令明确要求时，不再启动/分派子Agent。此前三位代理完成的证据保留。
 
 ## 2. 运行版本
 
 - 已运行API38，PID65513/session33051；招聘worker32，PID65514/session51380；AI-only worker8，PID65515/session76984；front11915。这些仅为恢复定位，停止前必须lsof/ps/cwd重新核对。
 - 最新9604源码文件构建已加载邮件canonical ownership与96c9335d明确autoMatch=false修复；B保持true。55d7643e本地门户/订阅代理修复也已生效，正常页面可读。
 - 10:30已完成idle后精确停止/构建/重启与健康核对，前端/API/parser200。今后只有新服务端变化才重复构建；只招聘两队列+ai-queue，无旧同步/工作流/发送队列或cron。
-- .git写、精确SIGTERM及Ego操作需require_escalated；本地repo写与network本turn已经request_permissions授权。普通sandbox EPERM不等于自动审核拒绝。曾一条代理只读输出过宽遭审核拒绝，收窄为聚合及固定合成ID后已允许，无剩余阻塞。
+- .git写、精确SIGTERM及Ego操作需require_escalated；本地repo写与network权限须按当前turn核对；本轮已request_permissions授权。普通sandbox EPERM不等于自动审核拒绝。曾一条代理只读输出过宽遭审核拒绝，收窄为聚合及固定合成ID后已允许，无剩余阻塞。
 
 ## 3. 最新已验证的行为
 
@@ -42,7 +42,7 @@
 
 ## 6. 下一步
 
-1. 核心UI已全链验收：p2新公司提交及两JD创建通过并精确关闭测试岗；p3资料保存/意向/确认分享/企业只读/撤回拒绝通过、无有效分享残留。根p1停在官方admin-panel#ai，尚未发OAuth。待交还给用户本人开始Continue with ChatGPT，不提前制造过期授权。
+1. 原核心UI闭环已通过：新公司、两JD、门户保存/分享/撤回证据保留。p2/p3已经关闭，唯一空间15的p1已handOff用户，不能在无新确认时takeOver；私有browser-handoff-final.json是交接记录。新增公司选择/已有岗位和匹配公司资料的代码及组件/接口检查已过，仍需用户完成授权或交回浏览器后在同15复验。
 2. 最后回读新队列与旧同步/工作流/邮箱开关；本轮API38/两worker已重建并健康，无需重复。官方聊天单字段升级已dry-run/apply并验证原API读成功；不改guard或workspace版本，不将单项当整链升级完成。
 3. 核心页面、Shadcn报告和数据链路HTML均已实际验收，不重复制造fixture；八个合成岗CLOSED，活跃集合46与manifest一致。55公司/174岗/928联系人/500候选人为最终含fixture数量，迁移原基线另记。三队列空闲、旧同步/工作流/收信开启0，私有delivery-health-final.json。
 4. 个人飞书文档H0sld6jFuosjIMxd1TWc4PcanPb已personal/user精准更新至revision8，核心UI摘要已修正并回读检查通过，三大章保留；后续按新证据定向更新，不改对方原文、不发IM。
@@ -54,3 +54,10 @@
 - 官方聊天缺mentionsResolvedAt已单workspace dry-run/apply并实测原API摘要成功，metadataVersion184、deferred0；未修改版本/状态/guard，未冒称完整升级链通过。
 - 公司重复example.invalid触发原生唯一域名保护，改独立测试子域正常UI创建通过，未改源代码或权限；通用重复提示仍可后续改善，但不是创建链路失败。
 - 最终仍需新SIWC本人授权、真实新邮件和业务质量确认。根接下来只处理本人就绪后的具体步骤，不重复空poll/重跑模型/伪造刷新，不以等待或预算标完成。
+
+## 8. 最近逐项审计后的当前恢复点
+
+- 新commits19090abf、597c9c53补齐目标4.2公司域名/已有岗位及10匹配公司上下文。仅前端，API38/worker无需重建；Vite新模块200，4套35项回归、全包tsgo、10文件lint/格式及模块翻译检查通过。没有新Jev/LLM调用。
+- UI总验收勾选已经重新打开，新增展示尚无浏览器点击证据；不要用旧核心闭环截图宣称新面板已过。后续只需原空间15：公司搜索域名/已有岗位、匹配行展开当前公司简介偏好、关闭展开和记录链接。权限失败不应展示旧缓存。
+- 本轮新SIWC状态只读确认为连接0/pendingAttempt无。授权窗口已交用户，不再反复生成OAuth、轮询未启动的会话或拿旧Codex来源当新授权。
+- 前轮为progress，本轮也完成两行为切片与实证；并非连续三轮同阻塞，不能标blocked/complete。只有在后续无独立工作且同一授权/外部事件阻塞连续三goal轮时，再按原规则审计blocked。
