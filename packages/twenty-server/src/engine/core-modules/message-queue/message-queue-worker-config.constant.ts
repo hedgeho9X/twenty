@@ -28,7 +28,7 @@ export const MESSAGE_QUEUE_WORKER_CONFIG: Record<
 > = {
   [MessageQueue.recruitingMatchQueue]: {
     workerOptions: {
-      concurrency: 2,
+      concurrency: 10,
       globalConcurrency: 2,
       lockDuration: 60_000,
       maxStalledCount: 1,
@@ -37,7 +37,7 @@ export const MESSAGE_QUEUE_WORKER_CONFIG: Record<
   },
   [MessageQueue.recruitingQueue]: {
     workerOptions: {
-      concurrency: 10,
+      concurrency: 20,
       globalConcurrency: 10,
       lockDuration: 240_000,
       maxStalledCount: 1,

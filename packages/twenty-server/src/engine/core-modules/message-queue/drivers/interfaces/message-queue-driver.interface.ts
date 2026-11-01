@@ -55,6 +55,7 @@ export interface MessageQueueDriver {
     jobName: string;
     jobId?: string;
   }): Promise<void>;
+  setGlobalConcurrency?(queueName: MessageQueue, value: number): Promise<void>;
   register?(queueName: MessageQueue): void;
   closeWorkers?(): Promise<void>;
   getInFlightJobs?<T extends MessageQueueJobData>(

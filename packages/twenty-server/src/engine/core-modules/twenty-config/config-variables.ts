@@ -2156,6 +2156,14 @@ export class ConfigVariables {
   AI_FEATURE_MODELS: Record<string, string> = {};
 
   @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.ADVANCED_SETTINGS,
+    description: 'Persistent global concurrency overrides by queue name',
+    type: ConfigVariableType.JSON,
+  })
+  @IsOptional()
+  MESSAGE_QUEUE_CONCURRENCY: Record<string, number> = {};
+
+  @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.LLM,
     description:
       'Storage path for the AI catalog override (e.g. config/ai-catalog.json). When set, the catalog is fetched from the configured storage backend at startup instead of using the built-in ai-providers.json.',

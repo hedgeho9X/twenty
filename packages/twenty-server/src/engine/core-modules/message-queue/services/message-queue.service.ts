@@ -33,6 +33,13 @@ export class MessageQueueService {
     }
   }
 
+  /** Applies a shared worker admission limit without interrupting jobs already running. */
+  setGlobalConcurrency(value: number): Promise<void> {
+    if (!this.driver.setGlobalConcurrency)
+      throw new Error('Queue driver does not support concurrency control');
+    return this.driver.setGlobalConcurrency(this.queueName, value);
+  }
+
   add<T extends MessageQueueJobData>(
     jobName: string,
     data: T,

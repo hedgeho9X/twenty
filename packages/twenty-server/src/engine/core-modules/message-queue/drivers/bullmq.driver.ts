@@ -237,11 +237,21 @@ export class BullMQDriver
     }
   }
 
+  async setGlobalConcurrency(
+    queueName: MessageQueue,
+    value: number,
+  ): Promise<void> {
+    await this.queueMap[queueName].setGlobalConcurrency(value);
+  }
+
   private async writeGlobalConcurrency(
     queueName: MessageQueue,
     globalConcurrency: number | undefined,
   ): Promise<void> {
     const queue = this.queueMap[queueName];
+    globalConcurrency =
+      this.twentyConfigService.get('MESSAGE_QUEUE_CONCURRENCY')?.[queueName] ??
+      globalConcurrency;
 
     if (isDefined(globalConcurrency)) {
       await queue.setGlobalConcurrency(globalConcurrency);

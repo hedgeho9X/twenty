@@ -1,3 +1,4 @@
+import { RecruitingQueueSettingsController } from './intake/queue-settings.controller';
 import { ProcessingTasksService } from './intake/processing-tasks.service';
 /** Registers the recruiting domain without replacing native CRM records, authentication or models. */
 import { Module } from '@nestjs/common';
@@ -78,7 +79,11 @@ import { RecruitingPortalController } from './portal/portal.controller';
       ConnectedAccountEntity,
     ]),
   ],
-  controllers: [RecruitingController, RecruitingPortalController],
+  controllers: [
+    RecruitingController,
+    RecruitingPortalController,
+    RecruitingQueueSettingsController,
+  ],
   providers: [
     ProcessingTasksService,
     RecruitingActorService,
