@@ -6,6 +6,7 @@ import { IconX } from 'twenty-ui/icon';
 import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
 import { type RecruitingIntake } from '@/recruiting/types/RecruitingIntake';
 import { type RecruitingMatchRun } from '@/recruiting/types/RecruitingMatchRun';
+import { RecruitingParsedProfile } from './RecruitingParsedProfile';
 import { RecruitingMaterialLinks } from './RecruitingMaterialLinks';
 import {
   recruitingTaskLabel,
@@ -108,24 +109,11 @@ export const RecruitingTaskDetail = ({
                       )}
                       {kind === 'intake' ? (
                         <>
-                          <strong>{t`解析数据`}</strong>
                           {task.detail?.extraction?.profile ? (
-                            <pre
-                              style={{
-                                margin: 0,
-                                whiteSpace: 'pre-wrap',
-                                overflowWrap: 'anywhere',
-                                fontSize: 12,
-                                maxHeight: '40vh',
-                                overflow: 'auto',
-                              }}
-                            >
-                              {JSON.stringify(
-                                task.detail.extraction.profile,
-                                null,
-                                2,
-                              )}
-                            </pre>
+                            <RecruitingParsedProfile
+                              profile={task.detail.extraction.profile}
+                              kind={task.kind}
+                            />
                           ) : (
                             <StyledRecruitingMuted>{t`尚未生成解析数据`}</StyledRecruitingMuted>
                           )}

@@ -27,6 +27,9 @@ jest.mock('@/recruiting/components/recruitingStyles', () => ({
   StyledRecruitingJobHover: 'div',
   StyledRecruitingSticky: 'div',
   StyledRecruitingDenseQueue: 'div',
+  StyledRecruitingTitle: 'h2',
+  StyledRecruitingProfileFacts: 'dl',
+  StyledRecruitingProfileSection: 'section',
   StyledRecruitingError: 'div',
   StyledRecruitingMuted: 'p',
   StyledRecruitingPanel: 'section',
@@ -34,7 +37,6 @@ jest.mock('@/recruiting/components/recruitingStyles', () => ({
   StyledRecruitingScroll: 'div',
   StyledRecruitingStack: 'div',
   StyledRecruitingTable: 'table',
-  StyledRecruitingTitle: 'h2',
 }));
 jest.mock('twenty-ui/icon', () => ({
   IconRefresh: () => null,
@@ -188,7 +190,9 @@ it('downloads a queued original with authentication and keeps download failures 
     'resume.html',
   );
   expect(screen.queryByRole('link', { name: 'resume.html' })).toBeNull();
-  expect(screen.getByText(/合成候选人/)).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { name: '合成候选人' }),
+  ).toBeInTheDocument();
   jest.mocked(downloadRecruitingArtifact).mockResolvedValueOnce(undefined);
   fireEvent.click(screen.getByRole('button', { name: '下载' }));
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());

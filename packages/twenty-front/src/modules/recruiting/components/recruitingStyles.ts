@@ -280,3 +280,37 @@ export const StyledRecruitingSticky = styled.div`
   background: ${theme.background.primary};
   padding: 8px 0;
 `;
+
+/** Labeled facts wrap at narrow widths rather than squeezing identity and preferences into a dense JSON block. */
+export const StyledRecruitingProfileFacts = styled.dl`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px 24px;
+  margin: 0;
+  dt {
+    color: ${theme.font.color.tertiary};
+    font-size: ${theme.font.size.sm};
+    margin-bottom: 5px;
+  }
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+`;
+/** Separates skills, occupational history and review notes without nested card borders. */
+export const StyledRecruitingProfileSection = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid ${theme.border.color.light};
+  padding-top: 16px;
+  ul {
+    margin: 0;
+    padding-left: 20px;
+  }
+  li {
+    padding: 3px 0;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+`;
