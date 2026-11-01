@@ -5,9 +5,6 @@ import { useRecruitingQuery } from '@/recruiting/hooks/useRecruitingQuery';
 
 jest.mock('@/recruiting/hooks/useRecruitingQuery');
 jest.mock('@/recruiting/utils/recruitingRequest');
-jest.mock('@/recruiting/components/RecruitingContracts', () => ({
-  RecruitingContracts: () => null,
-}));
 jest.mock('@/recruiting/components/recruitingStyles', () => ({
   StyledRecruitingForm: 'div',
   StyledRecruitingSteps: 'nav',

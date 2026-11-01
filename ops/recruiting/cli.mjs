@@ -138,7 +138,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   });
   if (values.help || !positionals.length) {
     console.log(
-      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; mail import|select; match candidate|job|pair; draft greeting|publication|edit; portal create|list|link|revoke|status; activity note|list; contract status|reminder; task get|retry; queue list. Task kind: intake|match|draft|mail. Draft generation never sends or publishes. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
+      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; mail import|select; match candidate|job|pair; draft greeting|publication|edit; portal create|list|link|revoke|status; activity note|list; task get|retry; queue list. Task kind: intake|match|draft|mail. Draft generation never sends or publishes. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
     );
     return;
   }
@@ -177,16 +177,6 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     result = await client.request(
       `/recruiting/${action}?search=${encodeURIComponent(values.query ?? '')}${values['company-id'] ? `&companyId=${encodeURIComponent(values['company-id'])}` : ''}`,
     );
-  else if (group === 'contract' && ['status', 'reminder'].includes(action))
-    result =
-      action === 'status'
-        ? await client.request(
-            `/recruiting/contracts/${encodeURIComponent(required('company-id'))}`,
-          )
-        : await client.post(
-            `contracts/${encodeURIComponent(required('company-id'))}/reminder`,
-            {},
-          );
   else if (group === 'activity' && action === 'note')
     result = await client.post('activities', {
       action: 'NOTE',

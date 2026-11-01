@@ -31,7 +31,6 @@ import {
   RecruitingActivityService,
   recruitingActivitySchema,
 } from './recruiting-activity.service';
-import { RecruitingContractsService } from './recruiting-contracts.service';
 
 const offset = z.number().int().nonnegative().default(0);
 const task = {
@@ -39,14 +38,6 @@ const task = {
   kind: z.enum(['intake', 'match', 'draft', 'mail']),
 };
 const operationsSchema = z.discriminatedUnion('operation', [
-  z.object({
-    operation: z.literal('contract_status'),
-    companyId: z.string().uuid(),
-  }),
-  z.object({
-    operation: z.literal('contract_reminder'),
-    companyId: z.string().uuid(),
-  }),
   z.object({
     operation: z.literal('activity_note'),
     request: recruitingActivitySchema.safeExtend({ action: z.literal('NOTE') }),
@@ -202,7 +193,6 @@ export class RecruitingOperationsTool extends BaseTool<
     private readonly portals: RecruitingPortalService,
     private readonly consents: RecruitingShareConsentService,
     private readonly activities: RecruitingActivityService,
-    private readonly contracts: RecruitingContractsService,
   ) {
     super();
   }
@@ -222,12 +212,6 @@ export class RecruitingOperationsTool extends BaseTool<
       };
       let result: object;
       switch (input.operation) {
-        case 'contract_status':
-          result = await this.contracts.one(auth, input.companyId);
-          break;
-        case 'contract_reminder':
-          result = await this.contracts.remind(auth, input.companyId);
-          break;
         case 'activity_note':
           result = await this.activities.record(auth, input.request);
           break;

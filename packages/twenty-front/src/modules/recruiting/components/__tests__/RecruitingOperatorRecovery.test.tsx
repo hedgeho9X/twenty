@@ -83,9 +83,6 @@ jest.mock('twenty-ui/primitives/input', () => ({
   ),
 }));
 jest.mock('@/ui/input/components/Select', () => ({ Select: () => null }));
-jest.mock('@/recruiting/components/RecruitingContracts', () => ({
-  RecruitingContracts: () => null,
-}));
 jest.mock('@/recruiting/components/RecruitingActivities', () => ({
   RecruitingActivities: () => null,
 }));

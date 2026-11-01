@@ -42,9 +42,6 @@ MCP增加portal_create、portal_list、portal_link、portal_revoke、sharing_sta
 
 MCP activity_note/activity_list和CLI activity note/list共用人工记录服务。Agent只能记录NOTE，不代替人确认已联系/已推荐/已发布。后者仅本人会话可用HTTP/UI操作，公司推荐额外检查候选人分享同意。MCP真实备注success=true且verified=true、门户列表成功、CLI状态与备注成功，API Key实际联系403。界面仍未浏览器验收。
 
-## 6. 合同兼容入口
-
-MCP contract_status/contract_reminder与CLI contract status/reminder --company-id ID共用合同服务。已真实验证两项MCP success=true和CLI状态查询；使用原合成公司及稳定内部任务，不创建新外部合同。资料/签署写入仅当前负责人直接本人会话；Agent不能声明已经签署。详见CONTRACTS.md。
 
 ## 7. 入库保存时的权限和并发
 

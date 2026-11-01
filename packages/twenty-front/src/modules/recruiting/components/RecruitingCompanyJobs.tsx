@@ -19,7 +19,6 @@ import { type RecruitingJobDraft } from '@/recruiting/types/RecruitingJobDraft';
 import { type RecruitingJobItem } from '@/recruiting/types/RecruitingJobItem';
 import { type RecruitingUpload } from '@/recruiting/types/RecruitingUpload';
 import { RecruitingRecordPicker } from '@/recruiting/components/RecruitingRecordPicker';
-import { RecruitingContracts } from '@/recruiting/components/RecruitingContracts';
 import { RecruitingJobDraftEditor } from '@/recruiting/components/RecruitingJobDraftEditor';
 import { RecruitingCompanyExistingJobs } from '@/recruiting/components/RecruitingCompanyExistingJobs';
 import {
@@ -67,8 +66,6 @@ export const RecruitingCompanyJobs = ({
 }) => {
   const [step, setStep] = useState(1);
   const [company, setCompany] = useState<RecruitingCompany>();
-  const [contractsOpen, setContractsOpen] = useState(false);
-  const [contractEditing, setContractEditing] = useState(false);
   const [createCompany, setCreateCompany] = useState(false);
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
@@ -253,7 +250,7 @@ export const RecruitingCompanyJobs = ({
               label={t`公司`}
               path="companies"
               selected={chosen}
-              disabled={locked || contractEditing}
+              disabled={locked}
               renderLabel={(record) => record.name}
               renderHint={(record) => record.domainName?.primaryLinkUrl}
               onSelect={setCompany}
@@ -277,15 +274,9 @@ export const RecruitingCompanyJobs = ({
                   active={active}
                   onViewAll={() => onBrowseJobs?.(chosen.id)}
                 />
-                <Button
-                  disabled={contractEditing}
-                  onClick={() => setContractsOpen((value) => !value)}
-                >
-                  {contractsOpen ? t`收起合同资料` : t`合同资料与内部提醒`}
-                </Button>
               </>
             )}
-            {!chosen && !locked && !createCompany && !contractEditing && (
+            {!chosen && !locked && !createCompany && (
               <Button
                 startIcon={<IconPlus size={16} />}
                 onClick={() => setCreateCompany(true)}
@@ -532,14 +523,6 @@ export const RecruitingCompanyJobs = ({
               >{t`继续导入另一批`}</Button>
             </StyledRecruitingRow>
           </StyledRecruitingPanel>
-        )}
-        {contractsOpen && chosen && (
-          <RecruitingContracts
-            key={chosen.id}
-            companyId={chosen.id}
-            active={active}
-            onEditingChange={setContractEditing}
-          />
         )}
         {error && (
           <StyledRecruitingError role="alert">{error}</StyledRecruitingError>

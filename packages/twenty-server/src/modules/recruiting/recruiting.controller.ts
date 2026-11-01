@@ -35,7 +35,6 @@ import { RecruitingMailService } from './recruiting-mail.service';
 import { RecruitingMailboxService } from './recruiting-mailbox.service';
 import { RecruitingPortalService } from './recruiting-portal.service';
 import { RecruitingActivityService } from './recruiting-activity.service';
-import { RecruitingContractsService } from './recruiting-contracts.service';
 import { RecruitingShareConsentService } from './recruiting-share-consent.service';
 import { RecruitingRecordsService } from './recruiting-records.service';
 import { RecruitingIntakeService } from './recruiting-intake.service';
@@ -77,42 +76,7 @@ export class RecruitingController {
     private readonly portals: RecruitingPortalService,
     private readonly consents: RecruitingShareConsentService,
     private readonly activities: RecruitingActivityService,
-    private readonly contracts: RecruitingContractsService,
   ) {}
-  /** Reads existing company contract metadata under native field and record permissions. */
-  @Get('contracts/:id') contract(
-    @Req() request: Request,
-    @Param('id') id: string,
-  ) {
-    return this.contracts.one(
-      buildWorkspaceAuthContextFromRequest(request),
-      id,
-    );
-  }
-  /** Writes only owner-reviewed template data or actual manual status, never a signing request. */
-  @Post('contracts/:id') contractUpdate(
-    @Req() request: Request,
-    @Param('id') id: string,
-    @Body() value: unknown,
-  ) {
-    if (isImpersonating(request.impersonationContext))
-      throw new ForbiddenException('请由公司负责人本人确认');
-    return this.contracts.update(
-      buildWorkspaceAuthContextFromRequest(request),
-      id,
-      value,
-    );
-  }
-  /** Prepares an internal reminder independently from external signing or human status confirmation. */
-  @Post('contracts/:id/reminder') contractReminder(
-    @Req() request: Request,
-    @Param('id') id: string,
-  ) {
-    return this.contracts.remind(
-      buildWorkspaceAuthContextFromRequest(request),
-      id,
-    );
-  }
   /** Records external actions only after explicit human confirmation; notes remain Agent-callable. */
   @Post('activities')
   activityCreate(@Req() request: Request, @Body() body: unknown) {
