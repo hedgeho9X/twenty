@@ -86,10 +86,6 @@ export const RecruitingRecordPicker = <T extends { id: string }>({
           {!query.loading && query.data && !query.data.records.length && (
             <StyledRecruitingMuted>{t`没有找到对应记录，请修改搜索内容。`}</StyledRecruitingMuted>
           )}
-          {(query.data?.hasNextPage ||
-            (query.data?.records.length ?? 0) > 8) && (
-            <StyledRecruitingMuted>{t`还有更多记录，请继续输入名称缩小范围。`}</StyledRecruitingMuted>
-          )}
         </StyledRecruitingStack>
       )}
     </Field.Root>
