@@ -1,4 +1,3 @@
-import { ensureMinioConfig } from './minio/config.mjs';
 /** Runs the source checkout against a dedicated OrbStack database and cache. */
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -41,7 +40,6 @@ const initialize = async () => {
   await mkdir(privateDirectory, { recursive: true, mode: 0o700 });
   await mkdir(join(privateDirectory, 'logs'), { recursive: true, mode: 0o700 });
   await ensureLocalMailConfig(privateDirectory);
-  await ensureMinioConfig(privateDirectory);
   let environment;
   try {
     environment = JSON.parse(await readFile(environmentPath, 'utf8'));
@@ -166,7 +164,6 @@ if (
     assertOrbStack();
     run('docker', [
       ...composeArguments,
-      ...(environment.STORAGE_TYPE === 's3' ? ['--profile', 'minio'] : []),
       action,
       ...(action === 'up' ? ['-d', '--wait'] : []),
     ]);
