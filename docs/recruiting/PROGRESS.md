@@ -349,3 +349,53 @@
 - API34/PID41435、招聘worker28/PID41446、AI-only worker4/PID42530、Vite/PID11915正在运行；只供当前核对，停止前重新核对cwd。最后API代码构建包含461803bd的邮箱poll，后续变动为CLI、报告、测试和文档。新运行说明为RUNBOOK.md。
 - 健康：前端/API/parser200，Vite绝对私有文件路径403，相对路径200是SPA HTML而不是私有JSON。原生收信0、日历0、旧ACTIVEworkflow0、招聘收信最终0。1历史匹配队列权限失败已审计：03:04失败、03:08业务run已COMPLETED，46score/4excluded/0fail；当前50对因新资料/池变化正确陈旧，未删记录或为了清零重跑。
 - 仍有本人/浏览器依赖：Ego专用space14丢失且恢复许可未答，不能创建新空间或换浏览器绕过；新SIWC本人授权/真实刷新；自然新邮件观测；业务方质量确认。其他独立事项已形成代码、文档、接口及数据证据。整体目标不能标为complete。
+
+
+## 08:07交付复核修正（正在实测）
+
+- 独立源码审查确认并修复：邮件在接收锁内入队而worker碰锁伪成功；同候选人并发写附件丢失；全池重试沿用旧targets/已查看状态；仅变更公司关系漏触发重评；新profile混入旧JSON；后台长任务在key撤销后沿用旧权限；以及运营页面重新选择、失败编辑丢输入、地点分隔符输入和未评分原因不可见。
+- 邮件/草稿已改为锁外入队、busy锁有限指数退避，恢复时同锁检查in-flight并保留checkpoint；每阶段持久化前重查原执行身份，失效不以旧身份写FAILED。运营可用有效身份恢复停止的任务，不赋system身份。
+- 候选人写入改为官方ORM的完整微秒版本CAS，冲突重新读取并合并原件，不在解析/模型阶段持锁；普通联系人ID被拒绝，避免STORED却不在候选人列表。强制同版本双写单测已过，原生数据库/文件链回归正在进行。
+- 最新31套183项服务端/订阅测试、4套33项前端React状态测试通过，前后端TS及相关lint通过。先前4项loopback测试曾因本轮沙箱网络EPERM失败，取得本轮网络权限后原测试全通过；没有改测试绕过监听。
+- API已重建为9602文件的新dist，当前API35、招聘worker29、AI-only worker5已启动，旧API34等已停止。停止旧进程先被sandbox拒绝；精确3个已核对cwd的SIGTERM经自动审核获准，未影响旧A或其他项目。源码补丁尚待分行为提交，仍不能把整体目标标为完成。
+
+## 10:26 真实页面与文件生命周期复核
+
+- 用户已允许恢复Ego空间；唯一新空间15用于全部页面验收。一次两个页面退出后，用户明确要求代理登录，使用此前保存的本地副本凭据经正常表单恢复；未修改账户或认证规则。退出首次原因尚未确定，源码与日志不支持将其直接归咎独立helper的JWT续期。
+- 真实页面上传两页中文扫描PDF与可选说明：intake66c0d084-f0a6-5251-9c7c-48d379061ccd已COMPLETED/STORED，候选人f351b421-4a46-5d10-ac58-88703a3000eb。gpt-5.6-sol结构化输出engineering、后端工程师、全职与远程；原生候选人列表、详情、两页预览及第二页底部ARCHIVE_END均实际可见。不是重解析全部497位历史候选人。
+- 自动匹配ac79abe7-2235-52fd-9fcc-0b784e38b6e7先完成52/52评分。发现六个确定合成岗位进入在招池后，先备份并逐条核对ID、合成公司和验收来源，仅原生API设CLOSED；当前46个活跃岗位与冻结manifest完全相同。刷新46/46全部命中缓存、0失败、complete=true；最高1.32/4，不能称找到合适岗位。原52混合池与新46真岗证据分别保留，不改写实验。
+- 页面“手动匹配”选合成候选人→FlowGPT→AI工程师-平台，真实指定PAIR1/1完成且同分1.32；从匹配带入草稿后清除岗位，模型生成通用意向问候并编辑保存标题。没有确认实际联系、推荐或发送。公司/JD选择与取消编辑、地点分隔符及跨标签保留、合成邮件六资源展示和1619字节EML下载均实际通过。UI逐项见UI_ACCEPTANCE.md。
+- 邮件字段已真实原生准备：九槽各60、物理列存在、工作区deferred action0行；intake.files原60保留，candidateResumes8→30。3份旧签名归档18资源迁移，42次前后SHA比较一致，原来源和intake关联保留，未删除原件/重解析/重排队。
+- 容量合成邮件500附件→504artifacts、九槽[60×8,24]，canonical引用508项检查、16份artifact哈希和8份intake副本哈希通过。两note各独立4份文件，两邮件intake均STORED；重复与legacy绑定在verifier进程0新增copy/排队，后台模型用量未测，不能称零调用。自然新邮件仍未观测。
+- 最终parser11例按预期，含真实旧DOC和两页Word表格对应关系；外部请求0。最新邮件归属/自动匹配禁用8套44项Jest、全包tsgo、16文件type-aware lint/格式通过；前端此前4套35项通过。重叠集合不相加冒充总数。
+- 已补本地commits：96c9335d自动匹配明确false、de08972f字段准备、8497a1e0独立邮件归属、0ee37212实际迁移与500附件验收、30559492运营输入和恢复UI、088902ca全池retry原生回归。未push、Issue、PR、生产变更或外发。
+- 新发现门户同源/recruiting-portal返回空404；直连API同一能力201且JSON正常，证实Vite代理遗漏。订阅/chatgpt-subscriptions同样遗漏并返回SPA HTML。正在局部修复白名单和友好空响应处理，未修改鉴权。新SIWC本人授权/真实刷新、自然新邮件、业务方质量核对仍为未完成gate。
+- 构建前10:26只读核验三队列waiting/active/delayed/prioritized均0；API37/PID55991、招聘worker31/PID58720、AI-only worker7/PID58719均确认cwd为本仓库server。稍后重建须重新核对，不能凭旧PID盲停。
+
+## 10:35 运行版本与官方聊天修复
+
+- 55d7643e已提交门户/订阅本地代理及空JSON错误处理；70项定向测试、前端TS/lint通过，正常门户资料/附件、停招按钮保护和旧企业授权失效提示已实际观察。没有为验收放宽鉴权。
+- 队列idle后精确停止旧API/两worker，SWC重新编译9604文件，加载明确false开关修复。当前API38/PID65513/session33051，招聘worker32/PID65514/session51380，AI-only worker8/PID65515/session76984；源码运行环境不新增代理服务。10:30前端/API/parser均200，46岗全缓存run回读COMPLETED/complete=true；正常浏览器reload会话和指定匹配均保留。
+- 新日志显示官方聊天mentionsResolvedAt字段缺失，原生guard持续CHAT_UPGRADE_IN_PROGRESS；只读确认workspace ACTIVE、metadataVersion183，字段元数据及物理列均无、deferred0。经原生单workspace命令先dry-run，再执行upgrade:2-54:add-chat-mention-resolution，仅新增nullable系统DATE_TIME字段并正常失效缓存。API未重启即真实GetAgentChatOpenThreadsSummary成功，4open/1unread；字段UUID及物理timestamptz列回查存在，metadataVersion184、deferred0。未修改版本、状态或guard，单项修复不冒称完整升级链已完成。私有chat-mention-field-evidence.json。
+- 个人飞书已由根会话按原始明确授权精准更新第三章并回读到revision7，15项内容/结构检查全通过，三大章保持。子任务曾因可见上下文不足遭自动审批拒绝，根复核原用户创建及更新要求后重新交审已允许；没有绕到其他API。首步CLI返回计数字段与文档契约不同，先回读确认已写，再幂等跳过续做，未重复插入。
+- 当前仍进行两组最终页面闭环：p2合成公司两JD实际批量确认及逐ID停招清理，p3合成候选人门户保存/意向/分享确认/企业预览/撤回。未完成前不把相关目标勾完。新SIWC本人授权、自然新邮件及业务质量核对仍待实际结果。
+
+## 10:41 公司/JD页面闭环
+
+- p2正常页面上传两份合成TXT及note，intake90dc69ca-da38-5693-8bbf-3a8d1fefc57a生成两条独立预览；727输入/579输出tokens。鼠标派发发生CDP超时后，两边只读回查均404且DRAFT，未盲目重复。随后聚焦同一enabled按钮并Enter确认一次，页面显示两条已创建及岗位链接，无alert。
+- 根独立读回新岗位88d0217b-9ce4-5b4b-af9f-852233e43d56和d03887c4-6031-521d-af87-1455884b02bb的真实RECRUITING版本，核对合成公司与名称、私存备份后逐ID原生API改CLOSED。最终活跃集合仍精确等于冻结46真岗。没有按名称批量清理，未改旧六个测试岗或删除记录；后台自动匹配用量未全量计量，不宣称零调用。
+- 页面与清理证据qa-ui-jd-batch-created.png、qa-final-ui-jd-actual-created-backup.json、qa-final-ui-jd-actual-cleanup-evidence.json。候选人门户分享/撤回页面闭环仍进行中。
+
+## 10:44 门户与实验报告页面验收
+
+- p3合成候选人真实UI闭环通过：同值保存资料→运营建立绑定真实在招岗的候选人入口→表达意向→勾选唯一合成简历确认分享→运营建立企业入口→企业只读预览→候选人撤回→原企业页reload明确拒绝。最终WITHDRAWN/valid=false，资料与附件不再可见，无有效分享残留。未外发、上传或新建候选人/岗位，同值保存复用原COMPLETED匹配身份，无新模型任务；证据portal-ui-evidence.json及五张私有截图。
+- 根在同一空间临时p4打开离线Shadcn HTML，实际目视核验四项指标卡、56行表格及可读布局；点击C01筛为7行，再恢复56行，已关闭临时p4。截图qa-rsi-shadcn-report.png。报告保留机器silver及引用逐字12/54局限，没有冒充人工标准答案。
+- 新公司带网址提交触发旧原生domainNamePrimaryLinkUrl唯一约束；同名未部分落库，查明example.invalid与已有合成公司冲突。保护正常，未放宽约束或权限；目前仅更换为独立合成子域完成新建提交验收，避免把错误测试输入误记成核心创建失败。
+
+## 10:49 核心本地交付回读
+
+- 新公司真实页面提交成功，c8e6a0b4-64a8-44fe-a9e2-d08c598015be，选中且无alert；原生REST逐项确认名称、独立域名、简介、招聘偏好一致，岗位0、模型任务0。原example.invalid重复拒绝保护保留，未为测试改源代码或约束。
+- 数据链路HTML已在同空间临时p5实际目视确认布局及九个可点击节点，解析节点交互正常；已关闭p5，未打开新空间或撤销私有目录保护。报告及数据链路的视觉证据均私存。
+- 最终55公司/174岗位/928联系人/500候选人，新增均合成测试。三队列waiting/active/delayed/prioritized0，原生邮件/日历同步0、旧ACTIVEworkflow0、deferred0、招聘收信开启0；在招集合仍精确46真岗。新两测试岗创建自动产生两run，合计21对评分后因停招SUPERSEDED，不称零模型或全量完成。
+- 个人飞书最终精准回读revision8，核心公司/JD/上传/队列/匹配/草稿/门户页面验收摘要已替换旧待验收文字；三章结构与新SIWC/新邮件/质量待办保留。最新交付文档和Goal勾选只反映已完成证据，整个goal仍active。
+- 当前可独立的代码、接口、真实解析/匹配、核心UI、迁移、报告与文档工作已完成。余下本人新SIWC授权及其真实调用/刷新、新邮件自然实收和业务质量核对，不能以旧Codex只读来源/合成网络测试/空poll代替。497历史候选人未全部新解析重跑，业务资料迁移不等于全量回填已完成。p1目前保留官方管理面板AI订阅入口，尚未发起会过期的OAuth。
