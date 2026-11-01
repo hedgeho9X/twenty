@@ -23,11 +23,13 @@ const portalResponse = async (
     },
   );
   if (!response.ok) {
-    const body = await response.json();
-    throw new Error(
-      typeof body.message === 'string'
+    const body: unknown = await response.json().catch(() => undefined);
+    const message =
+      body && typeof body === 'object' && 'message' in body
         ? body.message
-        : t`入口暂不可用，请联系运营人员`,
+        : undefined;
+    throw new Error(
+      typeof message === 'string' ? message : t`入口暂不可用，请联系运营人员`,
     );
   }
   return response;
@@ -37,8 +39,14 @@ export const portalRequest = async <T>(
   token: string,
   input: object,
   signal?: AbortSignal,
-): Promise<T> =>
-  (await portalResponse(token, input, signal)).json() as Promise<T>;
+): Promise<T> => {
+  const response = await portalResponse(token, input, signal);
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new Error(t`入口返回内容不完整，请稍后重试或联系运营人员`);
+  }
+};
 /** Downloads approved source bytes as an attachment rather than opening untrusted HTML in the portal origin. */
 export const portalDownload = async (
   token: string,

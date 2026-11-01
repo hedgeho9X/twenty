@@ -13,6 +13,24 @@ const isProxiedPath = (path: string) =>
   matchers.some((matcher) => matcher.test(path));
 
 describe('apiProxyPrefixes', () => {
+  it.each(['recruiting-portal', 'chatgpt-subscriptions'])(
+    'should proxy the standalone fork API root %s and its operations',
+    (apiPath) => {
+      expect(isProxiedPath(`/${apiPath}`)).toBe(true);
+      expect(isProxiedPath(`/${apiPath}/nested-operation`)).toBe(true);
+      expect(isProxiedPath(`/${apiPath}?query=value`)).toBe(true);
+    },
+  );
+
+  it.each([
+    '/candidate-portal',
+    '/recruiting-workspace',
+    '/recruiting-portal-other',
+    '/chatgpt-subscriptions-other',
+  ])('should preserve frontend and unrelated routes %s', (path) => {
+    expect(isProxiedPath(path)).toBe(false);
+  });
+
   it.each(Object.values(ApiPath))('should proxy the API path %s', (apiPath) => {
     expect(isProxiedPath(`/${apiPath}`)).toBe(true);
     expect(isProxiedPath(`/${apiPath}/nested-path`)).toBe(true);
