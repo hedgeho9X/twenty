@@ -320,7 +320,7 @@ export class RecruitingMatchingService {
         duplicates.add(key);
         return true;
       })
-      .slice(0, 5);
+      .slice(0, 10);
     const wholePool =
       payload.input.direction !== 'PAIR' && !payload.input.targetIds;
     const currentPool = wholePool

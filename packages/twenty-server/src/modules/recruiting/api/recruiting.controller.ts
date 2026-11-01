@@ -1,3 +1,4 @@
+import { ProcessingTasksService } from '../intake/processing-tasks.service';
 /** Exposes recruiting operations through the same authenticated workspace used by native APIs. */
 import {
   BadRequestException,
@@ -76,7 +77,21 @@ export class RecruitingController {
     private readonly portals: RecruitingPortalService,
     private readonly consents: RecruitingShareConsentService,
     private readonly activities: RecruitingActivityService,
+    private readonly processingTasks: ProcessingTasksService,
   ) {}
+  /** Returns one task timeline across material ingestion and matching. */
+  @Get('processing-tasks')
+  processingTaskList(
+    @Req() request: Request,
+    @Query('offset') offset = '0',
+    @Query('direction') direction?: string,
+  ) {
+    return this.processingTasks.list(
+      buildWorkspaceAuthContextFromRequest(request),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      direction,
+    );
+  }
   /** Records external actions only after explicit human confirmation; notes remain Agent-callable. */
   @Post('activities')
   activityCreate(@Req() request: Request, @Body() body: unknown) {
@@ -486,6 +501,15 @@ export class RecruitingController {
   }
 
   /** Reuses valid pair caches and retries only the necessary scoring work. */
+  /** Loads the last editable communication draft for this authorized matching result. */
+  @Get('match-runs/:id/draft')
+  matchDraft(@Req() request: Request, @Param('id') id: string) {
+    return this.drafts.latestForMatch(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
+
   @Post('match-runs/:id/retry')
   @HttpCode(202)
   retryMatch(@Req() request: Request, @Param('id') id: string) {

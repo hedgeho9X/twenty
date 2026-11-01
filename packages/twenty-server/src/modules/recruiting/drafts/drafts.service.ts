@@ -1,3 +1,4 @@
+import { RecruitingMatchingService } from '../matching/matching.service';
 /** Persists resumable text drafts and keeps generation distinct from real-world human actions. */
 import {
   BadRequestException,
@@ -6,6 +7,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { RECRUITING_ADVISORY_LOCK } from '../shared/locking/advisory-lock.constant';
 import { v4, v5 } from 'uuid';
@@ -36,6 +38,8 @@ export const recruitingDraftInputSchema = z
   .object({
     kind: z.enum(['GREETING', 'JOB_PUBLICATION']),
     candidateId: z.string().uuid().optional(),
+    matchRunId: z.string().uuid().optional(),
+    selectedIds: z.array(z.string().uuid()).min(1).max(10).optional(),
     jobId: z.string().uuid().optional(),
     note: z.string().max(50_000).default(''),
     idempotencyKey: z.string().min(1).max(256),
@@ -44,7 +48,10 @@ export const recruitingDraftInputSchema = z
   .refine(
     (input) =>
       input.kind === 'GREETING'
-        ? Boolean(input.candidateId)
+        ? Boolean(
+            input.candidateId ||
+            (input.matchRunId && input.selectedIds?.length),
+          )
         : Boolean(input.jobId),
     '请选择草稿对应的候选人或岗位',
   );
@@ -75,6 +82,7 @@ export class RecruitingDraftsService {
     private readonly locks: PostgresAdvisoryLockService,
     @InjectMessageQueue(MessageQueue.recruitingQueue)
     private readonly queue: MessageQueueService,
+    @Optional() private readonly matching?: RecruitingMatchingService,
   ) {}
 
   /** Creates a durable draft before any model call and reuses an identical submission. */
@@ -113,6 +121,16 @@ export class RecruitingDraftsService {
           throw error;
       }
     }
+    if (input.matchRunId) {
+      const run = await this.records.one(
+        context,
+        'recruitingMatchRun',
+        input.matchRunId,
+      );
+      await this.records.update(context, 'recruitingMatchRun', run.id, {
+        payload: { ...(run.payload as object), matchDraftId: id },
+      });
+    }
     if (record.status === 'QUEUED') await this.enqueue(id, actor);
     return this.receipt(record);
   }
@@ -127,6 +145,7 @@ export class RecruitingDraftsService {
       title: record.title,
       body: record.body,
       note: payload.input.note,
+      selectedIds: payload.input.selectedIds,
       stale: payload.sourceVersion !== source.version,
       generation: payload.generation,
       approvedAt: payload.approvedAt,
@@ -272,7 +291,7 @@ export class RecruitingDraftsService {
             throw new ConflictException();
           if (!payload.generation) {
             const generation = await this.extractor.draft(
-              payload.input.kind,
+              payload.input.matchRunId ? 'MATCH_BRIEF' : payload.input.kind,
               JSON.stringify(source.context),
               payload.input.note,
             );
@@ -318,11 +337,63 @@ export class RecruitingDraftsService {
       throw new ForbiddenException('此状态需要运营人员在页面亲自确认');
   }
 
+  /** Retrieves the most recent saved result draft, including operator edits. */
+  async latestForMatch(context: WorkspaceAuthContext, id: string) {
+    const run = await this.records.one(context, 'recruitingMatchRun', id);
+    const draftId = (run.payload as { matchDraftId?: string }).matchDraftId;
+    return draftId ? this.one(context, draftId) : null;
+  }
+
+  /** Loads only explicitly selected current results, preserving their source versions. */
+  private async matchSource(
+    context: WorkspaceAuthContext,
+    input: z.infer<typeof recruitingDraftInputSchema>,
+  ) {
+    if (!this.matching) throw new BadRequestException('匹配服务未就绪');
+    const run = await this.matching.one(context, input.matchRunId!);
+    if (!run.complete)
+      throw new ConflictException('匹配结果已变化，请重新匹配后生成');
+    const wanted = new Set(input.selectedIds);
+    const selected = run.top.filter((pair) =>
+      wanted.has(
+        run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateId : pair.jobId,
+      ),
+    );
+    if (!selected.length || selected.length !== wanted.size)
+      throw new BadRequestException('请选择当前匹配结果中的记录');
+    const pairs = [];
+    for (const pair of selected) {
+      const candidate = buildCandidateMatchContext(
+        await this.records.one(context, 'person', pair.candidateId),
+      );
+      const job = await this.records.one(context, 'recruitmentJob', pair.jobId);
+      const company =
+        typeof job.companyId === 'string'
+          ? await this.records.one(context, 'company', job.companyId)
+          : undefined;
+      const vacancy = buildJobMatchContext(job, company);
+      pairs.push({
+        candidate: { name: candidate.label, ...candidate.context },
+        job: { name: vacancy.label, ...vacancy.context },
+        company: vacancy.company,
+        score: pair.score,
+        versions: [candidate.version, vacancy.version, vacancy.companyVersion],
+      });
+    }
+    return {
+      label: `${run.subjectLabel} · 匹配沟通文案`,
+      context: { direction: run.direction, pairs },
+      version: contentVersion(pairs),
+      links: { candidateUrl: undefined, jobUrl: undefined },
+    };
+  }
+
   /** Builds only relevant source facts; publication never includes candidate data. */
   private async source(
     context: WorkspaceAuthContext,
     input: z.infer<typeof recruitingDraftInputSchema>,
   ) {
+    if (input.matchRunId) return this.matchSource(context, input);
     const candidate =
       input.kind === 'GREETING'
         ? await this.records.one(context, 'person', input.candidateId!)

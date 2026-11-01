@@ -1,3 +1,4 @@
+import { ProcessingTasksService } from './intake/processing-tasks.service';
 /** Registers the recruiting domain without replacing native CRM records, authentication or models. */
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -79,6 +80,7 @@ import { RecruitingPortalController } from './portal/portal.controller';
   ],
   controllers: [RecruitingController, RecruitingPortalController],
   providers: [
+    ProcessingTasksService,
     RecruitingActorService,
     RecruitingRecordsService,
     RecruitingParserService,

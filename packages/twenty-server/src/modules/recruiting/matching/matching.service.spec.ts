@@ -20,9 +20,9 @@ const context = {
 } as WorkspaceAuthContext;
 
 /** Uses isolated native-like records; no production data or model endpoint participates. */
-const setup = () => {
+const setup = (count = 7) => {
   const person = { id: 'person', contactRoles: ['CANDIDATE'] };
-  const jobs = Array.from({ length: 7 }, (_, index) => ({
+  const jobs = Array.from({ length: count }, (_, index) => ({
     id: `job-${index}`,
     companyId: 'company',
   }));
@@ -131,7 +131,7 @@ describe('recruiting matching runs', () => {
       scored: 7,
       failed: 0,
     });
-    expect(result.top).toHaveLength(5);
+    expect(result.top).toHaveLength(7);
   });
 
   it('reports partial failures without making up zero scores', async () => {
@@ -298,4 +298,10 @@ it('selects completed results before pagination while keeping the unfiltered que
     'recruitingMatchRun',
     expect.not.objectContaining({ filter: expect.anything() }),
   );
+});
+
+it('returns at most ten ranked results', async () => {
+  const { service } = setup(12);
+  await service.process({ runId: 'run', actor });
+  expect((await service.one(context, 'run')).top).toHaveLength(10);
 });
