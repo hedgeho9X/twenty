@@ -14,11 +14,11 @@ import { themeCssVariables } from 'twenty-ui/theme';
 import {
   portalDownload,
   portalRequest,
-} from '@/recruiting/utils/portalRequest';
+} from '@/recruiting/portal/api/request';
 import {
   type RecruitingPortalView,
   type PortalSelfProfile,
-} from '@/recruiting/types/RecruitingPortalView';
+} from '@/recruiting/portal/types/PortalView';
 import {
   StyledRecruitingError,
   StyledRecruitingMuted,
@@ -26,7 +26,7 @@ import {
   StyledRecruitingRow,
   StyledRecruitingStack,
   StyledRecruitingTitle,
-} from '@/recruiting/components/recruitingStyles';
+} from '@/recruiting/shared/styles';
 
 const StyledPortalMain = styled.main`
   margin: 0 auto;

@@ -7,19 +7,19 @@ import { Select } from '@/ui/input/components/Select';
 import { Tabs } from 'twenty-ui/primitives/navigation';
 import { IconBriefcase, IconClock } from 'twenty-ui/icon';
 import { PageHeader } from '@/ui/layout/page/components/PageHeader';
-import { RecruitingCandidateIntake } from '@/recruiting/components/RecruitingCandidateIntake';
-import { RecruitingQueueDialog } from '@/recruiting/components/RecruitingQueueDialog';
-import { RecruitingMatchResults } from '@/recruiting/components/RecruitingMatchResults';
-import { RecruitingCompanyJobsList } from '@/recruiting/components/RecruitingCompanyJobsList';
-import { RecruitingCompanyJobs } from '@/recruiting/components/RecruitingCompanyJobs';
-import { RecruitingManualMatch } from '@/recruiting/components/RecruitingManualMatch';
-import { RecruitingDrafts } from '@/recruiting/components/RecruitingDrafts';
-import { RecruitingMailSources } from '@/recruiting/components/RecruitingMailSources';
-import { RecruitingSharing } from '@/recruiting/components/RecruitingSharing';
+import { RecruitingCandidateIntake } from '@/recruiting/intake/components/CandidateIntake';
+import { RecruitingQueueDialog } from '@/recruiting/queue/components/QueueDialog';
+import { RecruitingMatchResults } from '@/recruiting/matching/components/MatchResults';
+import { RecruitingCompanyJobsList } from '@/recruiting/companies/components/CompanyJobsList';
+import { RecruitingCompanyJobs } from '@/recruiting/companies/components/CompanyJobIntake';
+import { RecruitingManualMatch } from '@/recruiting/matching/components/ManualMatch';
+import { RecruitingDrafts } from '@/recruiting/drafts/components/DraftList';
+import { RecruitingMailSources } from '@/recruiting/mail/components/MailList';
+import { RecruitingSharing } from '@/recruiting/portal/components/Sharing';
 import {
   StyledRecruitingBody,
   StyledRecruitingWorkspace,
-} from '@/recruiting/components/recruitingStyles';
+} from '@/recruiting/shared/styles';
 
 /** Uses normal pages for material editing and a short popup for queue progress. */
 export const RecruitingWorkspacePage = () => {
