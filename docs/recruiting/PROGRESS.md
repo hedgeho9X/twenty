@@ -435,3 +435,13 @@
 - 队列idle、无pending授权后精确停API40/两worker并重建9604文件。当前API41/PID82354/session54168，招聘worker35/PID82365/session28938，AI11/PID82377/session20053。新功能已在HTTP实际加载；既有邮件任务与JD HTTP/MCP/CLI预览均只读复验成功，新上传/投递/模型请求0。
 - 12:01最终前端、parser及鉴权API均200，三队列waiting/active/delayed/prioritized和scheduler均0，两邮箱接入enabled=false；新SIWC连接0/pending无。Vite三个新增相关模块200。私有material-final-health.json，running-work.json已更新当前运行点。
 - 新UI仍未取得实际点击证据；浏览器空间15此前交给用户，遵循Ego指南“After the user confirms, resume the same space”，未绕过或重新创建空间。整个目标保持active，不把新增下载接口成功当页面或招聘业务质量验收。
+
+## 12:13 完整目标逐项审计
+
+- 上一goal轮为实际progress（JD预览与原件下载5个提交）。本轮按权威目标121个列表项建立DELIVERY_AUDIT.md，逐项区分真实本地证据、组件/接口证据、待页面与待本人授权；不按旧绿勾倒推完成。明确合同内部提醒、发布草稿及人工跟进的正常页面提交也缺证，UI验收门槛继续未完成。
+- 首次限定回归误用了Jest30复数testPathPatterns，Jest29未筛选；已只停本轮测试PID82895/82896，两个handle最终143，未停API41。弃用这两份非scoped日志，改用rg精确文件清单和--runTestsByPath：服务端35套221项、前端8套50项全部通过，进程均退出0。相应scoped日志私存，没有把中断或非目标测试当通过。
+- 72ac3333新增audit-rsi，复核9份原件全部大小/SHA一致、18页preview-v1、原40个前五位置零保存键重复/程序排除/未评分；历史标签仅描述样本，不是新gold。语义保真、语义近重复正确性和无排除观察的误拒率保持unknown。旧manifest/report哈希前后相同，不重写已有评分、标签或HTML。
+- 发现原4/4候选人分组共用46岗，未能证明岗位重复组隔离。c6a0c458新增固定seed联合分组缓存回放，保留完整8×46原结果与真实46岗池：dev4×20/80对、holdout4×26/104对，人/岗/保存的重复组交集均实算0。新前五标签仅7/20和12/20，未审13+8项，整体质量率unknown；这是事后回放而非新未见测试。两命令无模型客户端，新增请求/费用0。
+- 个人飞书以personal用户精准更新第三章并回读revision14，去掉外部自然来信旧待办，补新增展示/下载、限定回归数、评测证据及剩余页面与本人授权项。再次读取第二章需求相符，目录严格为1.目前的背景/2.目前确定的需求/3.我们需要去做什么。初次目录校验漏“的”导致false，按实际标题更正本地校验后全部true；未为校验改文档标题。私有lark-audit-checks.json。
+- 本轮只读PG实际55公司/175岗位/929联系人/501候选人、46在招。12:13原A13000/新B23000/parser均200；Redis全局并发材料10/匹配2，各一个worker，AI一个worker，三队列空闲/无scheduler。新SIWC管理200、连接0/pending无。completion-audit-runtime.json私存；业务源码未变，不重建API或新增模型任务。
+- 剩余Ego空间15交回与新SIWC本人授权尚无确认；没有操作已handOff页面或生成会过期链接。本轮完成了回归、两个可复现证据命令和文档同步，属于progress；整体goal仍active，不complete、不满足连续三轮无进展的blocked门槛。后续如无控制权/授权变化，不反复重跑同一报告或发明新的通过条件。
