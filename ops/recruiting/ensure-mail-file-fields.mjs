@@ -37,7 +37,7 @@ const {
 } = require(
   join(
     root,
-    'packages/twenty-server/dist/modules/recruiting/domain/mail-file-layout.js',
+    'packages/twenty-server/dist/modules/recruiting/mail/domain/mail-file-layout.js',
   ),
 );
 assert.equal(layout.version, 1);

@@ -213,20 +213,20 @@ const main = async () => {
   const { AppModule } = require('./dist/app.module.js');
   const load = (file, name) =>
     require(`./dist/modules/recruiting/${file}.js`)[name];
-  const Actors = load('recruiting-actor.service', 'RecruitingActorService');
+  const Actors = load('auth/actor.service', 'RecruitingActorService');
   const Records = load(
-    'recruiting-records.service',
+    'records/records.service',
     'RecruitingRecordsService',
   );
-  const Mail = load('recruiting-mail.service', 'RecruitingMailService');
-  const Parser = load('recruiting-parser.service', 'RecruitingParserService');
+  const Mail = load('mail/mail.service', 'RecruitingMailService');
+  const Parser = load('files/parser.service', 'RecruitingParserService');
   const { OrderByDirection } = require('twenty-shared/types');
   const {
     contentVersion,
-  } = require('./dist/modules/recruiting/domain/match-context.js');
+  } = require('./dist/modules/recruiting/matching/domain/match-context.js');
   const {
     RECRUITING_MAIL_FILE_LAYOUT: layout,
-  } = require('./dist/modules/recruiting/domain/mail-file-layout.js');
+  } = require('./dist/modules/recruiting/mail/domain/mail-file-layout.js');
   assert.equal(layout.version, 1);
   assert.equal(layout.perField, 60);
   assert.equal(layout.fields.length, 9);

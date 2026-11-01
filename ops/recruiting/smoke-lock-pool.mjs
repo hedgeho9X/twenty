@@ -11,7 +11,7 @@ const {
 } = require('../../packages/twenty-server/dist/database/typeorm/postgres-advisory-lock.service.js');
 const {
   recruitingLockPoolOptions,
-} = require('../../packages/twenty-server/dist/modules/recruiting/recruiting-lock-pool.options.js');
+} = require('../../packages/twenty-server/dist/modules/recruiting/shared/locking/lock-pool.options.js');
 const environment = JSON.parse(
   await readFile('.local/recruiting/environment.json', 'utf8'),
 );

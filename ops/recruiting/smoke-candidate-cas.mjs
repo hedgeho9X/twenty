@@ -52,12 +52,12 @@ const {
 const {
   MetadataEventEmitter,
 } = require('./dist/engine/subscriptions/metadata-event/metadata-event-emitter.js');
-const Actors = load('recruiting-actor.service', 'RecruitingActorService');
-const Records = load('recruiting-records.service', 'RecruitingRecordsService');
-const Uploads = load('recruiting-upload.service', 'RecruitingUploadService');
-const Parser = load('recruiting-parser.service', 'RecruitingParserService');
+const Actors = load('auth/actor.service', 'RecruitingActorService');
+const Records = load('records/records.service', 'RecruitingRecordsService');
+const Uploads = load('files/upload.service', 'RecruitingUploadService');
+const Parser = load('files/parser.service', 'RecruitingParserService');
 const Candidates = load(
-  'recruiting-candidate-records.service',
+  'intake/candidate-records.service',
   'RecruitingCandidateRecordsService',
 );
 const app = await NestFactory.createApplicationContext(AppModule, {

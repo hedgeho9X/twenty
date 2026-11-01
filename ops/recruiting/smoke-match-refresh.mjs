@@ -42,10 +42,10 @@ const { NotFoundException } = require('@nestjs/common');
 const { AppModule } = require('./dist/app.module.js');
 const load = (file, name) =>
   require(`./dist/modules/recruiting/${file}.js`)[name];
-const Actors = load('recruiting-actor.service', 'RecruitingActorService');
-const Records = load('recruiting-records.service', 'RecruitingRecordsService');
+const Actors = load('auth/actor.service', 'RecruitingActorService');
+const Records = load('records/records.service', 'RecruitingRecordsService');
 const { buildCandidateMatchContext } = require(
-  './dist/modules/recruiting/domain/match-context.js',
+  './dist/modules/recruiting/matching/domain/match-context.js',
 );
 const { MetadataEventEmitter } = require(
   './dist/engine/subscriptions/metadata-event/metadata-event-emitter.js',

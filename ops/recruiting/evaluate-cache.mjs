@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { evaluateRecruitingEligibility } from '../../packages/twenty-server/src/modules/recruiting/domain/match-policy.ts';
+import { evaluateRecruitingEligibility } from '../../packages/twenty-server/src/modules/recruiting/matching/domain/match-policy.ts';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const { values } = parseArgs({
@@ -140,7 +140,7 @@ const report = {
     await readFile(
       join(
         repository,
-        'packages/twenty-server/src/modules/recruiting/domain/match-policy.ts',
+        'packages/twenty-server/src/modules/recruiting/matching/domain/match-policy.ts',
       ),
     ),
   ),

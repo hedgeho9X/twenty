@@ -215,22 +215,22 @@ const main = async () => {
   const { AppModule } = require('./dist/app.module.js');
   const load = (file, name) =>
     require(`./dist/modules/recruiting/${file}.js`)[name];
-  const Actors = load('recruiting-actor.service', 'RecruitingActorService');
+  const Actors = load('auth/actor.service', 'RecruitingActorService');
   const Records = load(
-    'recruiting-records.service',
+    'records/records.service',
     'RecruitingRecordsService',
   );
-  const Mail = load('recruiting-mail.service', 'RecruitingMailService');
-  const Intakes = load('recruiting-intake.service', 'RecruitingIntakeService');
-  const Parser = load('recruiting-parser.service', 'RecruitingParserService');
+  const Mail = load('mail/mail.service', 'RecruitingMailService');
+  const Intakes = load('intake/intake.service', 'RecruitingIntakeService');
+  const Parser = load('files/parser.service', 'RecruitingParserService');
   const {
     contentVersion,
-  } = require('./dist/modules/recruiting/domain/match-context.js');
+  } = require('./dist/modules/recruiting/matching/domain/match-context.js');
   const {
     RECRUITING_MAIL_FILE_LAYOUT: layout,
     MAX_RECRUITING_MAIL_ATTACHMENTS,
     MAX_RECRUITING_MAIL_ARTIFACTS,
-  } = require('./dist/modules/recruiting/domain/mail-file-layout.js');
+  } = require('./dist/modules/recruiting/mail/domain/mail-file-layout.js');
   assert.equal(MAX_RECRUITING_MAIL_ATTACHMENTS, 500);
   assert.equal(MAX_RECRUITING_MAIL_ARTIFACTS, 504);
   assert.equal(layout.version, 1);
