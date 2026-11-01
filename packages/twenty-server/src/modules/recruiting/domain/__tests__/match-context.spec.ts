@@ -1,11 +1,156 @@
 /** Covers migration input fidelity, explicit rejection and content version boundaries. */
 import {
   buildCandidateMatchContext,
+  buildCompanyMatchContext,
   buildJobMatchContext,
   contentVersion,
   minimizeRecruitingText,
+  recruitingText,
 } from '../match-context';
 import { evaluateRecruitingEligibility } from '../match-policy';
+
+/** Mirrors the native editor's persisted document without depending on its React state. */
+const nativeDocument = (text: string) =>
+  JSON.stringify({
+    type: 'doc',
+    content: text
+      ? text.split('\n').map((line) => ({
+          type: 'paragraph',
+          content: [{ type: 'text', text: line }],
+        }))
+      : [],
+  });
+
+describe('native rich-text recruiting inputs', () => {
+  it('keeps current editor company preferences and JD text in model context and content versions', () => {
+    const company = { id: 'company', name: '合成公司' };
+    const before = buildCompanyMatchContext(company);
+    const after = buildCompanyMatchContext({
+      ...company,
+      recruitmentPreferences: {
+        markdown: null,
+        blocknote: null,
+        tiptap: nativeDocument('TypeScript服务\n优先项目经验'),
+      },
+    });
+    expect(after.preferences).toContain('TypeScript服务');
+    expect(after.preferences).toContain('优先项目经验');
+    expect(contentVersion(after)).not.toBe(contentVersion(before));
+    const job = buildJobMatchContext({
+      id: 'job',
+      name: '后端工程师',
+      jobStatus: 'RECRUITING',
+      jobDescription: { tiptap: nativeDocument('维护PostgreSQL和队列') },
+    });
+    expect(job.context.description).toContain('维护PostgreSQL和队列');
+    expect(job.issue).toBeUndefined();
+  });
+
+  it('does not resurrect stale markdown after the native editor clears the document', () => {
+    expect(
+      recruitingText({
+        tiptap: nativeDocument(''),
+        markdown: '已删除的旧要求',
+      }),
+    ).toBe('');
+    const job = buildJobMatchContext({
+      id: 'job',
+      jobDescription: { tiptap: nativeDocument('') },
+      jobRecruitmentPreferences: { markdown: '' },
+      recruitingProfile: {
+        description: '已清除的旧JD',
+        preferences: '已清除的旧偏好',
+      },
+    });
+    expect(job.context.description).toBe('');
+    expect(job.context.preferences).toBe('');
+    expect(job.issue).toContain('缺少 JD');
+  });
+
+  it('keeps profile fallback for legacy records without a populated native text field', () => {
+    const job = buildJobMatchContext({
+      id: 'job',
+      jobDescription: { markdown: null, blocknote: null, tiptap: null },
+      recruitingProfile: { description: '旧资料仍保留完整JD' },
+    });
+    expect(job.context.description).toBe('旧资料仍保留完整JD');
+    expect(job.issue).toBeUndefined();
+  });
+
+  it('keeps legacy BlockNote facts instead of serializing editor identifiers', () => {
+    const value = recruitingText({
+      blocknote: JSON.stringify([
+        {
+          id: 'private-editor-id',
+          type: 'paragraph',
+          props: {},
+          content: [{ type: 'text', text: '接受远程协作', styles: {} }],
+          children: [],
+        },
+      ]),
+    });
+    expect(value).toBe('接受远程协作');
+    expect(value).not.toContain('private-editor-id');
+  });
+
+  it('reads a legacy TipTap block array through the native converter', () => {
+    expect(
+      recruitingText({
+        blocknote: JSON.stringify([
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Node.js服务' }],
+          },
+        ]),
+      }),
+    ).toBe('Node.js服务');
+  });
+
+  it('preserves existing plain and Markdown inputs and rejects malformed editor metadata', () => {
+    expect(recruitingText('Linux\nPostgreSQL')).toBe('Linux\nPostgreSQL');
+    expect(recruitingText({ markdown: 'Linux\nPostgreSQL' })).toBe(
+      'Linux\nPostgreSQL',
+    );
+    expect(
+      recruitingText({ tiptap: '{broken', markdown: '可读取的正文' }),
+    ).toBe('可读取的正文');
+    expect(recruitingText({ tiptap: '{"private":"metadata"}' })).toBe('');
+  });
+
+  it('redacts contacts and credential-bearing links after converting current rich text', () => {
+    const context = buildCompanyMatchContext({
+      id: 'company',
+      recruitmentPreferences: {
+        tiptap: JSON.stringify({
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: 'TypeScript项目经验',
+                  marks: [
+                    {
+                      type: 'link',
+                      attrs: {
+                        href: 'https://example.invalid/prefs?token=synthetic-secret',
+                      },
+                    },
+                  ],
+                },
+                { type: 'text', text: ' 联系private@example.invalid' },
+              ],
+            },
+          ],
+        }),
+      },
+    });
+    expect(context.preferences).toContain('TypeScript项目经验');
+    expect(context.preferences).not.toContain('synthetic-secret');
+    expect(context.preferences).not.toContain('private@example.invalid');
+  });
+});
 
 describe('recruiting match context', () => {
   it('excludes a paused company but retains unknown company states and invalidates only affected inputs', () => {

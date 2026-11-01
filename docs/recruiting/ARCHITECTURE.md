@@ -70,3 +70,9 @@ CLIProxyAPI 同时包含旧 Codex OAuth 与 SIWC 实现，作为对照；必要�
 真实原生ORM回归揭示上游文件生命周期边界：条件UPDATE实际为0行时，原实现仍可能将待关联文件设为permanent或soft-delete旧文件，并产生未实际发生的更新事件；版本已经变化而before-image为0行时，文件同步又会误报多行更新。局部修正WorkspaceRepository.performMutation：对象/字段权限及RLS保持原样，文件更新未选中记录时返回空结果，实际UPDATE为0行时在文件持久化和事件前返回。没有放宽文件绑定或temporary规则，没有改insert/batch路径。
 
 原生repository的12项回归包含真实FilesFieldSync的零行/成功路径。另以确定性合成候选人、原生上传/复制、真实Nest与PG强制双读同一微秒版本：3次mutation中1次0行，最终1份原附件和2份新附件均保留，关联文件均permanent，职业资料未改变。该验证无模型调用；旧合成候选人的8份字段上限未被调高，使用独立fixture，未更改原业务资料。
+
+## 8. 原生富文本与匹配版本
+
+官方RichTextFieldEditor保存的是tiptap JSON，并将markdown/blocknote置空。招聘读取器原先只取markdown，会遗漏原生编辑后的JD、公司或岗位招聘偏好；当前复用twenty-shared的原生TipTap解析/Markdown转换和旧BlockNote转换，先读有效当前文档，再读旧格式，纯文本和原Markdown输入保持原值。编辑器元数据不作为招聘事实导出，转换后仍执行联系方式及带凭据URL的最小化。
+
+显式清空的原生正文或偏好保留为空，不再因逻辑或运算恢复旧recruitingProfile快照；仅原生字段未填充时保留历史profile兼容。新正文进入内容版本与公司版本，已有原生事件监听据此增量排队，不需要另起监听器或重跑无关组合。3套35项上下文/变更监听/匹配回归通过，含6项格式与清空/脱敏用例及原生富文本变更排队；服务端tsgo与相关lint通过。运行生效情况以PROGRESS的重建记录为准，不以源码提交冒充已加载。

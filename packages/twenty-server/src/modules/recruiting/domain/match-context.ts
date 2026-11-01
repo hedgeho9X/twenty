@@ -1,5 +1,11 @@
 /** Builds versioned occupational context without mutating legacy source records or inferring consent. */
 import { createHash } from 'node:crypto';
+import {
+  convertBlockNoteToRichTextDocument,
+  convertTipTapBlocksToDocument,
+  parseTipTapJsonDocument,
+  tipTapDocumentToMarkdown,
+} from 'twenty-shared/utils';
 
 import { type CandidateEligibility, type JobEligibility } from './match-policy';
 import { readPortalSelfProfile } from './portal-schemas';
@@ -23,12 +29,37 @@ export const stableSerialize = (value: unknown): string => {
 export const contentVersion = (value: unknown): string =>
   createHash('sha256').update(stableSerialize(value)).digest('hex');
 
-/** Reads native rich text without discarding a complete line containing a contact address. */
+/** Reads native editor formats in their canonical order without exporting arbitrary editor metadata. */
 export const recruitingText = (value: unknown): string => {
   if (typeof value === 'string') return value;
   if (!value || typeof value !== 'object') return '';
   const rich = value as Record<string, unknown>;
+  const document =
+    typeof rich.tiptap === 'string'
+      ? parseTipTapJsonDocument(rich.tiptap)
+      : undefined;
+  if (document) return tipTapDocumentToMarkdown(document);
+  if (typeof rich.blocknote === 'string') {
+    const legacy =
+      convertTipTapBlocksToDocument(rich.blocknote) ??
+      convertBlockNoteToRichTextDocument(rich.blocknote);
+    if (legacy) return tipTapDocumentToMarkdown(legacy);
+  }
   return typeof rich.markdown === 'string' ? rich.markdown : '';
+};
+
+/** Explicit native text, including a cleared document, takes precedence over an older extraction snapshot. */
+const currentRecruitingText = (value: unknown, fallback: unknown): string => {
+  const rich =
+    value && typeof value === 'object'
+      ? (value as Record<string, unknown>)
+      : {};
+  const nativeValuePresent =
+    typeof value === 'string' ||
+    [rich.tiptap, rich.blocknote, rich.markdown].some(
+      (entry) => typeof entry === 'string',
+    );
+  return recruitingText(nativeValuePresent ? value : fallback);
 };
 
 /** Redacts contact substrings and explicit name headers without treating matching skill fragments as identities. */
@@ -307,12 +338,14 @@ export const buildJobMatchContext = (
   const companyContext = buildCompanyMatchContext(company);
   const context = {
     title: recruitingText(record.name),
-    description:
-      recruitingText(record.jobDescription) ||
-      recruitingText(profile.description),
-    preferences:
-      recruitingText(record.jobRecruitmentPreferences) ||
-      recruitingText(profile.preferences),
+    description: currentRecruitingText(
+      record.jobDescription,
+      profile.description,
+    ),
+    preferences: currentRecruitingText(
+      record.jobRecruitmentPreferences,
+      profile.preferences,
+    ),
     companyPreferencesSnapshot: recruitingText(
       record.companyRecruitmentPreferences,
     ),

@@ -117,6 +117,29 @@ describe('recruiting record changes', () => {
     );
   });
 
+  it('refreshes company jobs when preferences change through the native rich-text editor', async () => {
+    const { listener, matching, event } = setup();
+    const preferences = (text: string) => ({
+      markdown: null,
+      tiptap: JSON.stringify({
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+      }),
+    });
+    await listener.changed(
+      event(
+        'company',
+        { id: 'company', recruitmentPreferences: preferences('优先后端经验') },
+        { id: 'company', recruitmentPreferences: preferences('优先前端经验') },
+      ),
+    );
+    expect(matching.submitForRecord).toHaveBeenCalledWith(
+      expect.anything(),
+      'recruitmentJob',
+      'job',
+    );
+  });
+
   it('does not use system updates or empty profiles to launch paid work', async () => {
     const { listener, matching, event } = setup();
     const system = { ...event('person', candidate), actor: undefined };
