@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { ensureLocalMailConfig } from './local-mail-config.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const privateDirectory = join(repository, '.local/recruiting');
@@ -38,6 +39,7 @@ const run = (
 const initialize = async () => {
   await mkdir(privateDirectory, { recursive: true, mode: 0o700 });
   await mkdir(join(privateDirectory, 'logs'), { recursive: true, mode: 0o700 });
+  await ensureLocalMailConfig(privateDirectory);
   let environment;
   try {
     environment = JSON.parse(await readFile(environmentPath, 'utf8'));
