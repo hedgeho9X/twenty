@@ -15,6 +15,11 @@ jest.mock('@/recruiting/hooks/useRecruitingQuery');
 jest.mock('@/recruiting/utils/recruitingRequest');
 jest.mock('@/recruiting/components/recruitingStyles', () => ({
   StyledRecruitingDrop: 'div',
+  StyledRecruitingForm: 'div',
+  StyledRecruitingSteps: 'nav',
+  StyledRecruitingChoices: 'div',
+  StyledRecruitingStatus: 'span',
+  StyledRecruitingJobHover: 'div',
   StyledRecruitingError: 'div',
   StyledRecruitingMuted: 'p',
   StyledRecruitingPanel: 'section',
@@ -105,7 +110,10 @@ jest.mock('@/recruiting/components/RecruitingRecordPicker', () => ({
         onClick={() =>
           onSelect({
             id: 'replacement',
-            name: { firstName: 'Fixture', lastName: 'B' },
+            name:
+              label === '公司'
+                ? 'Fixture company'
+                : { firstName: 'Fixture', lastName: 'B' },
           })
         }
       >{`${label}:choose`}</button>
@@ -160,14 +168,12 @@ it.each([RecruitingDrafts, RecruitingSharing])(
 );
 
 it('retains text, notes and completed uploads when reopening a failed JD submission', async () => {
-  jest
-    .mocked(uploadRecruitingFile)
-    .mockResolvedValue({
-      fileId: 'fixture-file',
-      label: 'fixture.pdf',
-      role: 'primary',
-      uploadReceipt: 'fixture-receipt',
-    });
+  jest.mocked(uploadRecruitingFile).mockResolvedValue({
+    fileId: 'fixture-file',
+    label: 'fixture.pdf',
+    role: 'primary',
+    uploadReceipt: 'fixture-receipt',
+  });
   jest
     .mocked(recruitingRequest)
     .mockRejectedValueOnce(new Error('Temporary failure'))
@@ -179,6 +185,7 @@ it('retains text, notes and completed uploads when reopening a failed JD submiss
     />,
   );
   fireEvent.click(screen.getByRole('button', { name: '公司:choose' }));
+  fireEvent.click(screen.getByRole('button', { name: '下一步：添加材料' }));
   const [text, note] = screen.getAllByRole('textbox');
   fireEvent.change(text, { target: { value: 'Original full JD' } });
   fireEvent.change(note, { target: { value: 'Original operator note' } });
@@ -238,6 +245,8 @@ it.each([
     };
     queryData['match-runs/pair-run'] = {
       runId: 'pair-run',
+      subjectId: 'fixture-person',
+      subjectLabel: 'Fixture person',
       direction: 'PAIR',
       status: 'NO_RESULTS',
       top: [],
@@ -265,3 +274,45 @@ it.each([
     expect(screen.queryByText(/\/ 4/)).not.toBeInTheDocument();
   },
 );
+
+it('shows a single candidate header and compact job results without follow-up controls', () => {
+  queryData['candidates/person'] = {
+    name: { firstName: '合成候选人', lastName: '' },
+    recruitingProfile: {
+      summary: '后端开发',
+      skills: ['TypeScript'],
+      expectedRoles: ['后端工程师'],
+    },
+  };
+  queryData['match-runs/completed'] = {
+    runId: 'completed',
+    subjectId: 'person',
+    subjectLabel: '合成候选人',
+    direction: 'CANDIDATE_TO_JOBS',
+    status: 'COMPLETED',
+    complete: true,
+    counts: { total: 46, processed: 46 },
+    top: [
+      {
+        candidateId: 'person',
+        candidateLabel: '合成候选人',
+        candidateUrl: '/object/person/person',
+        jobId: 'job',
+        jobLabel: '后端工程师',
+        jobUrl: '/object/recruitmentJob/job',
+        score: 3.2,
+        status: 'SCORED',
+        eligibility: { reasons: [] },
+      },
+    ],
+  };
+  render(<RecruitingMatchResults initialRunId="completed" />);
+  expect(screen.getAllByText('合成候选人')).toHaveLength(1);
+  expect(screen.getByText(/TypeScript/)).toBeInTheDocument();
+  expect(screen.getByText('3.20 / 4')).toBeInTheDocument();
+  expect(screen.queryByText('已完成')).toBeNull();
+  expect(screen.queryByText(/共 46 个组合/)).toBeNull();
+  expect(screen.queryByRole('button', { name: '生成问候草稿' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '标记为已查看' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '重试或刷新匹配' })).toBeNull();
+});

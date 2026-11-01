@@ -6,6 +6,7 @@ export type RecruitingMatchRun = {
   direction: string;
   subjectId: string;
   subjectLabel?: string;
+  expectedRoles?: string[];
   status: string;
   createdAt: string;
   reviewedAt?: string;
