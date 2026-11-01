@@ -211,8 +211,6 @@ it('downloads a queued original with authentication and keeps download failures 
 });
 
 it.each([
-  ['intake', 'READY'],
-  ['intake', 'PROCESSING'],
   ['mail', 'QUEUED'],
   ['mail', 'EXPANDING'],
   ['mail', 'NEEDS_SELECTION'],
@@ -223,12 +221,9 @@ it.each([
   async (kind, status) => {
     jest.mocked(recruitingRequest).mockResolvedValue({});
     const path = renderTask(kind, status);
-    if (kind !== 'intake')
-      expect(
-        screen.getByText(
-          '长时间没有进展时可尝试恢复；仍在运行的任务会继续等待',
-        ),
-      ).toBeInTheDocument();
+    expect(
+      screen.getByText('长时间没有进展时可尝试恢复；仍在运行的任务会继续等待'),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '恢复处理' }));
     await waitFor(() => expect(reload).toHaveBeenCalled());
     expect(recruitingRequest).toHaveBeenCalledWith(path, {
@@ -255,7 +250,7 @@ it.each([
   },
 );
 
-it.each(['intake', 'mail', 'draft'] as const)(
+it.each(['mail', 'draft'] as const)(
   'prevents duplicate recovery clicks for %s and releases busy state',
   async (kind) => {
     let finish = () => {};
@@ -264,14 +259,7 @@ it.each(['intake', 'mail', 'draft'] as const)(
         finish = resolve;
       }),
     );
-    renderTask(
-      kind,
-      kind === 'intake'
-        ? 'PROCESSING'
-        : kind === 'mail'
-          ? 'EXPANDING'
-          : 'PROCESSING',
-    );
+    renderTask(kind, kind === 'mail' ? 'EXPANDING' : 'PROCESSING');
     const button = screen.getByRole('button', { name: '恢复处理' });
     fireEvent.click(button);
     fireEvent.click(button);
@@ -379,13 +367,13 @@ it('retains the approved original and replacement identity after a failed new-dr
   );
 });
 
-it.each(['intake', 'mail', 'draft'] as const)(
+it.each(['mail', 'draft'] as const)(
   'shows a rejected recovery request for %s without relabeling the task failed',
   async (kind) => {
     jest
       .mocked(recruitingRequest)
       .mockRejectedValueOnce(new Error('Fixture permission denied'));
-    renderTask(kind, kind === 'intake' ? 'READY' : 'QUEUED');
+    renderTask(kind, 'QUEUED');
     fireEvent.click(screen.getByRole('button', { name: '恢复处理' }));
     await screen.findByText('Fixture permission denied');
     expect(screen.getByRole('button', { name: '恢复处理' })).not.toBeDisabled();
@@ -460,4 +448,9 @@ it('opens unchanged submitted JD text and returns to the same parsed details wit
   fireEvent.click(screen.getByRole('button', { name: '返回解析详情' }));
   expect(screen.getByText('模型整理正文')).toBeInTheDocument();
   expect(recruitingRequest).not.toHaveBeenCalled();
+});
+
+it('does not show recovery for a normally processing queue task', () => {
+  renderTask('intake', 'PROCESSING');
+  expect(screen.queryByRole('button', { name: '恢复处理' })).toBeNull();
 });

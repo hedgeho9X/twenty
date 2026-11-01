@@ -553,6 +553,56 @@ export class RecruitingIntakeService {
     return this.receipt(await this.jobs.confirm(context, id, value));
   }
 
+  /** Starts the missing matching stage without parsing or creating the material again. */
+  async startMatching(context: WorkspaceAuthContext, id: string) {
+    const record = await this.records.one(context, 'recruitingIntake', id);
+    const envelope = this.envelope(record);
+    if (record.state !== 'COMPLETED')
+      throw new BadRequestException('请等待资料入库完成');
+    const jobs =
+      envelope.input.kind === 'JOB'
+        ? this.jobs
+            .preview(id, envelope)
+            .filter((item) => item.status === 'CREATED')
+            .map((item) => item.jobId)
+        : [];
+    const targets =
+      envelope.input.kind === 'CANDIDATE'
+        ? envelope.candidateId
+          ? [envelope.candidateId]
+          : []
+        : jobs;
+    const runs: string[] = [];
+    for (const target of targets) {
+      if (envelope.input.kind === 'JOB') {
+        const job = await this.records.one(context, 'recruitmentJob', target);
+        if (job.jobStatus !== 'RECRUITING') continue;
+      }
+      runs.push(
+        (
+          await this.matching.submitForRecord(
+            context,
+            envelope.input.kind === 'JOB' ? 'recruitmentJob' : 'person',
+            target,
+            envelope.input.source,
+          )
+        ).runId,
+      );
+    }
+    if (!runs.length)
+      throw new BadRequestException('没有可匹配的在招岗位或候选人');
+    return this.receipt(
+      await this.records.update(context, 'recruitingIntake', id, {
+        result: {
+          ...envelope,
+          matchingRunIds: runs,
+          matchingStatus: 'QUEUED',
+          matchingError: undefined,
+        },
+      }),
+    );
+  }
+
   /** Resolves preview authorization from its parent intake rather than accepting a storage path. */
   async preview(
     context: WorkspaceAuthContext,

@@ -601,6 +601,13 @@ export class RecruitingController {
   }
 
   /** Retries failed work under the currently authenticated caller. */
+  @Post('resume-intakes/:id/match')
+  startIntakeMatching(@Req() request: Request, @Param('id') id: string) {
+    return this.intakes.startMatching(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
   @Post('resume-intakes/:id/retry')
   @HttpCode(202)
   retry(@Req() request: Request, @Param('id') id: string) {

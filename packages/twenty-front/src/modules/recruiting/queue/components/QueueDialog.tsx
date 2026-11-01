@@ -1,3 +1,4 @@
+import { QueueSettings } from './QueueSettings';
 /** Displays one task per submission from material processing through matching completion. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
@@ -29,11 +30,6 @@ type ProcessingTask = RecruitingIntake & {
   retryPath: string;
   progress: { processed: number; total: number };
 };
-/** Leaves candidate review steps explicit while allowing interrupted jobs to resume. */
-const canResume = (row: ProcessingTask) =>
-  ['READY', 'PROCESSING'].includes(row.state) &&
-  (row.stage !== 'AWAITING_CONFIRMATION' || row.kind === 'JOB');
-
 /** Keeps the internal worker queue boundaries out of the operator's task list. */
 export const RecruitingQueueDialog = ({
   open,
@@ -108,6 +104,7 @@ export const RecruitingQueueDialog = ({
                     </Button>
                   </StyledRecruitingRow>
                 </StyledRecruitingRow>
+                <QueueSettings active={open} />
                 <Select
                   dropdownId="processing-task-type"
                   value={direction}
@@ -175,10 +172,37 @@ export const RecruitingQueueDialog = ({
                                 variant="ghost"
                                 onClick={() => setSelected(row.intakeId)}
                               >{t`详情`}</Button>
+                              {row.stage === 'MATCH_DISABLED' && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={Boolean(retryingId)}
+                                  onClick={() =>
+                                    void (async () => {
+                                      setRetryingId(row.intakeId);
+                                      setError('');
+                                      try {
+                                        await recruitingRequest(
+                                          `resume-intakes/${row.intakeId}/match`,
+                                          { method: 'POST', body: '{}' },
+                                        );
+                                        await query.reload();
+                                      } catch (failure) {
+                                        setError(
+                                          failure instanceof Error
+                                            ? failure.message
+                                            : t`匹配启动失败`,
+                                        );
+                                      } finally {
+                                        setRetryingId(undefined);
+                                      }
+                                    })()
+                                  }
+                                >{t`开始匹配`}</Button>
+                              )}
                               {(['FAILED', 'NEEDS_REVIEW'].includes(
                                 row.state,
                               ) ||
-                                canResume(row) ||
                                 ['MATCH_FAILED', 'MATCH_STALE'].includes(
                                   row.stage,
                                 )) && (
@@ -191,7 +215,7 @@ export const RecruitingQueueDialog = ({
                                     void retry(row);
                                   }}
                                 >
-                                  {canResume(row) ? t`恢复处理` : t`重试`}
+                                  {t`重试`}
                                 </Button>
                               )}
                             </StyledRecruitingRow>
