@@ -2,6 +2,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -26,6 +27,7 @@ export type RecruitingRecord = Record<string, unknown> & { id: string };
 @Injectable()
 /** Shares access checks across HTTP, native MCP tools and queued processing. */
 export class RecruitingRecordsService {
+  private readonly logger = new Logger(RecruitingRecordsService.name);
   constructor(
     private readonly findRecordsService: FindRecordsService,
     private readonly createRecordService: CreateRecordService,
@@ -141,7 +143,17 @@ export class RecruitingRecordsService {
       !isPlainObject(response.result) ||
       typeof response.result.id !== 'string'
     ) {
-      throw new BadRequestException('无法创建招聘记录，请检查字段和创建权限');
+      const reason = response.error ?? '';
+      this.logger.error({ operation: 'create', objectName, reason });
+      if (/duplicate|unique|already exists/i.test(reason))
+        throw new BadRequestException(
+          '记录重复：相同唯一字段的记录已存在，请更新已有记录',
+        );
+      if (/permission|forbidden|unauthorized/i.test(reason))
+        throw new BadRequestException('当前账号没有创建此类记录的权限');
+      throw new BadRequestException(
+        '创建记录失败：字段校验未通过，请管理员检查服务端日志',
+      );
     }
     return response.result as RecruitingRecord;
   }

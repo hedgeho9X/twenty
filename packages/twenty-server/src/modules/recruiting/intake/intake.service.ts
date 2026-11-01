@@ -488,6 +488,16 @@ export class RecruitingIntakeService {
       } catch (error) {
         if (!(error instanceof NotFoundException) || envelope.input.candidateId)
           throw error;
+        if (profile.email) {
+          const duplicate = await this.records.list(context, 'person', {
+            filter: { emails: { primaryEmail: { eq: profile.email } } },
+            limit: 1,
+          });
+          if (duplicate.records.length)
+            throw new BadRequestException(
+              '候选人邮箱已存在，请在已有候选人记录中更新简历',
+            );
+        }
         await this.records.create(context, 'person', {
           id: candidateId,
           name: { firstName: profile.name || '待补全姓名', lastName: '' },

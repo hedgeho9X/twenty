@@ -87,9 +87,13 @@ export const RecruitingCandidateIntake = ({
             }),
           },
         );
-        setGroupIntake(intake);
+        setEntries([]);
+        setNote('');
+        setGrouped(false);
+        setGroupKey(crypto.randomUUID());
         onSubmitted();
       } else {
+        let failed = false;
         for (const entry of entries) {
           if (entry.intake) continue;
           update(entry.key, { attempted: true });
@@ -114,9 +118,12 @@ export const RecruitingCandidateIntake = ({
                 body: form,
               },
             );
-            update(entry.key, { intake, error: undefined });
+            setEntries((current) =>
+              current.filter((item) => item.key !== entry.key),
+            );
             onSubmitted();
           } catch (failure) {
+            failed = true;
             update(entry.key, {
               error:
                 failure instanceof Error
@@ -125,12 +132,14 @@ export const RecruitingCandidateIntake = ({
             });
           }
         }
+        if (!failed) setNote('');
       }
     } catch (failure) {
       setError(
         failure instanceof Error ? failure.message : t`上传未完成，请重试`,
       );
     } finally {
+      setGroupKey(crypto.randomUUID());
       setBusy(false);
     }
   };
@@ -265,9 +274,7 @@ export const RecruitingCandidateIntake = ({
                 setGroupKey(crypto.randomUUID());
               }}
             >
-              {entries.some((entry) => entry.intake) || groupIntake
-                ? t`继续上传简历`
-                : t`清空选择`}
+              {t`清空选择`}
             </Button>
           )}
         </StyledRecruitingRow>
