@@ -1543,18 +1543,19 @@ export class WorkspaceRepository<TEntity extends ObjectLiteral = ObjectRecord> {
       this.applyRowLevelPermissionPredicates(selectQueryBuilder, kind);
     }
 
+    const isUpdatingFilesField =
+      kind === 'update' &&
+      isDefined(data) &&
+      this.filesFieldSync.isUpdatingFilesField(
+        data,
+        this.options.flatObjectMetadata.id,
+      );
+
     // The before-image only feeds events, scoped-write checks and files field diffs
     const canSkipBeforeImage =
       this.options.shouldBypassPermissionChecks &&
       this.options.shouldSkipEventEmission &&
-      !(
-        kind === 'update' &&
-        isDefined(data) &&
-        this.filesFieldSync.isUpdatingFilesField(
-          data,
-          this.options.flatObjectMetadata.id,
-        )
-      );
+      !isUpdatingFilesField;
 
     const eventSelectQueryBuilder =
       this.buildEventSnapshotQueryBuilder(selectQueryBuilder);
@@ -1564,6 +1565,11 @@ export class WorkspaceRepository<TEntity extends ObjectLiteral = ObjectRecord> {
       : await eventSelectQueryBuilder.getMany<ObjectRecord>({
           noFormatting: true,
         });
+
+    // A stale version or row permission may select no record; no file can be attached in that case.
+    if (isUpdatingFilesField && recordsBefore.length === 0) {
+      return [];
+    }
 
     if (kind === 'update' && recordsBefore.length > QUERY_MAX_RECORDS) {
       throw new TwentyOrmException(
@@ -1629,6 +1635,11 @@ export class WorkspaceRepository<TEntity extends ObjectLiteral = ObjectRecord> {
           : columnsToReturn,
       setColumns,
     });
+
+    // The row may change after the before-image read; a failed update must not commit file or event side effects.
+    if (kind === 'update' && mutationResult.generatedMaps.length === 0) {
+      return [];
+    }
 
     if (kind === 'delete') {
       await this.releaseRecordStock(mutationResult.generatedMaps.length);

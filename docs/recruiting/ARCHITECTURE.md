@@ -62,3 +62,11 @@ OpenAI 官方目前已提供直接订阅授权：动态客户端注册、PKCE、
 CLIProxyAPI 同时包含旧 Codex OAuth 与 SIWC 实现，作为对照；必要移植代码保留 MIT 许可和版本来源。所有登录态由连接模块保存，招聘任务只引用模型配置；普通运营/API 调用者不能读取或导出上游 Token。
 
 来源：[CLIProxyAPI v8.0.48](https://github.com/router-for-me/CLIProxyAPI/tree/v8.0.48)、[SIWC 实现](https://github.com/router-for-me/CLIProxyAPI/blob/v8.0.48/internal/auth/codex/siwc_auth.go)、[官方授权](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)、[模型与推理](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)。真实订阅验收仍需本人授权，不用模拟请求代替。
+
+## 7. 并发保存与原生文件副作用
+
+候选人的原件归档在解析时完成，候选人行的附件合并在保存时重新读取，携带原生updatedAt完整微秒版本执行条件更新。冲突只重读合并，不重新解析或调用模型；不在模型等待阶段占用数据库行锁。新职业事实按本次完整材料替换，人工姓名、偏好及历史附件保留。
+
+真实原生ORM回归揭示上游文件生命周期边界：条件UPDATE实际为0行时，原实现仍可能将待关联文件设为permanent或soft-delete旧文件，并产生未实际发生的更新事件；版本已经变化而before-image为0行时，文件同步又会误报多行更新。局部修正WorkspaceRepository.performMutation：对象/字段权限及RLS保持原样，文件更新未选中记录时返回空结果，实际UPDATE为0行时在文件持久化和事件前返回。没有放宽文件绑定或temporary规则，没有改insert/batch路径。
+
+原生repository的12项回归包含真实FilesFieldSync的零行/成功路径。另以确定性合成候选人、原生上传/复制、真实Nest与PG强制双读同一微秒版本：3次mutation中1次0行，最终1份原附件和2份新附件均保留，关联文件均permanent，职业资料未改变。该验证无模型调用；旧合成候选人的8份字段上限未被调高，使用独立fixture，未更改原业务资料。

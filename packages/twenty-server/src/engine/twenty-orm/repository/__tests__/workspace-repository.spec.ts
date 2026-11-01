@@ -22,6 +22,9 @@ const buildField = (name: string, type: FieldMetadataType) =>
     objectMetadataId: OBJECT_METADATA_ID,
     name,
     type,
+    ...(type === FieldMetadataType.FILES
+      ? { settings: { maxNumberOfValues: 10 } }
+      : {}),
   });
 
 const FIELDS = [
@@ -86,14 +89,50 @@ const EMPTY_FLAT_ENTITY_MAPS = {
 const API_KEY_ID = 'api-key-id';
 const ROLE_ID = 'role-id';
 
+type FileFixture = {
+  id: string;
+  path: string;
+  settings: { isTemporaryFile: boolean; toDelete: boolean };
+  status: string;
+  deletedAt?: string;
+};
+
 const buildRepository = ({
   shouldBypassPermissionChecks = true,
   shouldSkipEventEmission,
+  executeStatement = () => [],
+  initialFiles = [],
 }: {
   shouldBypassPermissionChecks?: boolean;
   shouldSkipEventEmission: boolean;
+  executeStatement?: (
+    statement: CompiledStatement,
+  ) => Record<string, unknown>[];
+  initialFiles?: FileFixture[];
 }) => {
   const executedStatements: CompiledStatement[] = [];
+  const files = new Map(
+    initialFiles.map((file) => [file.id, structuredClone(file)]),
+  );
+  const fileRepository = {
+    find: jest.fn(async () => [...files.values()]),
+    update: jest.fn(
+      async (
+        criteria: { id: { value: string[] } },
+        patch: Pick<FileFixture, 'settings'>,
+      ) => {
+        for (const id of criteria.id.value) {
+          files.set(id, { ...files.get(id)!, ...structuredClone(patch) });
+        }
+      },
+    ),
+    softDelete: jest.fn(async (ids: string[]) => {
+      for (const id of ids) {
+        files.set(id, { ...files.get(id)!, deletedAt: 'deleted' });
+      }
+    }),
+  };
+  const emitDatabaseBatchEvent = jest.fn();
 
   const repository = new WorkspaceRepository({
     tableShape,
@@ -104,8 +143,8 @@ const buildRepository = ({
       flatObjectMetadataMaps,
       flatFieldMetadataMaps,
       objectIdByNameSingular: { delivery: OBJECT_METADATA_ID },
-      eventEmitterService: { emitDatabaseBatchEvent: jest.fn() },
-      coreDataSource: { getRepository: () => ({}) },
+      eventEmitterService: { emitDatabaseBatchEvent },
+      coreDataSource: { getRepository: () => fileRepository },
       userWorkspaceRoleMap: {},
       apiKeyRoleMap: { [API_KEY_ID]: ROLE_ID },
       roleIdsWithAllRecordsAccess: [ROLE_ID],
@@ -117,7 +156,7 @@ const buildRepository = ({
       execute: async (statement: CompiledStatement) => {
         executedStatements.push(statement);
 
-        return [];
+        return executeStatement(statement);
       },
     },
     objectRecordsPermissions: {
@@ -138,10 +177,125 @@ const buildRepository = ({
   const getExecutedStatementKinds = () =>
     executedStatements.map((statement) => statement.text.split(' ')[0]);
 
-  return { repository, getExecutedStatementKinds };
+  return {
+    repository,
+    getExecutedStatementKinds,
+    files,
+    fileRepository,
+    emitDatabaseBatchEvent,
+  };
 };
 
 describe('WorkspaceRepository mutations', () => {
+  describe('single-record files field updates', () => {
+    it('returns no records or file side effects when the authorized before-image is empty', async () => {
+      const {
+        repository,
+        getExecutedStatementKinds,
+        fileRepository,
+        emitDatabaseBatchEvent,
+      } = buildRepository({
+        shouldBypassPermissionChecks: false,
+        shouldSkipEventEmission: false,
+      });
+
+      const result = await repository.update(
+        { id: 'delivery-id' },
+        { attachments: [{ fileId: 'new-file', label: 'new.pdf' }] },
+      );
+
+      expect(result.affected).toBe(0);
+      expect(result.generatedMaps).toEqual([]);
+      expect(getExecutedStatementKinds()).toEqual(['SELECT']);
+      expect(fileRepository.find).not.toHaveBeenCalled();
+      expect(fileRepository.update).not.toHaveBeenCalled();
+      expect(fileRepository.softDelete).not.toHaveBeenCalled();
+      expect(emitDatabaseBatchEvent).not.toHaveBeenCalled();
+    });
+
+    it.each([false, true])(
+      'commits native file lifecycle and events only for an affected row (updated=%s)',
+      async (updateSucceeds) => {
+        const oldAttachment = { fileId: 'old-file', label: 'old.pdf' };
+        const newAttachment = { fileId: 'new-file', label: 'new.pdf' };
+        let updated = false;
+        const {
+          repository,
+          getExecutedStatementKinds,
+          files,
+          fileRepository,
+          emitDatabaseBatchEvent,
+        } = buildRepository({
+          shouldBypassPermissionChecks: false,
+          shouldSkipEventEmission: false,
+          initialFiles: [
+            {
+              id: 'old-file',
+              path: 'files-field/field-attachments/old.pdf',
+              settings: { isTemporaryFile: false, toDelete: false },
+              status: 'UPLOADED',
+            },
+            {
+              id: 'new-file',
+              path: 'files-field/field-attachments/new.pdf',
+              settings: { isTemporaryFile: true, toDelete: false },
+              status: 'UPLOADED',
+            },
+          ],
+          executeStatement: (statement) => {
+            if (statement.text.startsWith('UPDATE')) {
+              updated = updateSucceeds;
+              return updated
+                ? [
+                    {
+                      delivery_id: 'delivery-id',
+                      delivery_updatedAt: '2026-11-01T00:00:01.000Z',
+                    },
+                  ]
+                : [];
+            }
+            return [
+              {
+                delivery_id: 'delivery-id',
+                delivery_state: 'READY',
+                delivery_attachments: [updated ? newAttachment : oldAttachment],
+                delivery_updatedAt: '2026-11-01T00:00:00.000Z',
+              },
+            ];
+          },
+        });
+
+        const result = await repository.update(
+          { id: 'delivery-id' },
+          { attachments: [newAttachment] },
+        );
+
+        expect(result.affected).toBe(updateSucceeds ? 1 : 0);
+        expect(fileRepository.find).toHaveBeenCalledTimes(1);
+        expect(files.get('new-file')?.settings.isTemporaryFile).toBe(
+          !updateSucceeds,
+        );
+        if (updateSucceeds) {
+          expect(fileRepository.update).toHaveBeenCalledTimes(1);
+          expect(fileRepository.softDelete).toHaveBeenCalledWith(['old-file']);
+          expect(files.get('old-file')?.deletedAt).toBe('deleted');
+          expect(emitDatabaseBatchEvent).toHaveBeenCalled();
+          expect(getExecutedStatementKinds()).toEqual([
+            'SELECT',
+            'UPDATE',
+            'SELECT',
+          ]);
+        } else {
+          expect(fileRepository.update).not.toHaveBeenCalled();
+          expect(fileRepository.softDelete).not.toHaveBeenCalled();
+          expect(files.get('old-file')?.deletedAt).toBeUndefined();
+          expect(emitDatabaseBatchEvent).not.toHaveBeenCalled();
+          expect(getExecutedStatementKinds()).toEqual(['SELECT', 'UPDATE']);
+        }
+      },
+    );
+  });
+
   describe('on a repository that bypasses permission checks and skips events', () => {
     it('should update without reading a before-image', async () => {
       const { repository, getExecutedStatementKinds } = buildRepository({
@@ -175,9 +329,12 @@ describe('WorkspaceRepository mutations', () => {
         shouldSkipEventEmission: true,
       });
 
-      await expect(
-        repository.update({ id: 'delivery-id' }, { attachments: [] }),
-      ).rejects.toThrow('Cannot update multiple records with files field');
+      const result = await repository.update(
+        { id: 'delivery-id' },
+        { attachments: [] },
+      );
+
+      expect(result.affected).toBe(0);
 
       expect(getExecutedStatementKinds()).toEqual(['SELECT']);
     });
@@ -187,6 +344,15 @@ describe('WorkspaceRepository mutations', () => {
     it('should read the before- and after-image around an update', async () => {
       const { repository, getExecutedStatementKinds } = buildRepository({
         shouldSkipEventEmission: false,
+        executeStatement: (statement) => [
+          {
+            delivery_id: 'delivery-id',
+            delivery_state: statement.text.startsWith('UPDATE')
+              ? 'SENT'
+              : 'READY',
+            delivery_updatedAt: '2026-11-01T00:00:00.000Z',
+          },
+        ],
       });
 
       await repository.update({ id: 'delivery-id' }, { state: 'SENT' });
