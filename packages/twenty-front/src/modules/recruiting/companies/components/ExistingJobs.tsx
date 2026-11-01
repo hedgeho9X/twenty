@@ -62,7 +62,7 @@ export const RecruitingCompanyExistingJobs = ({
               variant="ghost"
               size="sm"
               onClick={() => setSelectedJob(job.id)}
-            >{t`查看解析`}</Button>
+            >{t`岗位详情`}</Button>
           </StyledRecruitingRow>
         ))}
         {page?.count === 0 && (

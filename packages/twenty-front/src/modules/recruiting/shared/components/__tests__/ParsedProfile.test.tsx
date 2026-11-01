@@ -85,7 +85,6 @@ it.each([true, false])(
     for (const text of [
       '平台工程师',
       '负责平台研发',
-      '熟悉开源社区',
       '研发',
       '全职',
       '远程',

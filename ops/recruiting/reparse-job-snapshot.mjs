@@ -57,6 +57,7 @@ const companyById = new Map(source.companies.map((row) => [row.id, row]));
 const ready = [];
 manifest.rejected = [];
 for (const job of source.jobs) {
+  if (job.jobStatus !== 'RECRUITING') continue;
   const reason =
     !job.companyId || !companyById.has(job.companyId)
       ? 'missing_company'
@@ -70,7 +71,10 @@ for (const job of source.jobs) {
   else ready.push(job);
 }
 const summary = () => ({
-  sourceJobs: source.jobs.length,
+  sourceJobs: source.jobs.filter((job) => job.jobStatus === 'RECRUITING')
+    .length,
+  skippedInactive: source.jobs.filter((job) => job.jobStatus !== 'RECRUITING')
+    .length,
   ready: ready.length,
   rejected: manifest.rejected.length,
   submitted: Object.keys(manifest.jobs).length,
@@ -88,13 +92,6 @@ if (!process.argv.includes('--apply')) {
   console.log(JSON.stringify(summary()));
   process.exit(0);
 }
-const environment = JSON.parse(
-  await readFile('.local/recruiting/environment.json', 'utf8'),
-);
-if (environment.RECRUITING_AUTO_MATCH_ENABLED !== 'false')
-  throw Error(
-    'Disable local automatic matching while preserving legacy statuses',
-  );
 /** Atomic private checkpoints make interrupted API submissions resumable with the same idempotency keys. */
 const save = async () => {
   await writeFile(`${manifestPath}.tmp`, JSON.stringify(manifest, null, 2), {
@@ -142,12 +139,6 @@ for (const sourceId of new Set(ready.map((job) => job.companyId))) {
       recruitmentPreferences: textField(company, 'recruitmentPreferences'),
     }));
   if (!created.id) throw Error('Company response has no id');
-  if (company.recruitmentStatus)
-    await request(
-      `/rest/companies/${created.id}`,
-      { recruitmentStatus: company.recruitmentStatus },
-      'PATCH',
-    );
   manifest.companies[sourceId] = created.id;
   await save();
 }
@@ -203,7 +194,6 @@ while (Date.now() < deadline) {
         await request(
           `/rest/recruitmentJobs/${jobId}`,
           {
-            jobStatus: item.sourceStatus,
             legacySource: {
               source: 'legacy-reparse',
               originalJobId: sourceId,

@@ -161,13 +161,11 @@ export const RecruitingParsedProfile = ({
                   />
                   <Fact name={t`工作地点`} values={list(job.locations)} />
                 </StyledRecruitingProfileFacts>
-                <strong>{t`招聘偏好`}</strong>
+                <strong>
+                  {text(job.originalText) ? t`岗位原文` : t`整理后的岗位内容`}
+                </strong>
                 <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
-                  {text(job.preferences) || t`未提供`}
-                </p>
-                <strong>{t`完整岗位正文`}</strong>
-                <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
-                  {text(job.description) || t`未提供`}
+                  {text(job.originalText) || text(job.description) || t`未提供`}
                 </p>
               </StyledRecruitingProfileSection>
             );

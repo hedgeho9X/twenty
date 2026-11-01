@@ -52,7 +52,7 @@ export const JobProfileDialog = ({
                       >{t`返回`}</Button>
                     )}
                     <Dialog.Title>
-                      {showSource ? t`原始材料` : t`岗位解析资料`}
+                      {showSource ? t`原始材料` : t`岗位详情`}
                     </Dialog.Title>
                   </StyledRecruitingRow>
                   <Button
