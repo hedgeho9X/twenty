@@ -110,6 +110,30 @@ const setup = () => {
 };
 
 describe('company-bound job confirmation', () => {
+  it('stores confirmed jobs with DISABLED matching receipts when automatic scheduling is explicitly off', async () => {
+    const previous = process.env.RECRUITING_AUTO_MATCH_ENABLED;
+    process.env.RECRUITING_AUTO_MATCH_ENABLED = 'false';
+    try {
+      const { service, envelope, jobs, matching } = setup();
+      const [item, ...discarded] = service.preview('intake', envelope);
+      const result = await service.confirm(context, 'intake', {
+        items: [{ itemId: item.itemId, draft: item.draft }],
+        discardedItemIds: discarded.map((entry) => entry.itemId),
+      });
+      expect(jobs.has(item.jobId)).toBe(true);
+      expect((result.result as IntakeEnvelope).jobItems?.[0].status).toBe(
+        'CREATED',
+      );
+      expect(result.state).toBe('COMPLETED');
+      expect((result.result as IntakeEnvelope).stage).toBe('STORED');
+      expect((result.result as IntakeEnvelope).matchingStatus).toBe('DISABLED');
+      expect(matching.submitForRecord).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined)
+        delete process.env.RECRUITING_AUTO_MATCH_ENABLED;
+      else process.env.RECRUITING_AUTO_MATCH_ENABLED = previous;
+    }
+  });
   it('keeps stable IDs after reordering and saves good rows despite a failed sibling', async () => {
     const { service, envelope, jobs, intake } = setup();
     const items = service.preview('intake', envelope);

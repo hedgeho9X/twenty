@@ -537,9 +537,11 @@ export class RecruitingIntakeService {
     object: 'person' | 'recruitmentJob',
     ids: string[],
   ) {
+    const automaticMatchingEnabled =
+      process.env.RECRUITING_AUTO_MATCH_ENABLED !== 'false';
     const matchingRunIds = [];
     let matchingError;
-    for (const id of ids) {
+    for (const id of automaticMatchingEnabled ? ids : []) {
       try {
         matchingRunIds.push(
           (await this.matching.submitForRecord(context, object, id)).runId,
@@ -554,7 +556,11 @@ export class RecruitingIntakeService {
         result: {
           ...envelope,
           matchingRunIds,
-          matchingStatus: matchingError ? 'FAILED_TO_QUEUE' : 'QUEUED',
+          matchingStatus: !automaticMatchingEnabled
+            ? 'DISABLED'
+            : matchingError
+              ? 'FAILED_TO_QUEUE'
+              : 'QUEUED',
           matchingError,
         },
       });

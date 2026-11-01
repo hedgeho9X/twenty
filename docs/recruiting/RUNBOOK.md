@@ -21,6 +21,8 @@
 
 API、前端与招聘worker分别在独立终端运行：node ops/recruiting/local.mjs api、front、worker。worker只处理recruiting-queue与recruiting-match-queue；材料并发10，匹配为2个run、每run最多3个评分请求。普通原生Agent聊天还需要node ops/recruiting/local.mjs ai-worker，它仅处理ai-queue，不修改持久队列允许列表或启用旧自动化。
 
+显式设置RECRUITING_AUTO_MATCH_ENABLED=false时，候选人入库和岗位确认仍保存成功，但不自动安排匹配，回执记录matchingStatus=DISABLED；人工匹配接口仍可调用。当前B保持true。测试脚本自己的环境变量不能改变已经运行的API或worker，不能把局部queue spy当作后台实际用量统计。
+
 改服务端后，先停止当前API及两个worker，运行node ops/recruiting/build-source.mjs twenty-server build，成功后再启动；该构建会重建dist，不能边构建边启动。共享包变更时运行完整local.mjs build。依赖使用固定.yarn/releases/yarn-4.18.1.cjs；本地Nx发现曾阻塞，build-source按官方project.json目标直接执行。
 
 停止时在对应终端按Ctrl+C。后台运行时先用lsof和ps核对端口、PID与cwd，只向本仓库进程发送SIGTERM。最后local.mjs down停止本Compose项目并保留卷；不要使用全局Docker停止、删除卷或误停fanhan-local、AirJelly及Supabase容器。

@@ -123,6 +123,8 @@ export class RecruitingJobConfirmationService {
       item.error = undefined;
     }
     const attributes = await this.allowedAttributes(context);
+    const automaticMatchingEnabled =
+      process.env.RECRUITING_AUTO_MATCH_ENABLED !== 'false';
     const checkpoint = async () => {
       const created = items.filter((item) => item.status === 'CREATED');
       const done = items.every((item) =>
@@ -151,11 +153,14 @@ export class RecruitingJobConfirmationService {
             ? `/object/recruitmentJob/${created[0].jobId}`
             : undefined,
           matchingRunIds,
-          matchingStatus: created.some((item) => item.matchingError)
-            ? 'PARTIAL'
-            : created.length
-              ? 'QUEUED'
-              : 'NOT_REQUIRED',
+          matchingStatus:
+            created.length && !automaticMatchingEnabled
+              ? 'DISABLED'
+              : created.some((item) => item.matchingError)
+                ? 'PARTIAL'
+                : created.length
+                  ? 'QUEUED'
+                  : 'NOT_REQUIRED',
         },
       });
     };
@@ -236,6 +241,7 @@ export class RecruitingJobConfirmationService {
         item.confirmedHash = hash;
         item.error = undefined;
         await checkpoint();
+        if (!automaticMatchingEnabled) continue;
         try {
           item.matchingRunId = (
             await this.matching.submitForRecord(

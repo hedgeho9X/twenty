@@ -1,7 +1,151 @@
 /** Rejects ordinary contacts before parsing, task creation or paid extraction can make a misleading successful intake. */
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { RecruitingIntakeService } from './recruiting-intake.service';
+import { RecruitingMatchingService } from './recruiting-matching.service';
+
+it.each([
+  ['false', 'DISABLED'],
+  [undefined, 'QUEUED'],
+] as const)(
+  'keeps a stored candidate while automatic matching is %s',
+  async (setting, expectedStatus) => {
+    const previous = process.env.RECRUITING_AUTO_MATCH_ENABLED;
+    if (setting === undefined) delete process.env.RECRUITING_AUTO_MATCH_ENABLED;
+    else process.env.RECRUITING_AUTO_MATCH_ENABLED = setting;
+    try {
+      const context = {
+        workspace: { id: 'workspace' },
+      } as WorkspaceAuthContext;
+      const actor = { workspaceId: 'workspace' };
+      const candidateId = '00000000-0000-4000-8000-000000000001';
+      const profile = {
+        materialKind: 'candidate',
+        name: '合成',
+        summary: '后端工程',
+        email: null,
+        phone: null,
+        skills: ['TypeScript'],
+        experience: ['维护后端'],
+        education: [],
+        expectedRoles: [],
+        category: null,
+        employmentTypes: [],
+        employmentEvidence: null,
+        workModes: [],
+        workModeEvidence: null,
+        locations: [],
+        locationEvidence: null,
+        identityConflict: false,
+        needsReview: false,
+        reviewNotes: [],
+      };
+      let intake: Record<string, unknown> = {
+        id: 'intake',
+        state: 'READY',
+        result: {
+          schemaVersion: 2,
+          actor,
+          inputHash: 'hash',
+          stage: 'EXTRACTED',
+          input: {
+            kind: 'CANDIDATE',
+            source: 'api',
+            candidateId,
+            files: [{ fileId: 'file', label: 'resume.txt', role: 'primary' }],
+          },
+          materials: [
+            { fileId: 'file', text: 'synthetic', status: 'complete' },
+          ],
+          candidateFiles: [
+            { sourceFileId: 'file', fileId: 'copy', label: 'resume.txt' },
+          ],
+          extraction: { profile, modelId: 'synthetic' },
+        },
+      };
+      const records = {
+        one: jest.fn(async (_context, object: string) =>
+          object === 'recruitingIntake'
+            ? structuredClone(intake)
+            : { id: candidateId, contactRoles: ['CANDIDATE'] },
+        ),
+        update: jest.fn(async (_context, _object, _id, patch) => {
+          intake = { ...intake, ...structuredClone(patch) };
+          return structuredClone(intake);
+        }),
+      };
+      const matching = {
+        submitForRecord: jest.fn(async () => ({
+          runId: 'manual-or-automatic-run',
+        })),
+      };
+      const candidates = { replaceProfile: jest.fn(async () => undefined) };
+      const service = new RecruitingIntakeService(
+        records as never,
+        { resolve: async () => context } as never,
+        {} as never,
+        {} as never,
+        matching as never,
+        {} as never,
+        {} as never,
+        candidates as never,
+        {} as never,
+      );
+      await service.process({ intakeId: 'intake', actor });
+      expect(candidates.replaceProfile).toHaveBeenCalledTimes(1);
+      expect(intake.state).toBe('COMPLETED');
+      expect(intake.targetId).toBe(candidateId);
+      expect(intake.result).toMatchObject({
+        stage: 'STORED',
+        matchingStatus: expectedStatus,
+      });
+      expect(matching.submitForRecord).toHaveBeenCalledTimes(
+        setting === 'false' ? 0 : 1,
+      );
+    } finally {
+      if (previous === undefined)
+        delete process.env.RECRUITING_AUTO_MATCH_ENABLED;
+      else process.env.RECRUITING_AUTO_MATCH_ENABLED = previous;
+    }
+  },
+);
+
+it('still accepts an authorized manual pair request when automatic matching is explicitly disabled', async () => {
+  const previous = process.env.RECRUITING_AUTO_MATCH_ENABLED;
+  process.env.RECRUITING_AUTO_MATCH_ENABLED = 'false';
+  try {
+    const context = { workspace: { id: 'workspace' } } as WorkspaceAuthContext;
+    const records = {
+      one: jest.fn(async (_context, object: string) => {
+        if (object === 'recruitingMatchRun') throw new NotFoundException();
+        return { contactRoles: ['CANDIDATE'] };
+      }),
+      create: jest.fn(async (_context, _object, value) => value),
+    };
+    const queue = { add: jest.fn(async () => undefined) };
+    const service = new RecruitingMatchingService(
+      records as never,
+      { capture: () => ({ workspaceId: 'workspace' }) } as never,
+      {} as never,
+      queue as never,
+    );
+    const result = await service.submit(context, {
+      direction: 'PAIR',
+      subjectId: '00000000-0000-4000-8000-000000000001',
+      jobId: '00000000-0000-4000-8000-000000000002',
+    });
+    expect(result.status).toBe('QUEUED');
+    expect(queue.add).toHaveBeenCalledTimes(1);
+  } finally {
+    if (previous === undefined)
+      delete process.env.RECRUITING_AUTO_MATCH_ENABLED;
+    else process.env.RECRUITING_AUTO_MATCH_ENABLED = previous;
+  }
+});
 
 it('requires an existing candidate role when the API explicitly targets a person', async () => {
   const records = {
