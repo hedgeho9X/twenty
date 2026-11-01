@@ -29,3 +29,13 @@ API与worker使用同目录/同原生加密密钥。每个连接复用官方Post
 - 新设置界面前后端全包TS与相关lint通过；实际页面验收、新SIWC本人授权、其文本/图片/工具/结构化输出及真实刷新仍待完成。
 
 官方依据：[注册与登录](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)、[账号与会话](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)、[模型与推理](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)、[OIDC发现](https://auth.openai.com/.well-known/openid-configuration)。必要旧Codex协议参考与MIT许可保留在模块THIRD_PARTY_NOTICES.md。
+
+## 5. 工作区 AI 配置入口
+
+设置 → AI →「订阅与功能」显示当前 Codex 账号从上游读取的剩余额度窗口和重置时间；未知窗口不显示为 100%。手动同步账号模型目录到原生 AI_PROVIDERS，保留其他提供方，不修改现有功能选择。请求使用服务端账号绑定，不返回 OAuth token，也不创建共享反代端点。
+
+业务功能由 `AiFeatureModelsService` 注册：候选人资料整理、岗位 JD 整理、匹配结果文案、人岗匹配评分。前三项读取独立语言模型配置，最后一项只允许原生 evaluation 模型。绑定存入原生 `AI_FEATURE_MODELS`，API 与 worker 共用配置；已有生成 checkpoint 不重跑，新生成使用当前选择。首次未选时保留已有环境变量及 smart 默认模型回退。
+
+「Jev」独立标签支持评分模型选择、当前提供方服务地址和 API Key 更新。空凭据保留原密钥，GET 只返回是否配置；保存走原生敏感配置存储。该页面不包含用量计费平台、账号池或公共 API 分发。
+
+验收：真实当前账号额度查询成功，模型目录返回 5 个模型；四个功能绑定均成功持久化为原有模型，未改变默认选择。浏览器完成 Jev 连接原值保存。当前 Codex 来源不是新的 SIWC 授权验收。

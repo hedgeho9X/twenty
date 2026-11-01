@@ -3,6 +3,8 @@ export const SETTINGS_AI_TABS = {
   TABS_IDS: {
     MCP: 'mcp',
     MODELS: 'models',
+    SUBSCRIPTION: 'subscription',
+    JEV: 'jev',
     SKILLS: 'skills',
     TOOLS: 'tools',
     USAGE: 'usage',

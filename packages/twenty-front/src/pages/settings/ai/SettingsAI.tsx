@@ -1,3 +1,4 @@
+import { SettingsRecruitingAiTab } from './components/SettingsRecruitingAiTab';
 import { NavigationButton } from '@/ui/input/components/NavigationButton';
 
 import { SettingsDiscoveryHeroCard } from '@/settings/components/SettingsDiscoveryHeroCard';
@@ -49,6 +50,12 @@ export const SettingsAI = () => {
       title: t`Models`,
       Icon: IconCpu,
     },
+    {
+      id: SETTINGS_AI_TABS.TABS_IDS.SUBSCRIPTION,
+      title: t`订阅与功能`,
+      Icon: IconCpu,
+    },
+    { id: SETTINGS_AI_TABS.TABS_IDS.JEV, title: t`Jev`, Icon: IconCpu },
     {
       id: SETTINGS_AI_TABS.TABS_IDS.SKILLS,
       title: t`Skills`,
@@ -149,6 +156,12 @@ export const SettingsAI = () => {
           </Section.Root>
         )}
         {isModelsTab && <SettingsAiModelsTab />}
+        {resolvedTabId === SETTINGS_AI_TABS.TABS_IDS.SUBSCRIPTION && (
+          <SettingsRecruitingAiTab kind="subscription" />
+        )}
+        {resolvedTabId === SETTINGS_AI_TABS.TABS_IDS.JEV && (
+          <SettingsRecruitingAiTab kind="jev" />
+        )}
         {isSkillsTab && <SettingsAgentSkillsTab />}
         {isToolsTab && <SettingsAgentToolsTab />}
         {isUsageTab && <SettingsAiUsageTab />}
