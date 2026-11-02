@@ -95,6 +95,27 @@ const readFrame = (frame: string): Record<string, unknown> | undefined => {
   return parsed as Record<string, unknown>;
 };
 
+/** Retains machine-readable failure reasons without exposing upstream payloads or credentials. */
+const subscriptionFailure = (event: Record<string, unknown>): Error => {
+  const response = isPlainObject(event.response) ? event.response : {};
+  const error = isPlainObject(response.error)
+    ? response.error
+    : isPlainObject(event.error)
+      ? event.error
+      : {};
+  const details = isPlainObject(response.incomplete_details)
+    ? response.incomplete_details
+    : {};
+  const code = error.code ?? details.reason;
+  const suffix =
+    typeof code === 'string' && /^[a-zA-Z0-9_.-]{1,64}$/.test(code)
+      ? ` (${code})`
+      : '';
+  return new Error(
+    `Subscription inference did not complete successfully${suffix}`,
+  );
+};
+
 /** Builds non-streaming Responses JSON only from an explicit successful terminal event. */
 const completedResponse = async (response: Response): Promise<Response> => {
   if (!response.body)
@@ -118,9 +139,7 @@ const completedResponse = async (response: Response): Promise<Response> => {
           event?.type === 'response.incomplete' ||
           event?.type === 'error'
         ) {
-          throw new Error(
-            'Subscription inference did not complete successfully',
-          );
+          throw subscriptionFailure(event);
         }
         if (
           event?.type === 'response.completed' &&

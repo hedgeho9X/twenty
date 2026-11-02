@@ -373,14 +373,17 @@ export class RecruitingDraftsService {
           await update({
             status: 'FAILED',
             error:
-              error instanceof ConflictException
-                ? '来源资料已更新，请重试生成'
-                : error instanceof Error &&
-                    /ECONNREFUSED|Cannot connect/.test(error.message)
-                  ? '无法连接文案模型，请检查模型代理和网络后重试'
-                  : error instanceof BadRequestException
-                    ? error.message
-                    : '草稿生成未完成，请检查模型配置或稍后重试',
+              error instanceof Error &&
+              /server_is_overloaded|server_error/.test(error.message)
+                ? '模型服务繁忙，请稍后重试'
+                : error instanceof ConflictException
+                  ? '来源资料已更新，请重试生成'
+                  : error instanceof Error &&
+                      /ECONNREFUSED|Cannot connect/.test(error.message)
+                    ? '无法连接文案模型，请检查模型代理和网络后重试'
+                    : error instanceof BadRequestException
+                      ? error.message
+                      : '草稿生成未完成，请检查模型配置或稍后重试',
             payload,
           });
         }

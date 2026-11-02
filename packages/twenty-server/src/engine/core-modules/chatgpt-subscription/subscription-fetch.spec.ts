@@ -132,6 +132,28 @@ describe('subscription Responses adapter', () => {
     ).rejects.toThrow('did not complete successfully');
   });
 
+  it('keeps a safe provider error code without its private message', async () => {
+    const adapted = createSubscriptionFetch({
+      loadCredential: async () => credential,
+      upstreamFetch: async () =>
+        eventResponse([
+          {
+            type: 'response.failed',
+            response: {
+              status: 'failed',
+              error: { code: 'server_error', message: 'private upstream text' },
+            },
+          },
+        ]),
+    });
+    await expect(
+      adapted('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        body: '{}',
+      }),
+    ).rejects.toThrow('server_error');
+  });
+
   it('preserves UTF-8 SSE split across small network chunks', async () => {
     const event = {
       ...completed,
