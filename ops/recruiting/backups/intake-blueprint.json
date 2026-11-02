@@ -1,0 +1,98 @@
+[
+  {
+    "type": "SELECT",
+    "name": "kind",
+    "label": "资料类型",
+    "options": [
+      {
+        "id": "f240c889-8232-5a5d-ad0e-3c10b47e7e8d",
+        "color": "blue",
+        "label": "职位 JD",
+        "value": "JOB",
+        "position": 0
+      },
+      {
+        "id": "1b9db7b1-319d-5b31-be44-864be000f500",
+        "color": "blue",
+        "label": "候选人",
+        "value": "CANDIDATE",
+        "position": 1
+      }
+    ]
+  },
+  {
+    "type": "TEXT",
+    "name": "rawText",
+    "label": "原始文字"
+  },
+  {
+    "type": "FILES",
+    "name": "files",
+    "label": "原始附件",
+    "settings": {
+      "maxNumberOfValues": 60
+    }
+  },
+  {
+    "type": "SELECT",
+    "name": "state",
+    "label": "处理状态",
+    "options": [
+      {
+        "id": "78bcf988-c692-505c-a8e6-7287d6f83fc8",
+        "color": "gray",
+        "label": "上传中",
+        "value": "DRAFT",
+        "position": 0
+      },
+      {
+        "id": "f8988176-1157-56ee-b9a5-0b9595a584ce",
+        "color": "orange",
+        "label": "待解析",
+        "value": "READY",
+        "position": 1
+      },
+      {
+        "id": "b409b626-2ebc-5645-aa15-938a730d9cdb",
+        "color": "blue",
+        "label": "解析中",
+        "value": "PROCESSING",
+        "position": 2
+      },
+      {
+        "id": "677059a4-9336-579b-b74d-f37e21825a5c",
+        "color": "green",
+        "label": "已入库",
+        "value": "COMPLETED",
+        "position": 3
+      },
+      {
+        "id": "71efd25a-f0e9-5adc-93ed-718eba88b3a0",
+        "color": "red",
+        "label": "待确认",
+        "value": "NEEDS_REVIEW",
+        "position": 4
+      }
+    ]
+  },
+  {
+    "type": "RAW_JSON",
+    "name": "result",
+    "label": "结构化结果"
+  },
+  {
+    "type": "UUID",
+    "name": "targetId",
+    "label": "入库记录 ID"
+  },
+  {
+    "type": "TEXT",
+    "name": "error",
+    "label": "处理说明"
+  },
+  {
+    "type": "BOOLEAN",
+    "name": "retry",
+    "label": "重新处理"
+  }
+]
