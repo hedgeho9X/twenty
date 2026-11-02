@@ -40,6 +40,7 @@ import { RecruitingJobConfirmationService } from './job-confirmation.service';
 import { RecruitingCandidateRecordsService } from './candidate-records.service';
 import {
   candidateProfileSchema,
+  jobProfilesSchema,
   intakeInputSchema,
   type RecruitingIntakeInput,
 } from './schemas';
@@ -448,6 +449,22 @@ export class RecruitingIntakeService {
             }),
             progress,
           );
+        }
+        if (envelope.input.employmentType) {
+          const employmentTypes = [envelope.input.employmentType];
+          extraction =
+            'jobs' in extraction
+              ? {
+                  jobs: jobProfilesSchema.parse(extraction).jobs.map((job) => ({
+                    ...job,
+                    employmentTypes,
+                  })),
+                }
+              : {
+                  ...extraction,
+                  employmentTypes,
+                  employmentEvidence: '本次投递由提交者明确标注',
+                };
         }
         await update('EXTRACTED', { extraction });
       }

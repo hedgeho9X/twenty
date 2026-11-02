@@ -65,6 +65,7 @@ export const intakeFileSchema = z.object({
 export const intakeInputSchema = z
   .object({
     kind: z.enum(['CANDIDATE', 'JOB']),
+    employmentType: z.enum(['full_time', 'internship']).optional(),
     files: z.array(intakeFileSchema).max(30).default([]),
     text: z.string().max(500_000).optional(),
     note: z.string().max(100_000).nullish(),
@@ -78,6 +79,24 @@ export const intakeInputSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    if (value.source !== 'email' && !value.employmentType) {
+      context.addIssue({
+        code: 'custom',
+        path: ['employmentType'],
+        message: '请选择正式或实习',
+      });
+    }
+    if (
+      value.kind === 'CANDIDATE' &&
+      value.files.filter((file) => file.role !== 'archive').length > 5
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['files'],
+        message: '同一候选人最多上传5份文件',
+      });
+    }
+
     if (
       !value.files.some((file) => file.role !== 'archive') &&
       !value.text?.trim()

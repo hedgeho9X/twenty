@@ -15,6 +15,7 @@ describe('unified recruiting intake contract', () => {
     const note = '这是我的自我介绍。\n只考虑全职后端岗位。';
     const input = intakeInputSchema.parse({
       kind: 'CANDIDATE',
+      employmentType: 'full_time',
       files: [file],
       note,
     });
@@ -24,11 +25,16 @@ describe('unified recruiting intake contract', () => {
 
   it('accepts an omitted or null optional note', () => {
     expect(
-      intakeInputSchema.safeParse({ kind: 'CANDIDATE', files: [file] }).success,
+      intakeInputSchema.safeParse({
+        kind: 'CANDIDATE',
+        employmentType: 'full_time',
+        files: [file],
+      }).success,
     ).toBe(true);
     expect(
       intakeInputSchema.safeParse({
         kind: 'CANDIDATE',
+        employmentType: 'full_time',
         files: [file],
         note: null,
       }).success,
@@ -37,8 +43,11 @@ describe('unified recruiting intake contract', () => {
 
   it('requires an actual candidate document rather than a note alone', () => {
     expect(
-      intakeInputSchema.safeParse({ kind: 'CANDIDATE', text: '我的工作经历' })
-        .success,
+      intakeInputSchema.safeParse({
+        kind: 'CANDIDATE',
+        employmentType: 'full_time',
+        text: '我的工作经历',
+      }).success,
     ).toBe(false);
   });
 
@@ -46,6 +55,7 @@ describe('unified recruiting intake contract', () => {
     expect(
       intakeInputSchema.safeParse({
         kind: 'CANDIDATE',
+        employmentType: 'full_time',
         files: [{ ...file, role: 'archive' }],
       }).success,
     ).toBe(false);
@@ -53,12 +63,16 @@ describe('unified recruiting intake contract', () => {
 
   it('requires selecting a company before submitting JD text', () => {
     expect(
-      intakeInputSchema.safeParse({ kind: 'JOB', text: '招聘后端工程师' })
-        .success,
+      intakeInputSchema.safeParse({
+        kind: 'JOB',
+        employmentType: 'full_time',
+        text: '招聘后端工程师',
+      }).success,
     ).toBe(false);
     expect(
       intakeInputSchema.safeParse({
         kind: 'JOB',
+        employmentType: 'full_time',
         text: '招聘后端工程师',
         companyId: file.fileId,
       }).success,
@@ -69,6 +83,7 @@ describe('unified recruiting intake contract', () => {
     expect(
       intakeInputSchema.safeParse({
         kind: 'CANDIDATE',
+        employmentType: 'full_time',
         files: [file],
         actor: { type: 'system' },
       }).success,
@@ -94,4 +109,26 @@ it('does not request judgment flags for candidate extraction', () => {
     'unknowns',
   ])
     expect(Object.keys(candidateProfileSchema.shape)).not.toContain(field);
+});
+
+/** Operator declarations are required and bound the number of documents sent for one person. */
+it('requires explicit employment and caps candidate materials at five', () => {
+  const input = {
+    kind: 'CANDIDATE',
+    files: Array.from({ length: 5 }, () => file),
+    employmentType: 'internship',
+  };
+  expect(intakeInputSchema.safeParse(input).success).toBe(true);
+  expect(
+    intakeInputSchema.safeParse({ ...input, employmentType: undefined })
+      .success,
+  ).toBe(false);
+  expect(
+    intakeInputSchema.safeParse({ ...input, files: [...input.files, file] })
+      .success,
+  ).toBe(false);
+  expect(
+    intakeInputSchema.safeParse({ ...input, employmentType: 'part_time' })
+      .success,
+  ).toBe(false);
 });

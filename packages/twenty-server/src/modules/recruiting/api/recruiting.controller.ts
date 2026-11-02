@@ -16,10 +16,11 @@ import {
   HttpCode,
   Res,
   UploadedFile,
+  UploadedFiles,
   UseInterceptors,
   ForbiddenException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { createHash } from 'node:crypto';
 
 import { type Request, type Response } from 'express';
@@ -428,30 +429,37 @@ export class RecruitingController {
   @HttpCode(202)
   @UseGuards(RecruitingUploadPermissionGuard)
   @UseInterceptors(
-    FileInterceptor('file', {
+    FilesInterceptor('file', 5, {
       limits: {
-        files: 1,
+        files: 5,
         fileSize: 50 * 1024 * 1024,
-        fields: 4,
+        fields: 5,
         fieldSize: 100_000,
-        parts: 5,
+        parts: 10,
       },
     }),
   )
   async uploadResume(
     @Req() request: Request,
-    @UploadedFile() file: { buffer: Buffer; originalname: string } | undefined,
+    @UploadedFiles() incoming:
+      | { buffer: Buffer; originalname: string }[]
+      | { buffer: Buffer; originalname: string }
+      | undefined,
     @Body() value: unknown,
     @Headers('idempotency-key') key?: string,
   ) {
-    if (!file) throw new BadRequestException('请上传简历文件（file）');
-    file = {
+    const files = (
+      Array.isArray(incoming) ? incoming : incoming ? [incoming] : []
+    ).map((file) => ({
       ...file,
       originalname: decodeMultipartFilename(file.originalname),
-    };
+    }));
+    if (!files.length || files.length > 5)
+      throw new BadRequestException('同一候选人请上传1至5份文件');
     const parsed = z
       .object({
         note: z.string().max(100_000).optional(),
+        employmentType: z.enum(['full_time', 'internship']),
         candidateId: z.string().uuid().optional(),
         batchId: z.string().uuid().optional(),
         source: z.enum(['manual', 'api']).optional(),
@@ -468,8 +476,10 @@ export class RecruitingController {
     const metadata = { ...details, note: details.note ?? '' };
     const digest = contentVersion({
       metadata,
-      filename: file.originalname,
-      bytes: createHash('sha256').update(file.buffer).digest('hex'),
+      files: files.map((file) => ({
+        filename: file.originalname,
+        bytes: createHash('sha256').update(file.buffer).digest('hex'),
+      })),
     });
     const existing = await this.intakes.existingMultipart(
       context,
@@ -478,14 +488,16 @@ export class RecruitingController {
       source,
     );
     if (existing) return existing;
-    const uploaded = await this.uploads.buffer(context, file);
+    const uploaded = [];
+    for (const file of files)
+      uploaded.push(await this.uploads.buffer(context, file));
     return this.intakes.submit(
       context,
       {
         ...metadata,
         kind: 'CANDIDATE',
         source,
-        files: [uploaded],
+        files: uploaded,
         ...(key ? { idempotencyKey: key } : {}),
       },
       { transportDigest: digest },

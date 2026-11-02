@@ -17,10 +17,16 @@ it.each([undefined, '11111111-1111-4111-8111-111111111111'])(
       one: jest.fn(async () => ({
         id,
         kind: 'JOB',
+        employmentType: 'full_time',
         state: 'NEEDS_REVIEW',
         result: {
           schemaVersion: 2,
-          input: { kind: 'JOB', files: [], batchId },
+          input: {
+            kind: 'JOB',
+            employmentType: 'full_time',
+            files: [],
+            batchId,
+          },
           stage: 'AWAITING_CONFIRMATION',
         },
       })),
@@ -91,6 +97,7 @@ it.each([
           stage: 'EXTRACTED',
           input: {
             kind: 'CANDIDATE',
+            employmentType: 'full_time',
             source: 'api',
             candidateId,
             files: [{ fileId: 'file', label: 'resume.txt', role: 'primary' }],
@@ -205,6 +212,7 @@ it('requires an existing candidate role when the API explicitly targets a person
   await expect(
     service.submit({ workspace: { id: 'workspace' } } as WorkspaceAuthContext, {
       kind: 'CANDIDATE',
+      employmentType: 'full_time',
       source: 'api',
       idempotencyKey: 'ordinary-contact-target',
       candidateId: '00000000-0000-4000-8000-000000000001',
@@ -247,6 +255,7 @@ it('stops after inference when queued API authority expires or is revoked, inclu
         stage: 'QUEUED',
         input: {
           kind: 'CANDIDATE',
+          employmentType: 'full_time',
           source: 'api',
           files: [{ fileId: 'file', label: 'resume.txt', role: 'primary' }],
         },
@@ -302,7 +311,13 @@ it('creates extracted job items in the worker without a separate operator confir
     state: 'READY',
     result: {
       schemaVersion: 2,
-      input: { kind: 'JOB', source: 'manual', companyId: 'company', files: [] },
+      input: {
+        kind: 'JOB',
+        employmentType: 'full_time',
+        source: 'manual',
+        companyId: 'company',
+        files: [],
+      },
       actor,
       inputHash: 'hash',
       stage: 'EXTRACTED',
@@ -353,11 +368,12 @@ it.each([null, undefined, []])(
     const record = {
       id: 'text-jd',
       kind: 'JOB',
+      employmentType: 'full_time',
       state: 'NEEDS_REVIEW',
       files,
       result: {
         schemaVersion: 2,
-        input: { kind: 'JOB', files: [] },
+        input: { kind: 'JOB', employmentType: 'full_time', files: [] },
         stage: 'FAILED',
       },
     };
