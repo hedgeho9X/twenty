@@ -1,5 +1,9 @@
 /** Covers the unified intake boundary that UI, MCP and mail must share. */
-import { intakeInputSchema, jobProfilesSchema } from './schemas';
+import {
+  candidateProfileSchema,
+  intakeInputSchema,
+  jobProfilesSchema,
+} from './schemas';
 
 const file = {
   fileId: '9f972110-76ed-4b99-966c-e0d3a8f58db7',
@@ -80,4 +84,14 @@ it('does not request review flags or review notes for JD extraction', () => {
   expect(Object.keys(jobProfilesSchema.shape.jobs.element.shape)).not.toContain(
     'reviewNotes',
   );
+});
+
+it('does not request judgment flags for candidate extraction', () => {
+  for (const field of [
+    'needsReview',
+    'reviewNotes',
+    'identityConflict',
+    'unknowns',
+  ])
+    expect(Object.keys(candidateProfileSchema.shape)).not.toContain(field);
 });

@@ -136,6 +136,10 @@ const professionalProfile = (profile: Record<string, unknown>) =>
     Object.entries(profile).filter(
       ([key]) =>
         ![
+          'needsReview',
+          'reviewNotes',
+          'identityConflict',
+          'unknowns',
           'sourceIntakeId',
           'sourceItemId',
           'sourceHash',
@@ -204,7 +208,6 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
           locationEvidence: profile.locationEvidence,
         }
       : legacyPreferences,
-    unknowns: compact ? [] : factTexts(legacy.unknowns),
     ...(self
       ? {
           selfReported: {
@@ -320,25 +323,20 @@ export const buildCandidateMatchContext = (record: MatchSource) => {
         /经验|经历|负责|项目|工作|技能|毕业|学历|擅长|开发|设计|运营|管理|投资/.test(
           clean.note + (self?.summary ?? ''),
         )));
-  const conflict =
-    profile.identityConflict === true ||
-    (!compact && Boolean(legacy['数据一致性提示']));
   return {
     id: record.id,
     label:
       nativeName || recruitingText(profile.name) || self?.fullName || '候选人',
     context: clean,
     eligibility,
-    issue: conflict
-      ? '候选人材料存在身份冲突'
-      : !occupationalContent.trim() && !supplementOnly
+    issue:
+      !occupationalContent.trim() && !supplementOnly
         ? '缺少可评分的职业材料'
         : undefined,
     supplementOnly,
     version: contentVersion({
       context: clean,
       eligibility,
-      conflict,
       ...(supplementOnly ? { supplementOnly: true } : {}),
     }),
   };

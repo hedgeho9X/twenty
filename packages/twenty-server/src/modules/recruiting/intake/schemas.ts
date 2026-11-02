@@ -36,9 +36,6 @@ export const candidateProfileSchema = z.object({
   workModeEvidence: z.string().nullable(),
   locations: z.array(z.string()),
   locationEvidence: z.string().nullable(),
-  identityConflict: z.boolean(),
-  needsReview: z.boolean(),
-  reviewNotes: z.array(z.string()),
 });
 
 /** One company can submit several jobs in one source document without losing their boundaries. */

@@ -37,7 +37,8 @@ it('shows structured facts while retaining an unchanged collapsed JSON response'
   expect(screen.getByText('远程')).toBeVisible();
   expect(screen.getByText('TypeScript')).toBeVisible();
   expect(screen.getByText('维护异步任务')).toBeVisible();
-  expect(screen.getByText('缺少联系方式')).toBeVisible();
+  expect(screen.queryByText('待核对事项')).toBeNull();
+  expect(screen.queryByText('资料待核对')).toBeNull();
   const raw = container.querySelector('details')!;
   expect(raw).not.toHaveAttribute('open');
   expect(container.querySelector('pre')).not.toBeVisible();

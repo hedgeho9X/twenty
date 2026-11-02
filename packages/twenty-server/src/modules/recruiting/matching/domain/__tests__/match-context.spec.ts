@@ -288,7 +288,7 @@ describe('recruiting match context', () => {
     });
     expect(result.context.sourceText).toContain('当前项目');
     expect(result.context.projects).toEqual([]);
-    expect(result.context.unknowns).toEqual([]);
+    expect(result.context).not.toHaveProperty('unknowns');
     expect(result.issue).toBeUndefined();
     expect(result.version).toBe(buildCandidateMatchContext(current).version);
 
@@ -301,8 +301,8 @@ describe('recruiting match context', () => {
       },
     });
     expect(legacy.context.projects).toEqual(['旧版项目资料']);
-    expect(legacy.context.unknowns).toEqual(['旧学历待核对']);
-    expect(legacy.issue).toContain('身份冲突');
+    expect(legacy.context).not.toHaveProperty('unknowns');
+    expect(legacy.issue).toBeUndefined();
   });
 
   it('rejects internship-only jobs for explicit refusal without rejecting part-time work', () => {
@@ -371,7 +371,7 @@ describe('recruiting match context', () => {
         id: 'p',
         recruitingProfile: { summary: '工程师', identityConflict: true },
       }).issue,
-    ).toContain('身份冲突');
+    ).toBeUndefined();
     expect(
       buildCandidateMatchContext({ id: 'p', jobTitle: '工程师' }).issue,
     ).toContain('缺少');

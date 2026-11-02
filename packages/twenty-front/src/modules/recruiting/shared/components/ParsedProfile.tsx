@@ -72,9 +72,6 @@ export const RecruitingParsedProfile = ({
   kind,
 }: RecruitingParsedProfileProps) => {
   const data = object(profile);
-  const needsReview =
-    data.needsReview === true || data.identityConflict === true;
-  const reviewNotes = list(data.reviewNotes);
   const jobs = Array.isArray(data.jobs)
     ? data.jobs
     : text(data.title)
@@ -88,9 +85,6 @@ export const RecruitingParsedProfile = ({
             <StyledRecruitingTitle>
               {text(data.name) || t`姓名待补充`}
             </StyledRecruitingTitle>
-            {needsReview && (
-              <StyledRecruitingStatus data-tone="yellow">{t`资料待核对`}</StyledRecruitingStatus>
-            )}
           </div>
           {data.materialKind && data.materialKind !== 'candidate' ? (
             <StyledRecruitingMuted>{t`材料类型尚未确认为候选人简历，请核对原件。`}</StyledRecruitingMuted>
@@ -171,9 +165,6 @@ export const RecruitingParsedProfile = ({
             );
           })}
         </>
-      )}
-      {kind === 'CANDIDATE' && reviewNotes.length > 0 && (
-        <History title={t`待核对事项`} values={reviewNotes} />
       )}
       <details>
         <summary>{t`查看原始 JSON`}</summary>
