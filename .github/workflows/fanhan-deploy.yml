@@ -1,0 +1,95 @@
+name: Fanhan production
+
+on:
+  push:
+    branches: [deploy/fanhan]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fanhan-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NX_NO_CLOUD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/yarn-install
+      - name: Build shared package
+        run: node ops/recruiting/build-source.mjs twenty-shared build
+      - name: CLI regression
+        run: node --test ops/recruiting/cli-auth.test.mjs ops/recruiting/cli.test.mjs ops/recruiting/cli-job-upload.test.mjs
+      - name: Server regression
+        working-directory: packages/twenty-server
+        run: ../../node_modules/.bin/jest --runInBand --testPathPattern='src/modules/recruiting/|chatgpt-subscription/|is-provider-configured.util.spec'
+      - name: Frontend regression
+        working-directory: packages/twenty-front
+        run: ../../node_modules/.bin/jest --runInBand --testPathPattern='recruiting|SettingsBriefTemplates|apiProxyPrefixes'
+      - name: Server types
+        working-directory: packages/twenty-server
+        run: ../../node_modules/.bin/tsgo -p tsconfig.json --noEmit --incremental false
+      - name: Frontend types
+        working-directory: packages/twenty-front
+        run: ../../node_modules/.bin/tsgo -p tsconfig.json --noEmit --incremental false
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish verified image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/twenty-docker/twenty/Dockerfile
+          target: twenty
+          push: true
+          platforms: linux/amd64
+          tags: ghcr.io/zkkk-web/twenty:fanhan-${{ github.sha }}
+          build-args: APP_VERSION=${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: fanhan-production
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy exact verified revision
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_COMPOSE_ID: ${{ secrets.DOKPLOY_COMPOSE_ID }}
+          REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$DOKPLOY_URL" && test -n "$DOKPLOY_API_KEY" && test -n "$DOKPLOY_COMPOSE_ID"
+          sed "s/:fanhan-bootstrap/:fanhan-$REVISION/g" ops/recruiting/deploy/compose.yaml > /tmp/fanhan-compose.yaml
+          jq -n --arg id "$DOKPLOY_COMPOSE_ID" --rawfile compose /tmp/fanhan-compose.yaml \
+            '{composeId:$id, composeFile:$compose}' > /tmp/fanhan-update.json
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -H "x-api-key: $DOKPLOY_API_KEY" -H 'Content-Type: application/json' \
+            --data-binary @/tmp/fanhan-update.json "$DOKPLOY_URL/api/compose.update" > /dev/null
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -H "x-api-key: $DOKPLOY_API_KEY" -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg id "$DOKPLOY_COMPOSE_ID" --arg revision "$REVISION" '{composeId:$id, title:("Verified release " + $revision), description:$revision}')" \
+            "$DOKPLOY_URL/api/compose.deploy"
