@@ -24,7 +24,7 @@ jobs:
       - name: Build shared package
         run: node ops/recruiting/build-source.mjs twenty-shared build
       - name: Build workspace package exports
-        run: yarn nx run-many -t build -p twenty-ui twenty-emails twenty-client-sdk twenty-sdk
+        run: yarn nx run-many -t build -p twenty-ui twenty-emails twenty-client-sdk twenty-sdk twenty-front-component-renderer
       - name: CLI regression
         run: node --test ops/recruiting/cli-auth.test.mjs ops/recruiting/cli.test.mjs ops/recruiting/cli-job-upload.test.mjs
       - name: Server regression
