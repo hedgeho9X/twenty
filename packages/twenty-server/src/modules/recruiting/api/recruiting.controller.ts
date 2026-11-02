@@ -600,6 +600,7 @@ export class RecruitingController {
       throw new BadRequestException('请提交有效的材料信息');
     return this.intakes.submit(buildWorkspaceAuthContextFromRequest(request), {
       ...body,
+      source: body.source === 'manual' ? 'manual' : 'api',
       kind: 'CANDIDATE',
       ...(key ? { idempotencyKey: key } : {}),
     });
@@ -617,6 +618,7 @@ export class RecruitingController {
       throw new BadRequestException('请提交有效的岗位信息');
     return this.intakes.submit(buildWorkspaceAuthContextFromRequest(request), {
       ...body,
+      source: body.source === 'manual' ? 'manual' : 'api',
       kind: 'JOB',
       ...(key ? { idempotencyKey: key } : {}),
     });
