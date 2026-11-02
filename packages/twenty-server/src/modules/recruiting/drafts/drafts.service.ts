@@ -1,4 +1,5 @@
 /** Persists resumable text drafts and keeps generation distinct from real-world human actions. */
+import { buildMatchBrief } from './domain/match-brief';
 import { RecruitingJobPageService } from '../portal/job-page.service';
 import { RecruitingMatchingService } from '../matching/matching.service';
 import {
@@ -296,10 +297,7 @@ export class RecruitingDraftsService {
           if (payload.input.matchRunId && !payload.jobPageUrl) {
             if (!this.jobPages)
               throw new BadRequestException('岗位介绍服务未就绪');
-            const ids =
-              'pairs' in source.context
-                ? source.context.pairs.map((pair) => pair.job.id)
-                : [];
+            const ids = 'jobIds' in source ? source.jobIds : [];
             payload = {
               ...payload,
               jobPageUrl: await this.jobPages.create(context, ids),
@@ -386,29 +384,14 @@ export class RecruitingDraftsService {
     );
     if (!selected.length || selected.length !== wanted.size)
       throw new BadRequestException('请选择当前匹配结果中的记录');
-    const pairs = [];
-    for (const pair of selected) {
-      const candidate = buildCandidateMatchContext(
-        await this.records.one(context, 'person', pair.candidateId),
-      );
-      const job = await this.records.one(context, 'recruitmentJob', pair.jobId);
-      const company =
-        typeof job.companyId === 'string'
-          ? await this.records.one(context, 'company', job.companyId)
-          : undefined;
-      const vacancy = buildJobMatchContext(job, company);
-      pairs.push({
-        candidate: { name: candidate.label, ...candidate.context },
-        job: { id: pair.jobId, name: vacancy.label, ...vacancy.context },
-        company: vacancy.company,
-        score: pair.score,
-        versions: [candidate.version, vacancy.version, vacancy.companyVersion],
-      });
-    }
+    const brief = await buildMatchBrief(
+      String(run.direction),
+      selected,
+      (kind, id) => this.records.one(context, kind, id),
+    );
     return {
       label: `${run.subjectLabel} · 匹配沟通文案`,
-      context: { direction: run.direction, pairs },
-      version: contentVersion({ pairs, policy: 'advisor-job-links-v2' }),
+      ...brief,
       links: { candidateUrl: undefined, jobUrl: undefined },
     };
   }
