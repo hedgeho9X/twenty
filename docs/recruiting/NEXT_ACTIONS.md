@@ -1,5 +1,8 @@
 # 恢复执行入口
 
+> 当前范围与剩余工作请先看 [CURRENT_BACKLOG.md](CURRENT_BACKLOG.md)（2026-11-02）。下文保留历史执行记录，已取消的页面和旧授权状态不应恢复为当前需求。
+
+
 更新时间：2026-11-01 12:13，Asia/Shanghai。先读DELIVERY_GOAL.md与PROGRESS.md。完整目标active；用户已明确改为本地邮件服务验收，原真实邮箱观察已中止并恢复关闭。
 
 ## 1. 固定底座和边界
