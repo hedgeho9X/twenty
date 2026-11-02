@@ -1,7 +1,9 @@
-/** Creates or revokes scoped shares for the selected matching results. */
+/** Shows mutually exclusive create and active-link states with serialized mutations. */
 import { useEffect, useState } from 'react';
 import { Button } from 'twenty-ui/primitives/input';
+import { IconCopy, IconExternalLink, IconLink } from 'twenty-ui/icon';
 import { recruitingRequest } from '../api/request';
+import { StyledRecruitingPanel, StyledRecruitingRow } from '../styles';
 export const MatchShareActions = ({
   jobIds,
   candidateIds,
@@ -12,56 +14,96 @@ export const MatchShareActions = ({
   currentUrl?: string;
 }) => {
   const [url, setUrl] = useState(currentUrl ?? '');
-  useEffect(() => setUrl(currentUrl ?? ''), [currentUrl]);
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  useEffect(() => {
+    setUrl(currentUrl ?? '');
+    setMessage('');
+  }, [currentUrl]);
+  const execute = async (action: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      await action();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : '操作失败');
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 8,
-        alignItems: 'center',
-        flexWrap: 'wrap',
-      }}
-    >
-      <Button
-        onClick={() => {
-          void recruitingRequest<{ url: string }>('share-links', {
-            method: 'POST',
-            body: JSON.stringify({ jobIds, candidateIds }),
-          })
-            .then(async (r) => {
-              setUrl(r.url);
-              await navigator.clipboard.writeText(r.url);
-              setMessage('链接已复制');
-            })
-            .catch((e) => setMessage(e.message));
-        }}
-      >
-        生成分享链接
-      </Button>
+    <StyledRecruitingPanel style={{ padding: 16, gap: 12 }}>
+      <StyledRecruitingRow style={{ justifyContent: 'space-between' }}>
+        <StyledRecruitingRow>
+          <IconLink size={16} />
+          <strong>分享链接</strong>
+        </StyledRecruitingRow>
+        {!url && (
+          <Button
+            disabled={busy || (!jobIds.length && !candidateIds.length)}
+            loading={busy}
+            onClick={() =>
+              void execute(async () => {
+                const result = await recruitingRequest<{ url: string }>(
+                  'share-links',
+                  {
+                    method: 'POST',
+                    body: JSON.stringify({ jobIds, candidateIds }),
+                  },
+                );
+                setUrl(result.url);
+              })
+            }
+          >
+            生成分享链接
+          </Button>
+        )}
+      </StyledRecruitingRow>
       {url && (
         <>
-          <a href={url} target="_blank" rel="noreferrer">
-            预览
-          </a>
-          <Button
-            onClick={() => {
-              const key = new URL(url).pathname.split('/').pop();
-              void recruitingRequest(`share-links/${key}/revoke`, {
-                method: 'POST',
-              })
-                .then(() => {
+          <span style={{ overflowWrap: 'anywhere', fontSize: 13 }}>{url}</span>
+          <StyledRecruitingRow>
+            <Button
+              disabled={busy}
+              startIcon={<IconCopy size={16} />}
+              onClick={() =>
+                void execute(async () => {
+                  await navigator.clipboard.writeText(url);
+                  setMessage('已复制');
+                })
+              }
+            >
+              复制链接
+            </Button>
+            <Button
+              disabled={busy}
+              variant="ghost"
+              startIcon={<IconExternalLink size={16} />}
+              onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+            >
+              预览分享页
+            </Button>
+            <Button
+              disabled={busy}
+              variant="ghost"
+              onClick={() =>
+                void execute(async () => {
+                  const key = new URL(url).pathname.split('/').pop();
+                  await recruitingRequest(`share-links/${key}/revoke`, {
+                    method: 'POST',
+                  });
                   setUrl('');
                   setMessage('已撤销');
                 })
-                .catch((e) => setMessage(e.message));
-            }}
-          >
-            撤销分享
-          </Button>
+              }
+            >
+              撤销分享
+            </Button>
+          </StyledRecruitingRow>
         </>
       )}
-      <span role="status">{message}</span>
-    </div>
+      {message && <span role="status">{message}</span>}
+    </StyledRecruitingPanel>
   );
 };
