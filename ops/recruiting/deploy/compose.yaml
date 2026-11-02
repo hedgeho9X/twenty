@@ -23,6 +23,8 @@ services:
     volumes:
       - files:/app/packages/twenty-server/.local-storage
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:
@@ -53,6 +55,21 @@ services:
       - files:/app/packages/twenty-server/.local-storage
     depends_on:
       server:
+        condition: service_healthy
+
+  migrate:
+    image: fanhan/twenty:fanhan-bootstrap
+    pull_policy: never
+    user: '0'
+    command: [node, scripts/recruiting-release.mjs]
+    environment:
+      <<: *application-environment
+    volumes:
+      - backups:/data/backups
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   db:
@@ -90,3 +107,4 @@ volumes:
   files:
   database:
   cache:
+  backups:
