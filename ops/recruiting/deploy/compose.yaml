@@ -54,6 +54,8 @@ services:
     restart: unless-stopped
     environment:
       <<: *application-environment
+      PG_DATABASE_PRIMARY_TIMEOUT_MS: 120000
+      PG_DATABASE_REPLICA_TIMEOUT_MS: 120000
     volumes:
       - files:/app/packages/twenty-server/.local-storage
     depends_on:
