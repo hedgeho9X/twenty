@@ -130,10 +130,11 @@ export const SettingsSubscriptionConnection = ({
     <StyledSubscriptionPanel>
       <StyledSubscriptionRow>
         <strong>{t`ChatGPT 账号`}</strong>
-        <Button
-          disabled={busy || pending}
-          onClick={() => void start()}
-        >{t`连接 ChatGPT`}</Button>
+        {!pending && (
+          <Button disabled={busy} onClick={() => void start()}>
+            {accounts?.activeConnectionId ? t`切换账号` : t`连接 ChatGPT`}
+          </Button>
+        )}
       </StyledSubscriptionRow>
       {error && (
         <StyledSubscriptionError role="alert">{error}</StyledSubscriptionError>
@@ -141,7 +142,11 @@ export const SettingsSubscriptionConnection = ({
       {notice && <div role="status">{notice}</div>}
       {pending && (
         <StyledSubscriptionRow>
-          <span>{t`等待完成账号授权`}</span>
+          <span>
+            {attempt?.status === 'PROCESSING'
+              ? t`正在验证新账号`
+              : t`等待新账号授权`}
+          </span>
           {attempt?.authorizeUrl && (
             <Button
               onClick={() => openUrlInNewTab(attempt.authorizeUrl!)}
@@ -160,43 +165,47 @@ export const SettingsSubscriptionConnection = ({
           >{t`取消`}</Button>
         </StyledSubscriptionRow>
       )}
-      {accounts?.connections
-        .filter((account) => account.protocol === 'codex')
-        .map((account) => (
-          <StyledSubscriptionRow key={account.id}>
-            <span>{account.label}</span>
-            <span>
-              {accounts.activeConnectionId === account.id
-                ? t`当前使用`
-                : account.status === 'READY'
-                  ? t`已授权`
-                  : t`需要重新连接`}
-            </span>
-            {account.status === 'READY' &&
-              accounts.activeConnectionId !== account.id && (
-                <Button
-                  disabled={busy}
-                  onClick={() => void activate(account.id)}
-                >{t`验证并启用`}</Button>
-              )}
-            <Button
-              disabled={busy || pending}
-              onClick={() => void start(account.id)}
-            >{t`重新连接`}</Button>
-            <Button
-              disabled={busy}
-              onClick={() => {
-                setBusy(true);
-                void subscriptionRequest(`/${account.id}/disconnect`, {
-                  method: 'POST',
-                })
-                  .then(() => reload())
-                  .catch((failure) => setError(failure.message))
-                  .finally(() => setBusy(false));
-              }}
-            >{t`断开`}</Button>
-          </StyledSubscriptionRow>
-        ))}
+      {pending && accounts?.activeConnectionId && (
+        <span>{t`新授权完成前，继续使用当前账号。`}</span>
+      )}
+      {!pending &&
+        accounts?.connections
+          .filter((account) => account.protocol === 'codex')
+          .map((account) => (
+            <StyledSubscriptionRow key={account.id}>
+              <span>{account.label}</span>
+              <span>
+                {accounts.activeConnectionId === account.id
+                  ? t`当前使用`
+                  : account.status === 'READY'
+                    ? t`已授权`
+                    : t`需要重新连接`}
+              </span>
+              {account.status === 'READY' &&
+                accounts.activeConnectionId !== account.id && (
+                  <Button
+                    disabled={busy}
+                    onClick={() => void activate(account.id)}
+                  >{t`验证并启用`}</Button>
+                )}
+              <Button
+                disabled={busy || pending}
+                onClick={() => void start(account.id)}
+              >{t`重新连接`}</Button>
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true);
+                  void subscriptionRequest(`/${account.id}/disconnect`, {
+                    method: 'POST',
+                  })
+                    .then(() => reload())
+                    .catch((failure) => setError(failure.message))
+                    .finally(() => setBusy(false));
+                }}
+              >{t`断开`}</Button>
+            </StyledSubscriptionRow>
+          ))}
     </StyledSubscriptionPanel>
   );
 };
