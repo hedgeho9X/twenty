@@ -74,10 +74,11 @@ jobs:
           chmod 600 ~/.ssh/fanhan ~/.ssh/known_hosts
           { printf '%s\n' "$REVISION"; docker save "fanhan/twenty:$REVISION" | gzip -1; } | \
             ssh -i ~/.ssh/fanhan -o BatchMode=yes -o StrictHostKeyChecking=yes fanhan-deploy@150.158.164.85
+          ssh -fN -i ~/.ssh/fanhan -o BatchMode=yes -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -L 127.0.0.1:23090:127.0.0.1:3000 fanhan-deploy@150.158.164.85
           rm -f ~/.ssh/fanhan
       - name: Deploy exact verified revision
         env:
-          DOKPLOY_URL: ${{ secrets.FANHAN_DOKPLOY_URL }}
+          DOKPLOY_URL: http://127.0.0.1:23090
           DOKPLOY_API_KEY: ${{ secrets.FANHAN_DOKPLOY_API_KEY }}
           DOKPLOY_COMPOSE_ID: ${{ secrets.FANHAN_DOKPLOY_COMPOSE_ID }}
           REVISION: ${{ github.sha }}
@@ -100,8 +101,8 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in $(seq 1 90); do
-            if curl --fail --silent --max-time 10 https://recruiting.math77.cn/healthz >/dev/null && \
-               curl --fail --silent --max-time 10 https://recruiting.math77.cn/client-config | jq -e --arg revision "$REVISION" '.appVersion == $revision' >/dev/null; then
+            if curl --fail --silent --max-time 10 http://150.158.164.85/healthz >/dev/null && \
+               curl --fail --silent --max-time 10 http://150.158.164.85/client-config | jq -e --arg revision "$REVISION" '.appVersion == $revision' >/dev/null; then
               echo "Verified deployed revision $REVISION"
               exit 0
             fi

@@ -7,8 +7,8 @@ services:
     environment: &application-environment
       NODE_ENV: production
       NODE_PORT: 3000
-      SERVER_URL: https://recruiting.math77.cn
-      FRONTEND_URL: https://recruiting.math77.cn
+      SERVER_URL: http://150.158.164.85
+      FRONTEND_URL: http://150.158.164.85
       PG_DATABASE_URL: postgres://twenty:${POSTGRES_PASSWORD:?required}@db:5432/twenty
       REDIS_URL: redis://redis:6379
       APP_SECRET: ${APP_SECRET:?required}
@@ -41,6 +41,9 @@ services:
       - traefik.http.routers.fanhan.rule=Host(`recruiting.math77.cn`)
       - traefik.http.routers.fanhan.entrypoints=websecure
       - traefik.http.routers.fanhan.tls.certresolver=letsencrypt
+      - traefik.http.routers.fanhan-ip.rule=Host(`150.158.164.85`)
+      - traefik.http.routers.fanhan-ip.entrypoints=web
+      - traefik.http.routers.fanhan-ip.service=fanhan
       - traefik.http.services.fanhan.loadbalancer.server.port=3000
       - traefik.docker.network=dokploy-network
 
