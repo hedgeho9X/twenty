@@ -118,7 +118,7 @@ const createWorkspaceAppRouter = ({
       ),
     },
     {
-      path: '/s/:token',
+      path: '/r/:token',
       element: (
         <BaseThemeProvider>
           <RecruitingJobPage />

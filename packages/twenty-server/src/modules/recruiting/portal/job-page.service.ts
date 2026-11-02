@@ -103,7 +103,7 @@ export class RecruitingJobPageService {
     await this.links.setAdd(`recruiting-share-index:${this.owner(context)}`, [
       key,
     ]);
-    return `${this.config.get('FRONTEND_URL').replace(/\/$/, '')}/s/${key}`;
+    return `${this.config.get('FRONTEND_URL').replace(/\/$/, '')}/r/${key}`;
   }
   /** Indexes links by their creator; revocation deletes the resolving token immediately. */
   private owner(context: WorkspaceAuthContext) {
@@ -144,7 +144,7 @@ export class RecruitingJobPageService {
         ...row,
         jobs,
         candidates,
-        url: `${this.config.get('FRONTEND_URL').replace(/\/$/, '')}/s/${row.key}`,
+        url: `${this.config.get('FRONTEND_URL').replace(/\/$/, '')}/r/${row.key}`,
       });
     }
     return result;

@@ -29,6 +29,7 @@ describe('apiProxyPrefixes', () => {
   it.each([
     '/candidate-portal',
     '/job-introductions',
+    '/r/Abcdef1234',
     '/recruiting-job-pages-other',
     '/recruiting-workspace',
     '/recruiting-portal-other',
