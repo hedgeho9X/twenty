@@ -30,6 +30,9 @@ jest.mock('twenty-ui/icon', () => ({
   IconUpload: () => null,
   IconArrowLeft: () => null,
   IconRefresh: () => null,
+  IconCopy: () => null,
+  IconExternalLink: () => null,
+  IconLink: () => null,
 }));
 jest.mock('twenty-ui/primitives/data-display', () => ({ Badge: 'span' }));
 jest.mock('twenty-ui/primitives/input', () => ({

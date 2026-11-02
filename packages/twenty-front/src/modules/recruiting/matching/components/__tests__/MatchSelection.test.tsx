@@ -7,6 +7,7 @@ import { type RecruitingMatchRun } from '@/recruiting/matching/types/MatchRun';
 jest.mock('@/recruiting/shared/hooks/useRecruitingQuery');
 jest.mock('@/recruiting/shared/api/request');
 jest.mock('@/recruiting/shared/styles', () => ({
+  StyledRecruitingPanel: 'section',
   StyledRecruitingError: 'div',
   StyledRecruitingMuted: 'p',
   StyledRecruitingRow: 'div',
