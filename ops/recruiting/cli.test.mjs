@@ -2,6 +2,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRecruitingClient, waitForRecruitingTask } from './cli.mjs';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 test('client never accepts a remote plaintext endpoint or embedded credentials', () => {
   assert.throws(() =>
@@ -224,5 +227,48 @@ test('public command aliases read a candidate and default the shortlist to five'
     console.log = log;
     if (key === undefined) delete process.env.FANHAN_API_KEY;
     else process.env.FANHAN_API_KEY = key;
+  }
+});
+
+test('candidate upload requires employment and sends five documents in one request', async () => {
+  const { main } = await import('./cli.mjs');
+  const directory = await mkdtemp(join(tmpdir(), 'fanhan-five-files-'));
+  const originalFetch = globalThis.fetch;
+  const originalKey = process.env.FANHAN_API_KEY;
+  const originalLog = console.log;
+  const requests = [];
+  process.env.FANHAN_API_KEY = 'synthetic';
+  console.log = () => {};
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return Response.json({ intakeId: 'synthetic-intake' });
+  };
+  try {
+    const file = join(directory, 'resume.txt');
+    await writeFile(file, 'Synthetic candidate only');
+    const base = ['candidates', 'upload', '--base', 'http://127.0.0.1:23001'];
+    await assert.rejects(main([...base, '--file', file]), /employment-type/);
+    const files = Array.from({ length: 5 }, () => ['--file', file]).flat();
+    await main([...base, ...files, '--employment-type', 'internship']);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].options.body.getAll('file').length, 5);
+    assert.equal(requests[0].options.body.get('employmentType'), 'internship');
+    await assert.rejects(
+      main([
+        ...base,
+        ...files,
+        '--file',
+        file,
+        '--employment-type',
+        'full_time',
+      ]),
+      /1 to 5/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.log = originalLog;
+    if (originalKey === undefined) delete process.env.FANHAN_API_KEY;
+    else process.env.FANHAN_API_KEY = originalKey;
+    await rm(directory, { recursive: true, force: true });
   }
 });
