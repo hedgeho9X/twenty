@@ -1,6 +1,10 @@
 /** Presents only the recruiting operator surface; legacy aliases stay out of discovery. */
 export const COMMANDS = {
-  auth: { status: '验证当前 API Key 的连接与候选人读取权限' },
+  auth: {
+    login: '[--base URL] [--key-stdin]；验证并保存到Keychain',
+    logout: '[--base URL]；删除本机凭据，不撤销服务端Key',
+    status: '验证当前 API Key 的连接与候选人读取权限',
+  },
   companies: {
     search: '--query 名称；搜索公司',
     get: '--id ID；读取公司',

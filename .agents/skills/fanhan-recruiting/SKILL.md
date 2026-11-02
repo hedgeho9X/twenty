@@ -7,7 +7,7 @@ description: 通过 fanhan CLI 完成泛函招聘运营：公司/JD录入、简�
 
 你负责把用户的招聘任务推进到可检查的业务结果。只用 `fanhan` 的七组招聘命令：companies、jobs、candidates、tasks、match、draft、share。不要枚举官方 MCP 或构造底层数据库操作。
 
-`FANHAN_API_KEY` 和 `FANHAN_BASE_URL` 应由运行环境注入。先执行 `fanhan auth status --json`，确认目标连接；不能把 Key 写进命令参数或输出。未安装命令时可在本仓库运行 `node ops/recruiting/fanhan.mjs`。Node >=22。
+本机可用 `fanhan auth login --base URL` 隐藏输入并保存 Keychain；Agent 用 `--key-stdin` 从标准输入提供Key。`auth logout` 只删除本机凭据。服务器使用 `FANHAN_API_KEY` 和 `FANHAN_BASE_URL` 注入；环境变量优先于已保存登录，Keychain凭据按服务地址隔离。先执行 `fanhan auth status --json`，确认目标连接；不能把 Key 写进命令参数或输出。未安装命令时可在本仓库运行 `node ops/recruiting/fanhan.mjs`。Node >=22。
 
 ## 按任务加载
 

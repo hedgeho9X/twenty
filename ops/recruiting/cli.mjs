@@ -1,3 +1,11 @@
+import {
+  resolveAuth,
+  keychain,
+  saveConfig,
+  readConfig,
+  readKey,
+  apiOrigin,
+} from './cli-auth.mjs';
 /** Runs recruiting operations as a thin authenticated API client; credentials come only from the environment. */
 import { readFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
@@ -35,7 +43,7 @@ export const createRecruitingClient = ({ baseUrl, token, fetcher = fetch }) => {
   )
     throw new Error('Use HTTPS or an explicit local recruiting URL');
   if (!token || !/^[A-Za-z0-9_.-]+$/.test(token))
-    throw new Error('Set a valid TWENTY_API_KEY environment variable');
+    throw new Error('Run fanhan auth login or set FANHAN_API_KEY');
   const request = async (path, options = {}) => {
     if (!path.startsWith('/') || path.startsWith('//') || path.includes('..'))
       throw new Error('Invalid API path');
@@ -125,6 +133,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     options: {
       base: { type: 'string' },
       json: { type: 'boolean' },
+      'key-stdin': { type: 'boolean' },
       'match-run-id': { type: 'string' },
       'selected-ids': { type: 'string' },
       'candidate-ids': { type: 'string' },
@@ -187,14 +196,46 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     return;
   }
   values['items-file'] ??= values['data-file'];
-  const client = createRecruitingClient({
-    baseUrl:
+  if (
+    positionals[0] === 'auth' &&
+    ['login', 'logout'].includes(positionals[1])
+  ) {
+    const config = await readConfig();
+    const baseUrl = apiOrigin(
       values.base ??
-      process.env.FANHAN_BASE_URL ??
-      process.env.TWENTY_BASE_URL ??
-      'http://localhost:23001',
-    token: process.env.FANHAN_API_KEY ?? process.env.TWENTY_API_KEY,
-  });
+        process.env.FANHAN_BASE_URL ??
+        process.env.TWENTY_BASE_URL ??
+        config.baseUrl ??
+        'http://localhost:23001',
+    );
+    if (positionals[1] === 'logout') {
+      await keychain.delete(baseUrl);
+      console.log(
+        JSON.stringify({
+          loggedOut: true,
+          baseUrl,
+          environmentOverride: Boolean(
+            process.env.FANHAN_API_KEY ?? process.env.TWENTY_API_KEY,
+          ),
+        }),
+      );
+      return;
+    }
+    const token = values['key-stdin']
+      ? await readKey()
+      : (process.env.FANHAN_API_KEY ??
+        process.env.TWENTY_API_KEY ??
+        (await readKey()));
+    await createRecruitingClient({ baseUrl, token }).request(
+      '/recruiting/candidates',
+    );
+    await keychain.set(baseUrl, token);
+    await saveConfig(baseUrl);
+    console.log(JSON.stringify({ saved: true, baseUrl, storage: 'keychain' }));
+    return;
+  }
+  const auth = await resolveAuth(values.base);
+  const client = createRecruitingClient(auth);
   const [group, action] = resolveCommand(
     positionals[0],
     positionals[1],
@@ -225,7 +266,12 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     );
   } else if (group === 'auth' && action === 'status') {
     await client.request('/recruiting/candidates');
-    result = { authenticated: true, canReadCandidates: true };
+    result = {
+      authenticated: true,
+      canReadCandidates: true,
+      baseUrl: auth.baseUrl,
+      source: auth.source,
+    };
   } else if (group === 'share' && action === 'list')
     result = await client.request('/recruiting/share-links');
   else if (group === 'share' && action === 'create')
@@ -396,12 +442,8 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     result = await submitJobMaterials({
       client,
       filenames: values.file ?? [],
-      baseUrl:
-        values.base ??
-        process.env.FANHAN_BASE_URL ??
-        process.env.TWENTY_BASE_URL ??
-        'http://localhost:23001',
-      token: process.env.FANHAN_API_KEY ?? process.env.TWENTY_API_KEY,
+      baseUrl: auth.baseUrl,
+      token: auth.token,
       persistent: Boolean(values.key),
       request: {
         companyId: required('company-id'),

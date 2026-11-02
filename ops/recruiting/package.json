@@ -9,7 +9,8 @@
     "fanhan.mjs",
     "cli.mjs",
     "cli-job-upload.mjs",
-    "cli-catalog.mjs"
+    "cli-catalog.mjs",
+    "cli-auth.mjs"
   ],
   "engines": {
     "node": ">=22"
