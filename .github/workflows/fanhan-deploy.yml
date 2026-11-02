@@ -44,7 +44,7 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     environment: fanhan-production
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -68,12 +68,17 @@ jobs:
           REVISION: ${{ github.sha }}
         run: |
           set -euo pipefail
+          # BBR avoids severe CUBIC throughput loss on the cross-region upload.
+          sudo modprobe tcp_bbr 2>/dev/null || true
+          if sysctl -n net.ipv4.tcp_available_congestion_control | grep -qw bbr; then
+            sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+          fi
           install -m 700 -d ~/.ssh
           printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/fanhan
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/fanhan ~/.ssh/known_hosts
           { printf '%s\n' "$REVISION"; docker save "fanhan/twenty:$REVISION" | gzip -1; } | \
-            ssh -i ~/.ssh/fanhan -o BatchMode=yes -o StrictHostKeyChecking=yes fanhan-deploy@150.158.164.85
+            ssh -i ~/.ssh/fanhan -o ServerAliveInterval=15 -o IPQoS=none -o BatchMode=yes -o StrictHostKeyChecking=yes fanhan-deploy@150.158.164.85
           ssh -fN -i ~/.ssh/fanhan -o BatchMode=yes -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -L 127.0.0.1:23090:127.0.0.1:3000 fanhan-deploy@150.158.164.85
           rm -f ~/.ssh/fanhan
       - name: Deploy exact verified revision
