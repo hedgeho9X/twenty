@@ -1,5 +1,6 @@
-/** Lists creator-owned links and removes their access capability on revocation. */
+/** Lists share subjects with compact actions and an optional link to their source match. */
 import { Button } from 'twenty-ui/primitives/input';
+import { IconCopy, IconEye, IconPlayerStop } from 'twenty-ui/icon';
 import { useState } from 'react';
 import { useRecruitingQuery } from '../hooks/useRecruitingQuery';
 import { recruitingRequest } from '../api/request';
@@ -7,26 +8,45 @@ import {
   StyledRecruitingPanel,
   StyledRecruitingTable,
   StyledRecruitingTitle,
+  StyledRecruitingRecordLink,
+  StyledRecruitingMuted,
 } from '../styles';
+
+/** Supports older links without inventing a matching origin for them. */
+type ShareRow = {
+  key: string;
+  url: string;
+  createdAt: string;
+  subjectLabel?: string;
+  matchRunId?: string;
+  jobs: { name: string; status: string }[];
+  candidateIds: string[];
+};
+
+/** Serializes row actions and keeps clipboard failures visible. */
 export const ShareLinks = ({ active }: { active: boolean }) => {
-  const query = useRecruitingQuery<
-    {
-      key: string;
-      url: string;
-      createdAt: string;
-      jobs: { name: string; status: string }[];
-      jobIds: string[];
-      candidateIds: string[];
-    }[]
-  >('share-links', 0, active);
-  const [error, setError] = useState('');
+  const query = useRecruitingQuery<ShareRow[]>('share-links', 0, active);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState<string>();
+  const execute = async (key: string, action: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(key);
+    setMessage('');
+    try {
+      await action();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '操作失败');
+    } finally {
+      setBusy(undefined);
+    }
+  };
   return (
     <StyledRecruitingPanel>
       <StyledRecruitingTitle>分享链接</StyledRecruitingTitle>
       <StyledRecruitingTable>
         <thead>
           <tr>
-            <th>内容</th>
+            <th>分享对象</th>
             <th>创建时间</th>
             <th>操作</th>
           </tr>
@@ -35,42 +55,85 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
           {query.data?.map((row) => (
             <tr key={row.key}>
               <td>
-                {row.jobs
-                  ?.map(
-                    (job) =>
-                      `${job.name}（${job.status === 'RECRUITING' ? '在招' : '已停招'}）`,
-                  )
-                  .join('、')}{' '}
-                · {row.candidateIds.length} 位候选人
+                {row.matchRunId ? (
+                  <StyledRecruitingRecordLink
+                    href={`/recruiting-workspace?tab=matches&runId=${encodeURIComponent(row.matchRunId)}`}
+                  >
+                    {row.subjectLabel}
+                  </StyledRecruitingRecordLink>
+                ) : (
+                  <span>
+                    {row.subjectLabel || row.jobs[0]?.name || '分享资料'}
+                  </span>
+                )}
+                <StyledRecruitingMuted>
+                  {[
+                    row.jobs.length ? `${row.jobs.length} 个岗位` : '',
+                    row.candidateIds.length
+                      ? `${row.candidateIds.length} 位候选人`
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </StyledRecruitingMuted>
               </td>
-              <td>{new Date(row.createdAt).toLocaleString()}</td>
-              <td>
-                <a href={row.url} target="_blank" rel="noreferrer">
-                  预览
-                </a>{' '}
-                <Button
-                  onClick={() => void navigator.clipboard.writeText(row.url)}
-                >
-                  复制
-                </Button>
-                <Button
-                  onClick={() => {
-                    void recruitingRequest(`share-links/${row.key}/revoke`, {
-                      method: 'POST',
-                    })
-                      .then(() => query.reload())
-                      .catch((e) => setError(e.message));
-                  }}
-                >
-                  撤销
-                </Button>
+              <td style={{ whiteSpace: 'nowrap' }}>
+                {new Date(row.createdAt).toLocaleString()}
+              </td>
+              <td style={{ width: 132 }}>
+                <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 8 }}>
+                  <Button
+                    variant="ghost"
+                    aria-label="预览分享"
+                    title="预览分享"
+                    onClick={() =>
+                      window.open(row.url, '_blank', 'noopener,noreferrer')
+                    }
+                  >
+                    <IconEye size={16} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    aria-label="复制链接"
+                    title="复制链接"
+                    disabled={Boolean(busy)}
+                    onClick={() =>
+                      void execute(row.key, async () => {
+                        await navigator.clipboard.writeText(row.url);
+                        setMessage('链接已复制');
+                      })
+                    }
+                  >
+                    <IconCopy size={16} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    aria-label="撤销分享"
+                    title="撤销分享"
+                    disabled={Boolean(busy)}
+                    onClick={() =>
+                      void execute(row.key, async () => {
+                        await recruitingRequest(
+                          `share-links/${row.key}/revoke`,
+                          { method: 'POST' },
+                        );
+                        query.reload();
+                        setMessage('分享已撤销');
+                      })
+                    }
+                  >
+                    <IconPlayerStop size={16} color="#d64545" fill="#d64545" />
+                  </Button>
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </StyledRecruitingTable>
       {!query.loading && !query.data?.length && <p>暂无分享链接</p>}
-      <p role="status">{error || query.error}</p>
+      {(message || query.error) && (
+        <p role="status">{message || query.error}</p>
+      )}
     </StyledRecruitingPanel>
   );
 };
