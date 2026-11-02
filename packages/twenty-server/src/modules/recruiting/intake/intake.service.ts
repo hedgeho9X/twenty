@@ -569,6 +569,10 @@ export class RecruitingIntakeService {
         [candidateId],
       );
     } catch (error) {
+      this.logger.error({
+        intakeId: record.id,
+        error: error instanceof Error ? error.message : 'Unknown intake error',
+      });
       // A revoked caller cannot persist even a failure using the authority captured before inference.
       context = await this.actors.resolve(data.actor);
       const message =
@@ -578,7 +582,10 @@ export class RecruitingIntakeService {
           : error instanceof Error &&
               error.message.includes('ChatGPT subscription is unavailable')
             ? '资料整理模型的账号连接已失效，请在AI设置更新连接后重试'
-            : '处理失败，请查看材料后重试';
+            : error instanceof Error &&
+                /ECONNREFUSED|Cannot connect to API/.test(error.message)
+              ? '无法连接资料整理模型，请检查模型代理或网络连接后重试'
+              : '处理失败，请查看材料后重试';
       await this.records.update(context, 'recruitingIntake', record.id, {
         state: 'NEEDS_REVIEW',
         error: message,
