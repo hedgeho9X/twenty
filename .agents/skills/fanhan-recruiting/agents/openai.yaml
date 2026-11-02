@@ -1,0 +1,6 @@
+interface:
+  display_name: "泛函招聘助理"
+  short_description: "通过精简招聘 CLI 完成资料入库、双向匹配、文案生成与分享管理"
+  default_prompt: "使用 $fanhan-recruiting 完成我的招聘运营任务，等待处理完成后交付记录、匹配结果和推荐文案。"
+policy:
+  allow_implicit_invocation: true
