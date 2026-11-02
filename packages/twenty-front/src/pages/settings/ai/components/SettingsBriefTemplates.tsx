@@ -1,3 +1,4 @@
+import { BriefTemplateEditor } from './BriefTemplateEditor';
 /** Opens one recipient template editor with protected context fields and local test output. */
 import { useEffect, useState } from 'react';
 import { Button, Textarea } from 'twenty-ui/primitives/input';
@@ -99,35 +100,13 @@ export const SettingsBriefTemplates = () => {
                 <div
                   style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
                 >
-                  {parts.map((part, index) => {
-                    const key = part.match(/^\$\{(.+)\}$/)?.[1];
-                    return key && fields[key] ? (
-                      <div key={index}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          title={JSON.stringify(fields[key].value, null, 2)}
-                        >
-                          {fields[key].label}
-                        </Button>
-                      </div>
-                    ) : (
-                      <Textarea
-                        key={index}
-                        aria-label={`模板文字 ${index + 1}`}
-                        value={part}
-                        rows={Math.min(6, Math.max(2, part.split('\n').length))}
-                        disabled={busy}
-                        onValueChange={(text) =>
-                          setParts((current) =>
-                            current.map((item, i) =>
-                              i === index ? text : item,
-                            ),
-                          )
-                        }
-                      />
-                    );
-                  })}
+                  <BriefTemplateEditor
+                    key={editing}
+                    value={parts.join('')}
+                    fields={fields}
+                    disabled={busy}
+                    onChange={(text) => setParts(split(text))}
+                  />
                   {output && (
                     <Textarea
                       aria-label="测试生成结果"

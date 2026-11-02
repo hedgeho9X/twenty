@@ -49,9 +49,16 @@ export class ChatgptSubscriptionController {
   /** Lists only independently managed account registrations. */
   @Get() async list(@Req() request: Request) {
     const ownerId = this.owner(request);
+    const connections = await this.store.list();
+    const active = this.account.activeConnectionId();
     return {
-      connections: await this.store.list(),
-      activeConnectionId: this.account.activeConnectionId(),
+      connections,
+      activeConnectionId: connections.some(
+        (connection) =>
+          connection.id === active && connection.status === 'READY',
+      )
+        ? active
+        : null,
       pendingAttempt: this.login.active(ownerId),
     };
   }
@@ -149,12 +156,14 @@ export class ChatgptSubscriptionController {
     return this.account.activate(z.uuid().parse(id));
   }
   /** Clears local use and reports remote renewable-session revocation separately. */
-  @Post(':id/disconnect') disconnect(
+  @Post(':id/disconnect') async disconnect(
     @Req() request: Request,
     @Param('id') id: string,
   ) {
     this.owner(request);
-    return this.store.disconnect(z.uuid().parse(id));
+    const result = await this.store.disconnect(z.uuid().parse(id));
+    await this.account.detach(id);
+    return result;
   }
   /** REST reuses the native full-admin predicate with explicit principal/impersonation checks. */
   private owner(request: Request) {

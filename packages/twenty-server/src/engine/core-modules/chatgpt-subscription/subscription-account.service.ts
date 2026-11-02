@@ -45,6 +45,20 @@ export class SubscriptionAccountService {
     private readonly store: SiwcStoreService,
   ) {}
 
+  /** Clears the selected provider binding after local credentials are removed. */
+  async detach(id: string) {
+    const providers = this.config.get('AI_PROVIDERS');
+    const next = Object.fromEntries(
+      Object.entries(providers).map(([key, value]) => [
+        key,
+        value.subscriptionConnectionId === id
+          ? { ...value, subscriptionConnectionId: undefined }
+          : value,
+      ]),
+    );
+    await this.config.set('AI_PROVIDERS', next);
+  }
+
   activeConnectionId() {
     return (
       Object.values(this.config.get('AI_PROVIDERS')).find(

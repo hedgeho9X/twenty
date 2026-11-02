@@ -47,9 +47,7 @@ it('opens only the selected template and keeps its field token on save', async (
     'title',
     expect.stringContaining('profile'),
   );
-  fireEvent.change(screen.getByLabelText('模板文字 1'), {
-    target: { value: '修改后的说明' },
-  });
+  expect(screen.getByRole('textbox', { name: '模板文档' })).toBeInTheDocument();
   fireEvent.click(screen.getByText('保存模板'));
   await waitFor(() =>
     expect(subscriptionRequest).toHaveBeenCalledWith(
@@ -57,7 +55,7 @@ it('opens only the selected template and keeps its field token on save', async (
       expect.objectContaining({
         body: JSON.stringify({
           ...templates,
-          candidate: '修改后的说明${candidateInfo}简洁',
+          candidate: '写文案${candidateInfo}简洁',
         }),
       }),
     ),

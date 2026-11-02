@@ -170,7 +170,10 @@ export const SettingsSubscriptionConnection = ({
       )}
       {!pending &&
         accounts?.connections
-          .filter((account) => account.protocol === 'codex')
+          .filter(
+            (account) =>
+              account.protocol === 'codex' && account.status !== 'SIGNED_OUT',
+          )
           .map((account) => (
             <StyledSubscriptionRow key={account.id}>
               <span>{account.label}</span>
@@ -199,7 +202,11 @@ export const SettingsSubscriptionConnection = ({
                   void subscriptionRequest(`/${account.id}/disconnect`, {
                     method: 'POST',
                   })
-                    .then(() => reload())
+                    .then(async () => {
+                      await reload();
+                      await onActivated();
+                      setNotice(t`已断开账号连接`);
+                    })
                     .catch((failure) => setError(failure.message))
                     .finally(() => setBusy(false));
                 }}
