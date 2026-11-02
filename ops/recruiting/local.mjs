@@ -201,7 +201,7 @@ if (
       ['dist/queue-worker/queue-worker.js'],
       {
         ...environment,
-        WORKER_ENABLED_QUEUES: 'ai-queue',
+        WORKER_ENABLED_QUEUES: 'ai-queue,ai-stream-queue',
         DISABLE_CRON_JOBS_REGISTRATION: 'true',
         DISABLE_WORKSPACE_CRON_JOBS_REGISTRATION: 'true',
       },
