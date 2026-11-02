@@ -1,3 +1,4 @@
+import { candidateFields } from './candidate-fields';
 /** Appends material references with native optimistic concurrency while replacing only generated career facts. */
 import {
   BadRequestException,
@@ -27,7 +28,14 @@ export class RecruitingCandidateRecordsService {
       for (let attempt = 0; attempt < 5; attempt++) {
         const result = await repository
           .createQueryBuilder('person')
-          .select(['id', 'updatedAt', 'contactRoles', 'candidateResumes'])
+          .select([
+            'id',
+            'updatedAt',
+            'contactRoles',
+            'candidateResumes',
+            'jobTitle',
+            'candidateEmploymentType',
+          ])
           .where({ id })
           .getRawAndEntities<RecruitingRecord>();
         const candidate = result.entities[0];
@@ -74,7 +82,11 @@ export class RecruitingCandidateRecordsService {
           rowLevelPermissionsApplied: false,
           kind: 'update',
           columnsToReturn: ['id'],
-          data: { recruitingProfile, candidateResumes: [...resumes, ...files] },
+          data: {
+            ...candidateFields(recruitingProfile, candidate),
+            recruitingProfile,
+            candidateResumes: [...resumes, ...files],
+          },
         });
         if (updated.length === 1) return;
       }

@@ -1,3 +1,4 @@
+import { candidateFields } from './candidate-fields';
 import { decodeMultipartFilename } from '../files/domain/multipart-filename';
 /** Archives unified submissions and coordinates resumable parsing, extraction and native record writes. */
 import {
@@ -128,7 +129,11 @@ export class RecruitingIntakeService {
       if (!(error instanceof NotFoundException) || existingId) throw error;
     }
     try {
-      await this.records.create(context, 'person', { ...input.createData, id });
+      await this.records.create(context, 'person', {
+        ...input.createData,
+        ...candidateFields(input.profile),
+        id,
+      });
       return id;
     } catch (error) {
       // A parallel submission can win the unique-email insertion after our first lookup.
