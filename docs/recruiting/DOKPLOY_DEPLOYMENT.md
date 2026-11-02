@@ -8,7 +8,7 @@
 
 1. 专属分支提交触发 Fanhan production。
 2. 招聘、订阅和前端回归，以及两端类型检查通过。
-3. CI 构建完整 Twenty 镜像，写入 commit 标签并推送 GHCR。
+3. CI 构建完整 Twenty 镜像，写入 commit 标签，经专用 SSH 导入账号传到服务器。
 4. CI 更新 Dokploy Compose 的精确镜像版本，再调用部署接口。
 5. 检查部署记录、容器健康、HTTPS、登录、鉴权接口和 Worker。
 
@@ -21,7 +21,7 @@ CI 不在应用启动时导入或覆盖数据库。Compose 默认禁用启动迁
 - files：原始简历、邮件附件等，共享给 API 和 Worker。
 - 密钥仅保存在 Dokploy 环境和 GitHub Actions Secrets，不写入仓库。
 
-新服务器必须配置 GHCR 只读拉取凭据。GitHub 环境 fanhan-production 需要 DOKPLOY_URL、DOKPLOY_API_KEY、DOKPLOY_COMPOSE_ID。模板不包含解析容器；启用解析前配置可用的外部解析接口。
+服务器不依赖 GHCR；镜像只允许通过受限 SSH 导入账号导入。GitHub 环境 fanhan-production 需要 FANHAN_DOKPLOY_URL、FANHAN_DOKPLOY_API_KEY、FANHAN_DOKPLOY_COMPOSE_ID，以及 FANHAN_DEPLOY_KEY、FANHAN_KNOWN_HOSTS。模板不包含解析容器；启用解析前配置可用的外部解析接口。
 
 ## 完成条件
 

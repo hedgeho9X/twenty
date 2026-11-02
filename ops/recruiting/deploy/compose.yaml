@@ -1,7 +1,8 @@
 # Production application stack. Dokploy owns routing; secrets live in its environment.
 services:
   server:
-    image: ghcr.io/zkkk-web/twenty:fanhan-bootstrap
+    image: fanhan/twenty:fanhan-bootstrap
+    pull_policy: never
     restart: unless-stopped
     environment: &application-environment
       NODE_ENV: production
@@ -42,7 +43,8 @@ services:
       - traefik.docker.network=dokploy-network
 
   worker:
-    image: ghcr.io/zkkk-web/twenty:fanhan-bootstrap
+    image: fanhan/twenty:fanhan-bootstrap
+    pull_policy: never
     command: [node, dist/queue-worker/queue-worker]
     restart: unless-stopped
     environment:
