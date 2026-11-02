@@ -332,6 +332,7 @@ export class RecruitingDraftsService {
                   source.context.direction === 'JOB_TO_CANDIDATES'
                   ? source.candidateIds
                   : [],
+                payload.input.matchRunId,
               ),
             };
             await update({ payload });

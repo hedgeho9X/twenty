@@ -47,13 +47,17 @@ const setup = () => {
         return true;
       },
       setAdd: async () => {},
+      setMembers: async () =>
+        [...tokens.keys()]
+          .filter((key) => key.startsWith('recruiting-share-meta:'))
+          .map((key) => key.split(':').pop()),
       del: async (key: string) => {
         tokens.delete(key);
       },
       setRemove: async () => 1,
     } as never,
   );
-  return { service, job, actors };
+  return { service, job, actors, records };
 };
 it('returns only the selected job public projection without needing the reader login', async () => {
   const { service } = setup();
@@ -88,4 +92,55 @@ it('deletes the public capability immediately on revocation', async () => {
   const token = new URL(url).pathname.split('/').pop()!;
   await service.revoke(context, token);
   await expect(service.view(token)).rejects.toThrow('已失效');
+});
+
+const candidateId = '44444444-4444-4444-8444-444444444444';
+const runId = '55555555-5555-4555-8555-555555555555';
+it('links the authenticated list to the matching subject without sharing that candidate publicly', async () => {
+  const { service, records, job } = setup();
+  records.one.mockImplementation(async (_context, kind) => {
+    if (kind === 'recruitingMatchRun')
+      return {
+        payload: {
+          input: { direction: 'CANDIDATE_TO_JOBS', subjectId: candidateId },
+          results: [{ jobId, candidateId }],
+        },
+      } as never;
+    if (kind === 'person')
+      return { name: { firstName: '测试', lastName: '候选人' } } as never;
+    return job as never;
+  });
+  const url = await service.create({} as never, [jobId], [], runId);
+  const rows = await service.list({} as never);
+  expect(rows[0]).toMatchObject({
+    subjectLabel: '测试 候选人',
+    matchRunId: runId,
+  });
+  expect(
+    (await service.view(new URL(url).pathname.split('/').pop()!)).candidates,
+  ).toEqual([]);
+});
+it('rejects a source match that does not contain the requested share', async () => {
+  const { service, records, job } = setup();
+  records.one.mockImplementation(async (_context, kind) =>
+    kind === 'recruitingMatchRun'
+      ? ({
+          payload: {
+            input: { direction: 'CANDIDATE_TO_JOBS', subjectId: candidateId },
+            results: [],
+          },
+        } as never)
+      : (job as never),
+  );
+  await expect(service.create({} as never, [jobId], [], runId)).rejects.toThrow(
+    '不属于',
+  );
+});
+it('keeps older shares readable without inventing a source match', async () => {
+  const { service } = setup();
+  await service.create({} as never, [jobId]);
+  expect((await service.list({} as never))[0]).toMatchObject({
+    subjectLabel: '工程师',
+    matchRunId: undefined,
+  });
 });

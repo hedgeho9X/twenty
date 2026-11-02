@@ -8,10 +8,12 @@ export const MatchShareActions = ({
   jobIds,
   candidateIds,
   currentUrl,
+  matchRunId,
 }: {
   jobIds: string[];
   candidateIds: string[];
   currentUrl?: string;
+  matchRunId: string;
 }) => {
   const [url, setUrl] = useState(currentUrl ?? '');
   const [busy, setBusy] = useState(false);
@@ -49,7 +51,7 @@ export const MatchShareActions = ({
                   'share-links',
                   {
                     method: 'POST',
-                    body: JSON.stringify({ jobIds, candidateIds }),
+                    body: JSON.stringify({ jobIds, candidateIds, matchRunId }),
                   },
                 );
                 setUrl(result.url);

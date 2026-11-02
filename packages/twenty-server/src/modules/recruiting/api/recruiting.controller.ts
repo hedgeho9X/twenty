@@ -105,6 +105,7 @@ export class RecruitingController {
       .object({
         jobIds: z.array(z.string().uuid()).max(10).default([]),
         candidateIds: z.array(z.string().uuid()).max(10).default([]),
+        matchRunId: z.string().uuid().optional(),
       })
       .parse(body);
     return this.shareLinks
@@ -112,6 +113,7 @@ export class RecruitingController {
         buildWorkspaceAuthContextFromRequest(request),
         value.jobIds,
         value.candidateIds,
+        value.matchRunId,
       )
       .then((url) => ({ url }));
   }

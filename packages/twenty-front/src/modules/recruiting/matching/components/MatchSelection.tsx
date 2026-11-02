@@ -238,6 +238,7 @@ export const MatchSelection = ({
         }}
       >{t`生成沟通文案`}</Button>
       <MatchShareActions
+        matchRunId={run.runId}
         currentUrl={draft?.jobPageUrl}
         jobIds={[
           ...new Set(

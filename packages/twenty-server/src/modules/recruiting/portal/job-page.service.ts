@@ -1,12 +1,13 @@
+/** Creates revocable public projections and authenticated match-source references. */
 import { randomBytes } from 'node:crypto';
 import { InjectCacheStorage } from 'src/engine/core-modules/cache-storage/decorators/cache-storage.decorator';
 import { CacheStorageService } from 'src/engine/core-modules/cache-storage/services/cache-storage.service';
 import { CacheStorageNamespace } from 'src/engine/core-modules/cache-storage/types/cache-storage-namespace.enum';
-/** Shares only selected live job descriptions, never candidate records or internal recruitment notes. */
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { sign, verify } from 'jsonwebtoken';
 import { z } from 'zod';
@@ -46,6 +47,7 @@ export class RecruitingJobPageService {
     context: WorkspaceAuthContext,
     jobIds: string[],
     candidateIds: string[] = [],
+    matchRunId?: string,
   ) {
     const ids = [...new Set(jobIds)];
     if (
@@ -63,6 +65,9 @@ export class RecruitingJobPageService {
       )
         throw new BadRequestException('请选择候选人');
     }
+    const source = matchRunId
+      ? await this.matchSource(context, matchRunId, ids, candidateIds)
+      : undefined;
     const scope = scopeSchema.parse({
       jobIds: ids,
       candidateIds: [...new Set(candidateIds)],
@@ -96,6 +101,7 @@ export class RecruitingJobPageService {
         jobIds: ids,
         candidateIds: scope.candidateIds,
         createdAt: new Date().toISOString(),
+        source,
         owner: this.owner(context),
       },
       7 * 24 * 60 * 60 * 1000,
@@ -122,6 +128,11 @@ export class RecruitingJobPageService {
           jobIds: string[];
           candidateIds: string[];
           createdAt: string;
+          source?: {
+            matchRunId: string;
+            subjectId: string;
+            subjectKind: string;
+          };
         }>(`recruiting-share-meta:${key}`),
       ),
     );
@@ -140,14 +151,92 @@ export class RecruitingJobPageService {
           return { name: person.name };
         }),
       );
+      const subject = row.source
+        ? await this.subject(context, row.source)
+        : undefined;
       result.push({
         ...row,
         jobs,
         candidates,
+        subjectLabel: subject
+          ? this.recordLabel(subject.name)
+          : this.recordLabel(candidates[0]?.name ?? jobs[0]?.name) ||
+            '分享资料',
+        matchRunId: subject ? row.source?.matchRunId : undefined,
         url: `${this.config.get('FRONTEND_URL').replace(/\/$/, '')}/r/${row.key}`,
       });
     }
     return result;
+  }
+
+  /** A removed source leaves an older share listable; other access failures still surface. */
+  private async subject(
+    context: WorkspaceAuthContext,
+    source: { subjectKind: string; subjectId: string },
+  ) {
+    try {
+      return await this.records.one(
+        context,
+        source.subjectKind,
+        source.subjectId,
+      );
+    } catch (error) {
+      if (error instanceof NotFoundException) return undefined;
+      throw error;
+    }
+  }
+
+  /** Accepts provenance only from a readable run containing the selected records. */
+  private async matchSource(
+    context: WorkspaceAuthContext,
+    matchRunId: string,
+    jobIds: string[],
+    candidateIds: string[],
+  ) {
+    const run = await this.records.one(
+      context,
+      'recruitingMatchRun',
+      matchRunId,
+    );
+    const payload = z
+      .object({
+        input: z.object({
+          direction: z.enum(['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES', 'PAIR']),
+          subjectId: z.string().uuid(),
+        }),
+        results: z.array(
+          z.object({
+            jobId: z.string().uuid(),
+            candidateId: z.string().uuid(),
+          }),
+        ),
+      })
+      .parse(run.payload);
+    const allowedJobs = new Set(payload.results.map((row) => row.jobId));
+    const allowedCandidates = new Set(
+      payload.results.map((row) => row.candidateId),
+    );
+    if (
+      jobIds.some((id) => !allowedJobs.has(id)) ||
+      candidateIds.some((id) => !allowedCandidates.has(id))
+    )
+      throw new BadRequestException('分享资料不属于此匹配结果');
+    return {
+      matchRunId,
+      subjectId: payload.input.subjectId,
+      subjectKind:
+        payload.input.direction === 'JOB_TO_CANDIDATES'
+          ? 'recruitmentJob'
+          : 'person',
+    };
+  }
+
+  /** Formats native composite names without exposing contact fields. */
+  private recordLabel(name: unknown): string {
+    if (typeof name === 'string') return name;
+    if (!name || typeof name !== 'object') return '';
+    const value = name as { firstName?: string; lastName?: string };
+    return [value.firstName, value.lastName].filter(Boolean).join(' ');
   }
 
   async revoke(context: WorkspaceAuthContext, key: string) {
