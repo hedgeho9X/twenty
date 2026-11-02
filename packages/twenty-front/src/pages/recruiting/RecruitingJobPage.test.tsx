@@ -1,5 +1,5 @@
 /** Verifies the public page reads a scoped link without sending CRM credentials. */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { RecruitingJobPage } from './RecruitingJobPage';
 
 jest.mock('react-router-dom', () => ({
@@ -38,7 +38,7 @@ it('shows company and full job text using an anonymous scoped request', async ()
   global.fetch = request;
   render(<RecruitingJobPage />);
   expect(await screen.findByText('负责开发与维护服务。')).toBeInTheDocument();
-  expect(screen.getByText('示例公司')).toBeInTheDocument();
+  expect(screen.getAllByText('示例公司')).toHaveLength(2);
   expect(screen.getByText('北京 · 全职 · 混合办公')).toBeInTheDocument();
   expect(request).toHaveBeenCalledWith(
     'http://localhost:23001/recruiting-job-pages',
@@ -47,5 +47,46 @@ it('shows company and full job text using an anonymous scoped request', async ()
       body: JSON.stringify({ token: 'scoped-token' }),
     }),
   );
+  global.fetch = originalFetch;
+});
+
+/** Ensures both directions use single-profile navigation rather than stacked full documents. */
+it('switches between candidates and jobs without showing every document at once', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      candidates: [
+        {
+          name: { firstName: '测试候选人' },
+          summary: '候选人的职业经历',
+          skills: ['Go'],
+          experience: [],
+          education: ['测试大学'],
+          expectedRoles: ['后端'],
+        },
+      ],
+      jobs: [
+        {
+          id: 'second',
+          title: '测试岗位',
+          company: '测试公司',
+          description: '岗位的完整正文',
+          locations: [],
+          employmentTypes: [],
+          workModes: [],
+          status: 'RECRUITING',
+        },
+      ],
+    }),
+  });
+  render(<RecruitingJobPage />);
+  expect(await screen.findByText('候选人的职业经历')).toBeInTheDocument();
+  expect(screen.queryByText('岗位的完整正文')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /下一个/ }));
+  expect(screen.getByText('岗位的完整正文')).toBeInTheDocument();
+  expect(screen.queryByText('候选人的职业经历')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /上一个/ }));
+  expect(screen.getByText('测试大学')).toBeInTheDocument();
   global.fetch = originalFetch;
 });

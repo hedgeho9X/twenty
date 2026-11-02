@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { t } from '@lingui/core/macro';
 import { REACT_APP_SERVER_BASE_URL } from '~/config';
+import { PublicProfileNavigator } from '@/recruiting/portal/components/PublicProfileNavigator';
 import {
   StyledRecruitingPanel,
-  StyledRecruitingStack,
   StyledRecruitingTitle,
   StyledRecruitingError,
   StyledRecruitingMuted,
@@ -88,7 +88,7 @@ export const RecruitingJobPage = () => {
     return () => abort.abort();
   }, [token]);
   return (
-    <main style={{ maxWidth: 880, margin: '0 auto', padding: 32 }}>
+    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}>
       <StyledRecruitingTitle>{t`推荐资料`}</StyledRecruitingTitle>
       {error && (
         <StyledRecruitingError role="alert">{error}</StyledRecruitingError>
@@ -96,40 +96,62 @@ export const RecruitingJobPage = () => {
       {!error && !data && (
         <StyledRecruitingMuted>{t`正在读取岗位…`}</StyledRecruitingMuted>
       )}
-      <StyledRecruitingStack>
-        {data?.candidates?.map((person, i) => (
-          <StyledRecruitingPanel key={i}>
-            <StyledRecruitingTitle>
-              {[person.name?.firstName, person.name?.lastName]
-                .filter(Boolean)
-                .join(' ')}
-            </StyledRecruitingTitle>
-            <p>{person.summary}</p>
-            <p>{person.skills?.join(' · ')}</p>
-            {person.experience?.map((line, j) => (
-              <p key={j}>{line}</p>
-            ))}
-          </StyledRecruitingPanel>
-        ))}
-        {data?.jobs.map((job) => (
-          <StyledRecruitingPanel key={job.id}>
-            <StyledRecruitingTitle>{job.title}</StyledRecruitingTitle>
-            <strong>{job.company}</strong>
-            <span>{job.status === 'RECRUITING' ? '在招' : '已停招'}</span>
-            <StyledRecruitingMuted>
-              {[
-                ...job.locations,
-                ...job.employmentTypes.map((value) => labels[value] ?? value),
-                ...job.workModes.map((value) => labels[value] ?? value),
-              ].join(' · ')}
-            </StyledRecruitingMuted>
-            <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8, margin: 0 }}>
-              {job.description}
-            </p>
-          </StyledRecruitingPanel>
-        ))}
-      </StyledRecruitingStack>
-      {data && !data.jobs.length && (
+      <PublicProfileNavigator
+        key={token}
+        items={[
+          ...(data?.candidates ?? []).map((person, i) => ({
+            key: `candidate-${i}`,
+            title: [person.name?.firstName, person.name?.lastName]
+              .filter(Boolean)
+              .join(' '),
+            subtitle: person.expectedRoles?.join(' · '),
+            content: (
+              <StyledRecruitingPanel>
+                <StyledRecruitingTitle>
+                  {[person.name?.firstName, person.name?.lastName]
+                    .filter(Boolean)
+                    .join(' ')}
+                </StyledRecruitingTitle>
+                <p>{person.summary}</p>
+                <p>{person.skills?.join(' · ')}</p>
+                {person.experience?.map((line, j) => (
+                  <p key={j}>{line}</p>
+                ))}
+                {person.education?.map((line, j) => (
+                  <p key={`education-${j}`}>{line}</p>
+                ))}
+              </StyledRecruitingPanel>
+            ),
+          })),
+          ...(data?.jobs ?? []).map((job) => ({
+            key: `job-${job.id}`,
+            title: job.title,
+            subtitle: job.company,
+            content: (
+              <StyledRecruitingPanel>
+                <StyledRecruitingTitle>{job.title}</StyledRecruitingTitle>
+                <strong>{job.company}</strong>
+                <span>{job.status === 'RECRUITING' ? '在招' : '已停招'}</span>
+                <StyledRecruitingMuted>
+                  {[
+                    ...job.locations,
+                    ...job.employmentTypes.map(
+                      (value) => labels[value] ?? value,
+                    ),
+                    ...job.workModes.map((value) => labels[value] ?? value),
+                  ].join(' · ')}
+                </StyledRecruitingMuted>
+                <p
+                  style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8, margin: 0 }}
+                >
+                  {job.description}
+                </p>
+              </StyledRecruitingPanel>
+            ),
+          })),
+        ]}
+      />
+      {data && !data.jobs.length && !data.candidates?.length && (
         <StyledRecruitingMuted>{t`这些岗位目前已下线，请联系招聘顾问了解最新机会。`}</StyledRecruitingMuted>
       )}
     </main>

@@ -2,7 +2,7 @@
 
 ## 目标
 
-在 150.158.164.85 的 Dokploy 部署 Twenty 前后端、Worker、PostgreSQL 和 Redis，访问域名为 recruiting.math77.cn。文件解析计算不部署在这台服务器。发布分支为 Zkkk-web/twenty 的 deploy/fanhan；保留旧环境及其数据。
+在 150.158.164.85 的 Dokploy 部署 Twenty 前后端、Worker、PostgreSQL 和 Redis，访问域名为 recruiting.math77.cn。文件解析计算不部署在这台服务器。发布分支为 hedgeho9X/twenty 的 deploy/fanhan；保留旧环境及其数据。
 
 ## 发布链路
 
