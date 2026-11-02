@@ -39,11 +39,11 @@ const Choice = styled.button`
   padding: 14px;
   text-align: left;
   &[aria-current='page'] {
-    background: ${({ theme }) => theme.background?.secondary ?? THEME_LIGHT.background.secondary};
-    border-color: ${({ theme }) => theme.border?.color?.medium ?? THEME_LIGHT.border.color.medium};
+    background: ${THEME_LIGHT.background.secondary};
+    border-color: ${THEME_LIGHT.border.color.medium};
   }
   &:hover {
-    background: ${({ theme }) => theme.background?.secondary ?? THEME_LIGHT.background.secondary};
+    background: ${THEME_LIGHT.background.secondary};
   }
   &:disabled {
     opacity: 0.4;
