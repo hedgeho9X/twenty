@@ -1,11 +1,13 @@
 # Production application stack. Dokploy owns routing; secrets live in its environment.
 services:
   server:
+    mem_limit: 1280m
     image: fanhan/twenty:fanhan-bootstrap
     pull_policy: never
     restart: unless-stopped
     environment: &application-environment
       NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=768
       NODE_PORT: 3000
       SERVER_URL: http://150.158.164.85
       FRONTEND_URL: http://150.158.164.85
@@ -48,6 +50,7 @@ services:
       - traefik.docker.network=dokploy-network
 
   worker:
+    mem_limit: 1024m
     image: fanhan/twenty:fanhan-bootstrap
     pull_policy: never
     command: [node, dist/queue-worker/queue-worker]
@@ -63,6 +66,7 @@ services:
         condition: service_healthy
 
   migrate:
+    mem_limit: 1536m
     image: fanhan/twenty:fanhan-bootstrap
     pull_policy: never
     user: '0'
@@ -78,6 +82,7 @@ services:
         condition: service_healthy
 
   db:
+    mem_limit: 640m
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
@@ -93,6 +98,7 @@ services:
       retries: 20
 
   redis:
+    mem_limit: 256m
     image: redis:7-alpine
     command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
     restart: unless-stopped
