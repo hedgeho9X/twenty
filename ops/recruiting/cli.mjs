@@ -4,6 +4,7 @@ import { basename, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { commandHelp, resolveCommand } from './cli-catalog.mjs';
 import { submitJobMaterials } from './cli-job-upload.mjs';
 
 /** Keeps task paths explicit and rejects unsupported kinds rather than silently selecting a different resource. */
@@ -50,9 +51,17 @@ export const createRecruitingClient = ({ baseUrl, token, fetcher = fetch }) => {
         authorization: `Bearer ${token}`,
       },
     });
-    const body = await response.json().catch(() => ({
-      message: `API returned an empty or invalid JSON body (${response.status})`,
-    }));
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      const error = new Error(
+        `API returned an empty or invalid JSON body (${response.status})`,
+      );
+      error.status = response.status;
+      error.code = 'INVALID_JSON';
+      throw error;
+    }
     if (!response.ok) {
       const error = new Error(
         (typeof body.message === 'string'
@@ -91,7 +100,8 @@ export const waitForRecruitingTask = async (
     );
     if (
       kind === 'intake'
-        ? ['COMPLETED', 'NEEDS_REVIEW'].includes(value.state)
+        ? value.state === 'NEEDS_REVIEW' ||
+          (value.state === 'COMPLETED' && value.matchingStatus !== 'PENDING')
         : !['UPLOADING', 'QUEUED', 'PROCESSING', 'EXPANDING'].includes(
             value.status,
           )
@@ -99,9 +109,12 @@ export const waitForRecruitingTask = async (
       return value;
     await sleep(intervalMs);
   }
-  throw new Error(
-    'Task is still pending after the wait limit; query its ID again',
+  const error = new Error(
+    'Task is still pending after the wait limit; resume with the returned task',
   );
+  error.code = 'TASK_TIMEOUT';
+  error.task = { kind, id };
+  throw error;
 };
 
 /** Prints stable JSON only; file bytes and credentials never become command-line arguments. */
@@ -137,41 +150,43 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       key: { type: 'string' },
       'batch-id': { type: 'string' },
       'items-file': { type: 'string' },
+      'data-file': { type: 'string' },
+      top: { type: 'string', default: '5' },
       targets: { type: 'string' },
       offset: { type: 'string', default: '0' },
       wait: { type: 'boolean', default: false },
       'timeout-ms': { type: 'string', default: '600000' },
       help: { type: 'boolean' },
+      version: { type: 'boolean' },
     },
   });
-  if (values.help || !positionals.length) {
+  if (values.version) {
     console.log(
-      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; mail import|select; match candidate|job|pair; draft matches|greeting|publication|edit; share create|list|revoke; jobs status; auth status; schema; portal create|list|link|revoke|status; activity note|list; task get|retry; queue list. queue list (unified by default; --kind for a legacy resource). --match-run-id ID --selected-ids ID,ID generates a selected-result draft. share create --job-ids ID,ID --candidate-ids ID,ID; share revoke --id KEY. Task kind: intake|match|draft|mail. Draft generation never sends or publishes. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
+      JSON.parse(
+        await readFile(new URL('./package.json', import.meta.url), 'utf8'),
+      ).version,
     );
     return;
   }
-  if (positionals[0] === 'schema') {
+  if (values.help || !positionals.length || positionals[0] === 'schema') {
+    const group = positionals[0] === 'schema' ? positionals[1] : positionals[0];
+    const action =
+      positionals[0] === 'schema' ? positionals[2] : positionals[1];
+    const help = commandHelp(group, action);
     console.log(
-      JSON.stringify({
-        commands: [
-          'auth status',
-          'companies search|create',
-          'subjects candidates|jobs',
-          'jobs submit|status',
-          'resume upload',
-          'task get|retry',
-          'queue list',
-          'match candidate|job|pair',
-          'draft matches|edit',
-          'share create|list|revoke',
-        ],
-        auth: 'TWENTY_API_KEY',
-        base: 'TWENTY_BASE_URL',
-        json: true,
-      }),
+      values.json || positionals[0] === 'schema'
+        ? JSON.stringify(help)
+        : Object.entries(help.commands)
+            .flatMap(([name, actions]) =>
+              Object.entries(actions).map(
+                ([verb, usage]) => `fanhan ${name} ${verb} ${usage}`,
+              ),
+            )
+            .join('\n'),
     );
     return;
   }
+  values['items-file'] ??= values['data-file'];
   const client = createRecruitingClient({
     baseUrl:
       values.base ??
@@ -180,7 +195,11 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       'http://localhost:23001',
     token: process.env.FANHAN_API_KEY ?? process.env.TWENTY_API_KEY,
   });
-  const [group, action] = positionals;
+  const [group, action] = resolveCommand(
+    positionals[0],
+    positionals[1],
+    values,
+  );
   const note = values['note-file']
     ? await readFile(resolve(values['note-file']), 'utf8')
     : values.note;
@@ -196,7 +215,15 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   let result;
   let taskKind;
   let taskId;
-  if (group === 'auth' && action === 'status') {
+  if (
+    action === 'get' &&
+    ['companies', 'candidates', 'jobs', 'draft'].includes(group)
+  ) {
+    const resource = group === 'draft' ? 'drafts' : group;
+    result = await client.request(
+      `/recruiting/${resource}/${encodeURIComponent(required('id'))}`,
+    );
+  } else if (group === 'auth' && action === 'status') {
     await client.request('/recruiting/candidates');
     result = { authenticated: true, canReadCandidates: true };
   } else if (group === 'share' && action === 'list')
@@ -220,10 +247,28 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       { method: 'PATCH', body: JSON.stringify({ jobStatus: status }) },
     );
   } else if (group === 'draft' && action === 'matches') {
+    let selectedIds = values['selected-ids']?.split(',').filter(Boolean);
+    if (!selectedIds) {
+      const run = await client.request(
+        `/recruiting/match-runs/${encodeURIComponent(required('match-run-id'))}`,
+      );
+      if (!run.complete)
+        throw new Error('Match is not complete; wait or retry its task first');
+      const top = Number(values.top);
+      if (!Number.isInteger(top) || top < 1 || top > 10)
+        throw new Error('--top must be an integer from 1 to 10');
+      selectedIds = run.top
+        .slice(0, top)
+        .map((pair) =>
+          run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateId : pair.jobId,
+        );
+      if (!selectedIds.length)
+        throw new Error('No matched results are available for a draft');
+    }
     result = await client.post('drafts', {
       kind: 'GREETING',
       matchRunId: required('match-run-id'),
-      selectedIds: required('selected-ids').split(',').filter(Boolean),
+      selectedIds,
       note,
       idempotencyKey: key,
     });
@@ -346,6 +391,8 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     taskKind = 'intake';
     taskId = result.intakeId;
   } else if (group === 'jobs' && action === 'submit') {
+    if (positionals[1] === 'import' && values.file?.length)
+      throw new Error('JD import uses --text-file, not uploaded documents');
     result = await submitJobMaterials({
       client,
       filenames: values.file ?? [],
@@ -403,16 +450,45 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       `/recruiting/${arguments_.some((arg) => arg === '--kind' || arg.startsWith('--kind=')) ? taskResource(values.kind) : 'processing-tasks'}?offset=${Number(values.offset) || 0}`,
     );
   else throw new Error('Unknown command; run with --help');
-  if (values.wait && taskId)
+  if (values.wait && taskId) {
+    const timeoutMs = Number(values['timeout-ms']);
+    if (!Number.isFinite(timeoutMs) || timeoutMs < 0)
+      throw new Error('--timeout-ms must be a nonnegative number');
+    const started = Date.now();
     result = await waitForRecruitingTask(client, taskKind, taskId, {
-      timeoutMs: Number(values['timeout-ms']),
+      timeoutMs,
     });
+    if (
+      taskKind === 'intake' &&
+      result.state === 'COMPLETED' &&
+      (result.matchingRunIds?.length ||
+        result.items?.some((item) => item.matchingRunId))
+    ) {
+      result.matchingResults = [];
+      for (const id of new Set([
+        ...(result.matchingRunIds ?? []),
+        ...(result.items ?? [])
+          .map((item) => item.matchingRunId)
+          .filter(Boolean),
+      ]))
+        result.matchingResults.push(
+          await waitForRecruitingTask(client, 'match', id, {
+            timeoutMs: Math.max(0, timeoutMs - (Date.now() - started)),
+          }),
+        );
+    }
+  }
   console.log(JSON.stringify(result));
   if (
     result.status === 'PARTIAL' ||
     result.status === 'FAILED' ||
     result.stage === 'FAILED' ||
-    result.stage === 'CONFIRMATION_PARTIAL'
+    result.stage === 'CONFIRMATION_PARTIAL' ||
+    result.state === 'NEEDS_REVIEW' ||
+    ['FAILED_TO_QUEUE', 'PARTIAL'].includes(result.matchingStatus) ||
+    result.matchingResults?.some((run) =>
+      ['FAILED', 'PARTIAL'].includes(run.status),
+    )
   )
     process.exitCode = 2;
 };
@@ -425,6 +501,8 @@ if (
     console.error(
       JSON.stringify({
         error: error.message,
+        code: error.code,
+        task: error.task,
         ...(error.status ? { status: error.status } : {}),
       }),
     );

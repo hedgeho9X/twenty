@@ -2,6 +2,13 @@
 /** Public CLI entrypoint; business operations remain in the shared authenticated client. */
 import { main } from './cli.mjs';
 main().catch((error) => {
-  console.error(JSON.stringify({ error: error.message, status: error.status }));
+  console.error(
+    JSON.stringify({
+      error: error.message,
+      status: error.status,
+      code: error.code,
+      task: error.task,
+    }),
+  );
   process.exitCode = 1;
 });

@@ -1,8 +1,17 @@
 {
   "name": "@hedgeho9/fanhan-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "bin": { "fanhan": "fanhan.mjs" },
-  "files": ["fanhan.mjs", "cli.mjs", "cli-job-upload.mjs"],
-  "engines": { "node": ">=22" }
+  "bin": {
+    "fanhan": "fanhan.mjs"
+  },
+  "files": [
+    "fanhan.mjs",
+    "cli.mjs",
+    "cli-job-upload.mjs",
+    "cli-catalog.mjs"
+  ],
+  "engines": {
+    "node": ">=22"
+  }
 }

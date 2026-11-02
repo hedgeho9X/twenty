@@ -148,3 +148,81 @@ test('unified queue, selected-result drafts and share revocation use the busines
     else process.env.FANHAN_API_KEY = oldKey;
   }
 });
+
+test('successful HTTP with empty JSON is not reported as success', async () => {
+  const client = createRecruitingClient({
+    baseUrl: 'http://localhost:23001',
+    token: 'test',
+    fetcher: async () => new Response(null, { status: 200 }),
+  });
+  await assert.rejects(
+    client.request('/recruiting/candidates'),
+    (error) => error.code === 'INVALID_JSON',
+  );
+});
+
+test('intake wait includes the matching enqueue checkpoint', async () => {
+  const states = [
+    { state: 'COMPLETED', matchingStatus: 'PENDING' },
+    { state: 'COMPLETED', matchingStatus: 'QUEUED', matchingRunIds: ['run'] },
+  ];
+  const result = await waitForRecruitingTask(
+    { request: async () => states.shift() },
+    'intake',
+    'input',
+    { sleep: async () => {} },
+  );
+  assert.equal(result.matchingStatus, 'QUEUED');
+});
+
+test('group help is compact and never needs credentials', async () => {
+  const { main } = await import('./cli.mjs');
+  const log = console.log;
+  let result;
+  console.log = (value) => {
+    result = JSON.parse(value);
+  };
+  try {
+    await main(['candidates', '--help', '--json']);
+    assert.deepEqual(Object.keys(result.commands), ['candidates']);
+    assert.ok(result.commands.candidates.upload);
+  } finally {
+    console.log = log;
+  }
+});
+
+test('public command aliases read a candidate and default the shortlist to five', async () => {
+  const { main } = await import('./cli.mjs');
+  const oldFetch = globalThis.fetch,
+    log = console.log,
+    key = process.env.FANHAN_API_KEY;
+  const requests = [];
+  console.log = () => {};
+  process.env.FANHAN_API_KEY = 'test';
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return Response.json(
+      url.endsWith('/match-runs/run')
+        ? {
+            complete: true,
+            direction: 'CANDIDATE_TO_JOBS',
+            top: Array.from({ length: 10 }, (_, i) => ({ jobId: `job-${i}` })),
+          }
+        : { draftId: 'draft' },
+    );
+  };
+  try {
+    await main(['candidates', 'get', '--id', 'person']);
+    assert.ok(requests[0].url.endsWith('/candidates/person'));
+    await main(['draft', 'generate', '--match-run-id', 'run', '--key', 'test']);
+    assert.equal(
+      JSON.parse(requests.at(-1).options.body).selectedIds.length,
+      5,
+    );
+  } finally {
+    globalThis.fetch = oldFetch;
+    console.log = log;
+    if (key === undefined) delete process.env.FANHAN_API_KEY;
+    else process.env.FANHAN_API_KEY = key;
+  }
+});
