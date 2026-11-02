@@ -1,3 +1,4 @@
+import { MatchShareActions } from '@/recruiting/shared/components/MatchShareActions';
 /** Selects up to ten ranked results and generates a persistent editable communication draft. */
 import { useEffect, useState } from 'react';
 import { t } from '@lingui/core/macro';
@@ -236,6 +237,27 @@ export const MatchSelection = ({
           void generate();
         }}
       >{t`生成沟通文案`}</Button>
+      <MatchShareActions
+        currentUrl={draft?.jobPageUrl}
+        jobIds={[
+          ...new Set(
+            pairs
+              .filter((pair) => selected.has(identifier(pair)))
+              .map((pair) => pair.jobId),
+          ),
+        ]}
+        candidateIds={
+          run.direction === 'JOB_TO_CANDIDATES'
+            ? [
+                ...new Set(
+                  pairs
+                    .filter((pair) => selected.has(identifier(pair)))
+                    .map((pair) => pair.candidateId),
+                ),
+              ]
+            : []
+        }
+      />
       {message && (
         <StyledRecruitingMuted role="status">{message}</StyledRecruitingMuted>
       )}

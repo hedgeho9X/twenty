@@ -159,3 +159,28 @@ it.each(['candidate', 'jobs', 'draft'] as const)(
     expect(registry.getModel).toHaveBeenCalledWith('chosen-feature-model');
   },
 );
+
+it('renders the selected editable template with serialized candidate data', async () => {
+  const { service } = setup();
+  jest
+    .mocked(generateText)
+    .mockResolvedValue({ output: {}, usage: {} } as never);
+  await service.draft(
+    'MATCH_BRIEF',
+    JSON.stringify({
+      direction: 'CANDIDATE_TO_JOBS',
+      candidates: [{ name: '合成甲' }],
+      jobs: [],
+      companies: [],
+      recommendations: [],
+    }),
+    '',
+    {
+      candidate: '<候选人信息>${candidateInfo}</候选人信息>',
+      company: '企业模板',
+    },
+  );
+  const request = jest.mocked(generateText).mock.calls[0][0];
+  expect(JSON.stringify(request.messages)).toContain('合成甲');
+  expect(JSON.stringify(request.messages)).not.toContain('${candidateInfo}');
+});

@@ -1,3 +1,4 @@
+import { SettingsBriefTemplates } from './SettingsBriefTemplates';
 import { SettingsSubscriptionConnection } from './SettingsSubscriptionConnection';
 import { useClientConfig } from '@/client-config/hooks/useClientConfig';
 import { TextInput } from '@/ui/input/components/TextInput';
@@ -199,6 +200,7 @@ export const SettingsRecruitingAiTab = ({
             )}
           </StyledSubscriptionPanel>
         )}
+        {kind === 'subscription' && <SettingsBriefTemplates />}
         {features.map((feature) => (
           <StyledSubscriptionPanel key={feature.id}>
             <strong>{feature.label}</strong>

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { RecruitingJobPage } from './RecruitingJobPage';
 
 jest.mock('react-router-dom', () => ({
+  useParams: () => ({}),
   useLocation: () => ({ hash: '#access=scoped-token' }),
 }));
 jest.mock('~/config', () => ({

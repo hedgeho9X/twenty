@@ -28,6 +28,7 @@ const setup = () => {
       kind === 'company' ? { name: '公司', secret: 'private' } : job,
     ),
   };
+  const tokens = new Map<string, string>();
   const service = new RecruitingJobPageService(
     {
       get: (key: string) =>
@@ -35,13 +36,29 @@ const setup = () => {
     } as never,
     actors as never,
     records as never,
+    {
+      set: async (key: string, value: string) => {
+        tokens.set(key, value);
+      },
+      get: async (key: string) => tokens.get(key),
+      setIfAbsent: async (key: string, value: string) => {
+        if (tokens.has(key)) return false;
+        tokens.set(key, value);
+        return true;
+      },
+      setAdd: async () => {},
+      del: async (key: string) => {
+        tokens.delete(key);
+      },
+      setRemove: async () => 1,
+    } as never,
   );
   return { service, job, actors };
 };
 it('returns only the selected job public projection without needing the reader login', async () => {
   const { service } = setup();
   const url = await service.create({} as never, [jobId]);
-  const token = new URLSearchParams(new URL(url).hash.slice(1)).get('access')!;
+  const token = new URL(url).pathname.split('/').pop()!;
   const page = await service.view(token);
   expect(page.jobs).toHaveLength(1);
   expect(page.jobs[0]).toMatchObject({
@@ -60,6 +77,15 @@ it('stops showing a job when it closes', async () => {
   const { service, job } = setup();
   const url = await service.create({} as never, [jobId]);
   job.jobStatus = 'CLOSED';
-  const token = new URLSearchParams(new URL(url).hash.slice(1)).get('access')!;
-  expect((await service.view(token)).jobs).toEqual([]);
+  const token = new URL(url).pathname.split('/').pop()!;
+  expect((await service.view(token)).jobs[0].status).toBe('CLOSED');
+});
+
+it('deletes the public capability immediately on revocation', async () => {
+  const { service } = setup();
+  const context = {} as never;
+  const url = await service.create(context, [jobId]);
+  const token = new URL(url).pathname.split('/').pop()!;
+  await service.revoke(context, token);
+  await expect(service.view(token)).rejects.toThrow('已失效');
 });

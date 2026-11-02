@@ -1,3 +1,4 @@
+import { ShareLinks } from '@/recruiting/shared/components/ShareLinks';
 /** Hosts recruiting operations inside the native authenticated Twenty workspace. */
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -24,9 +25,14 @@ export const RecruitingWorkspacePage = () => {
   const [queueOpen, setQueueOpen] = useState(false);
   const [hasNewTasks, setHasNewTasks] = useState(false);
   const requestedTab = params.get('tab') ?? 'resumes';
-  const tab = ['companies', 'resumes', 'matches', 'mail', 'manual'].includes(
-    requestedTab,
-  )
+  const tab = [
+    'companies',
+    'resumes',
+    'matches',
+    'mail',
+    'manual',
+    'shares',
+  ].includes(requestedTab)
     ? requestedTab
     : 'resumes';
   const companyJobsId = params.get('companyJobs');
@@ -70,6 +76,7 @@ export const RecruitingWorkspacePage = () => {
               <Tabs.Tab value="matches">{t`匹配结果`}</Tabs.Tab>
               <Tabs.Tab value="manual">{t`手动匹配`}</Tabs.Tab>
               <Tabs.Tab value="mail">{t`邮件列表`}</Tabs.Tab>
+              <Tabs.Tab value="shares">分享链接</Tabs.Tab>
               <Tabs.Indicator />
             </Tabs.List>
           </div>
@@ -130,6 +137,9 @@ export const RecruitingWorkspacePage = () => {
               key={params.get('runId') ?? 'list'}
               initialRunId={params.get('runId') ?? undefined}
             />
+          </Tabs.Panel>
+          <Tabs.Panel value="shares" keepMounted>
+            <ShareLinks active={tab === 'shares'} />
           </Tabs.Panel>
           <Tabs.Panel value="manual" keepMounted>
             <RecruitingManualMatch active={tab === 'manual'} />

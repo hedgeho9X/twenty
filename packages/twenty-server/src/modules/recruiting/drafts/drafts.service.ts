@@ -8,6 +8,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
@@ -77,6 +78,7 @@ type DraftPayload = {
 @Injectable()
 /** Shares one permission-aware implementation across HTTP, native tools and the queue. */
 export class RecruitingDraftsService {
+  private readonly logger = new Logger(RecruitingDraftsService.name);
   constructor(
     private readonly records: RecruitingRecordsService,
     private readonly actors: RecruitingActorService,
@@ -88,6 +90,29 @@ export class RecruitingDraftsService {
     @Optional() private readonly matching?: RecruitingMatchingService,
     @Optional() private readonly jobPages?: RecruitingJobPageService,
   ) {}
+
+  /** Tests unsaved templates against caller-supplied synthetic context without creating drafts or shares. */
+  async testTemplate(value: unknown) {
+    const input = z
+      .object({
+        templates: z.object({
+          candidate: z.string().max(20000),
+          company: z.string().max(20000),
+        }),
+        context: z.record(z.string(), z.unknown()),
+      })
+      .parse(value);
+    if (JSON.stringify(input.context).length > 30000)
+      throw new BadRequestException('测试数据过长');
+    return (
+      await this.extractor.draft(
+        'MATCH_BRIEF',
+        JSON.stringify(input.context),
+        '',
+        input.templates,
+      )
+    ).profile;
+  }
 
   /** Creates a durable draft before any model call and reuses an identical submission. */
   async submit(context: WorkspaceAuthContext, value: unknown) {
@@ -300,7 +325,14 @@ export class RecruitingDraftsService {
             const ids = 'jobIds' in source ? source.jobIds : [];
             payload = {
               ...payload,
-              jobPageUrl: await this.jobPages.create(context, ids),
+              jobPageUrl: await this.jobPages.create(
+                context,
+                ids,
+                'candidateIds' in source &&
+                  source.context.direction === 'JOB_TO_CANDIDATES'
+                  ? source.candidateIds
+                  : [],
+              ),
             };
             await update({ payload });
           }
@@ -334,12 +366,21 @@ export class RecruitingDraftsService {
             payload,
           });
         } catch (error) {
+          this.logger.error({
+            draftId: record.id,
+            error: error instanceof Error ? error.message : 'unknown',
+          });
           await update({
             status: 'FAILED',
             error:
               error instanceof ConflictException
                 ? '来源资料已更新，请重试生成'
-                : '草稿生成未完成，请检查模型配置或稍后重试',
+                : error instanceof Error &&
+                    /ECONNREFUSED|Cannot connect/.test(error.message)
+                  ? '无法连接文案模型，请检查模型代理和网络后重试'
+                  : error instanceof BadRequestException
+                    ? error.message
+                    : '草稿生成未完成，请检查模型配置或稍后重试',
             payload,
           });
         }
@@ -392,6 +433,10 @@ export class RecruitingDraftsService {
     return {
       label: `${run.subjectLabel} · 匹配沟通文案`,
       ...brief,
+      version: contentVersion({
+        source: brief.version,
+        templates: this.extractor.briefTemplateVersion?.(),
+      }),
       links: { candidateUrl: undefined, jobUrl: undefined },
     };
   }

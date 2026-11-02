@@ -1,3 +1,4 @@
+import { RecruitingJobPageService } from '../portal/job-page.service';
 import { decodeMultipartFilename } from '../files/domain/multipart-filename';
 import { ProcessingTasksService } from '../intake/processing-tasks.service';
 /** Exposes recruiting operations through the same authenticated workspace used by native APIs. */
@@ -67,6 +68,7 @@ import { isImpersonating } from 'src/engine/guards/utils/is-impersonating.util';
 /** Accepts identifiers from callers while preserving the native record permission checks. */
 export class RecruitingController {
   constructor(
+    private readonly shareLinks: RecruitingJobPageService,
     private readonly records: RecruitingRecordsService,
     private readonly directory: RecruitingDirectoryService,
     private readonly intakes: RecruitingIntakeService,
@@ -80,6 +82,39 @@ export class RecruitingController {
     private readonly activities: RecruitingActivityService,
     private readonly processingTasks: ProcessingTasksService,
   ) {}
+  @Post('brief-test') testBrief(@Body() input: unknown) {
+    return this.drafts.testTemplate(input);
+  }
+  @Get('share-links') listShares(@Req() request: Request) {
+    return this.shareLinks.list(buildWorkspaceAuthContextFromRequest(request));
+  }
+  @Post('share-links/:key/revoke') revokeShare(
+    @Req() request: Request,
+    @Param('key') key: string,
+  ) {
+    return this.shareLinks.revoke(
+      buildWorkspaceAuthContextFromRequest(request),
+      key,
+    );
+  }
+  @Post('share-links') createShare(
+    @Req() request: Request,
+    @Body() body: unknown,
+  ) {
+    const value = z
+      .object({
+        jobIds: z.array(z.string().uuid()).max(10).default([]),
+        candidateIds: z.array(z.string().uuid()).max(10).default([]),
+      })
+      .parse(body);
+    return this.shareLinks
+      .create(
+        buildWorkspaceAuthContextFromRequest(request),
+        value.jobIds,
+        value.candidateIds,
+      )
+      .then((url) => ({ url }));
+  }
   /** Returns one task timeline across material ingestion and matching. */
   @Get('processing-tasks')
   processingTaskList(

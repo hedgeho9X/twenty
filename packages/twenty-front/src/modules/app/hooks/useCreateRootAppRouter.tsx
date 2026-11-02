@@ -42,6 +42,14 @@ const createRootAppRouter = () =>
               <RecruitingJobPage />
             </BaseThemeProvider>
           }
+        />{' '}
+        <Route
+          path="/s/:token"
+          element={
+            <BaseThemeProvider>
+              <RecruitingJobPage />
+            </BaseThemeProvider>
+          }
         />
         <Route
           path="/candidate-portal"

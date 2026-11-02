@@ -2157,6 +2157,14 @@ export class ConfigVariables {
 
   @ConfigVariablesMetadata({
     group: ConfigVariablesGroup.LLM,
+    description: 'Recruiting candidate and company writing templates',
+    type: ConfigVariableType.JSON,
+  })
+  @IsOptional()
+  RECRUITING_BRIEF_TEMPLATES: Record<string, string> = {};
+
+  @ConfigVariablesMetadata({
+    group: ConfigVariablesGroup.LLM,
     description: 'Jev price in USD per million input tokens',
     type: ConfigVariableType.NUMBER,
   })

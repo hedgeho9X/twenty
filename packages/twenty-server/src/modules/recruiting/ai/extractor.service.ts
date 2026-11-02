@@ -1,3 +1,4 @@
+import { DEFAULT_BRIEF_TEMPLATES } from '../drafts/domain/brief-templates';
 import { MATCH_BRIEF_INSTRUCTIONS } from '../drafts/domain/match-brief';
 import {
   AiFeatureModelsService,
@@ -46,12 +47,43 @@ export class RecruitingExtractorService {
     @Optional() private readonly features?: AiFeatureModelsService,
   ) {}
 
+  /** Makes configured prompt edits invalidate previously generated source snapshots. */
+  briefTemplateVersion() {
+    return JSON.stringify(
+      this.features?.briefTemplates?.() ?? DEFAULT_BRIEF_TEMPLATES,
+    );
+  }
+
   /** Generates editable text only; this method has no transport, publishing or contact-state side effects. */
   async draft(
     kind: 'GREETING' | 'JOB_PUBLICATION' | 'MATCH_BRIEF',
     context: string,
     note: string,
+    templateOverride?: { candidate: string; company: string },
   ) {
+    if (kind === 'MATCH_BRIEF') {
+      const data = context ? JSON.parse(context) : {};
+      const templates =
+        templateOverride ??
+        this.features?.briefTemplates?.() ??
+        DEFAULT_BRIEF_TEMPLATES;
+      let rendered =
+        data.direction === 'JOB_TO_CANDIDATES'
+          ? templates.company
+          : templates.candidate;
+      const values: Record<string, string> = {
+        candidateInfo: JSON.stringify(data.candidates ?? []),
+        jobInfo: JSON.stringify(data.jobs ?? []),
+        companyInfo: JSON.stringify(data.companies ?? []),
+        recommendations: JSON.stringify(data.recommendations ?? []),
+        jobPageUrl: data.jobPageUrl ?? '',
+      };
+      rendered = rendered.replace(
+        /\$\{(candidateInfo|jobInfo|companyInfo|recommendations|jobPageUrl)\}/g,
+        (_match, key: string) => values[key],
+      );
+      context = rendered;
+    }
     return this.generate(
       z.object({
         title: z.string(),

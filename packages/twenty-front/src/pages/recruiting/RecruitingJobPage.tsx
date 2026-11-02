@@ -1,6 +1,6 @@
 /** Public read-only job introductions loaded with a scoped URL-fragment capability, without a CRM login. */
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { t } from '@lingui/core/macro';
 import { REACT_APP_SERVER_BASE_URL } from '~/config';
 import {
@@ -12,7 +12,16 @@ import {
 } from '@/recruiting/shared/styles';
 
 type JobPage = {
+  candidates?: {
+    name: { firstName?: string; lastName?: string };
+    summary: string;
+    skills: string[];
+    experience: string[];
+    education: string[];
+    expectedRoles: string[];
+  }[];
   jobs: {
+    status?: string;
     id: string;
     title: string;
     company: string;
@@ -34,7 +43,9 @@ const labels: Record<string, string> = {
 /** Renders the selected job descriptions without loading the authenticated workspace. */
 export const RecruitingJobPage = () => {
   const location = useLocation();
-  const token = new URLSearchParams(location.hash.slice(1)).get('access');
+  const params = useParams();
+  const token =
+    params.token ?? new URLSearchParams(location.hash.slice(1)).get('access');
   const [data, setData] = useState<JobPage>();
   const [error, setError] = useState('');
   useEffect(() => {
@@ -78,7 +89,7 @@ export const RecruitingJobPage = () => {
   }, [token]);
   return (
     <main style={{ maxWidth: 880, margin: '0 auto', padding: 32 }}>
-      <StyledRecruitingTitle>{t`为你推荐的岗位`}</StyledRecruitingTitle>
+      <StyledRecruitingTitle>{t`推荐资料`}</StyledRecruitingTitle>
       {error && (
         <StyledRecruitingError role="alert">{error}</StyledRecruitingError>
       )}
@@ -86,10 +97,25 @@ export const RecruitingJobPage = () => {
         <StyledRecruitingMuted>{t`正在读取岗位…`}</StyledRecruitingMuted>
       )}
       <StyledRecruitingStack>
+        {data?.candidates?.map((person, i) => (
+          <StyledRecruitingPanel key={i}>
+            <StyledRecruitingTitle>
+              {[person.name?.firstName, person.name?.lastName]
+                .filter(Boolean)
+                .join(' ')}
+            </StyledRecruitingTitle>
+            <p>{person.summary}</p>
+            <p>{person.skills?.join(' · ')}</p>
+            {person.experience?.map((line, j) => (
+              <p key={j}>{line}</p>
+            ))}
+          </StyledRecruitingPanel>
+        ))}
         {data?.jobs.map((job) => (
           <StyledRecruitingPanel key={job.id}>
             <StyledRecruitingTitle>{job.title}</StyledRecruitingTitle>
             <strong>{job.company}</strong>
+            <span>{job.status === 'RECRUITING' ? '在招' : '已停招'}</span>
             <StyledRecruitingMuted>
               {[
                 ...job.locations,

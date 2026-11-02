@@ -65,6 +65,17 @@ export class ChatgptSubscriptionController {
     this.owner(request);
     return this.account.syncModels();
   }
+  @Get('brief-templates') briefTemplates(@Req() request: Request) {
+    this.owner(request);
+    return this.features.briefTemplates();
+  }
+  @Post('brief-templates') saveBriefTemplates(
+    @Req() request: Request,
+    @Body() input: unknown,
+  ) {
+    this.owner(request);
+    return this.features.saveBriefTemplates(input);
+  }
   @Get('features') featureList(@Req() request: Request) {
     this.owner(request);
     return this.features.list();

@@ -1,3 +1,4 @@
+import { DEFAULT_BRIEF_TEMPLATES } from 'src/modules/recruiting/drafts/domain/brief-templates';
 import { experimental_evaluate as evaluate } from 'ai';
 import { SdkProviderFactoryService } from './sdk-provider-factory.service';
 import { z } from 'zod';
@@ -23,6 +24,25 @@ export class AiFeatureModelsService {
     private readonly providers: ProviderConfigService,
     private readonly factory: SdkProviderFactoryService,
   ) {}
+
+  /** Returns both editable templates with defaults for an unconfigured instance. */
+  briefTemplates() {
+    return {
+      ...DEFAULT_BRIEF_TEMPLATES,
+      ...this.config.get('RECRUITING_BRIEF_TEMPLATES'),
+    };
+  }
+  async saveBriefTemplates(input: unknown) {
+    const value = z
+      .object({
+        candidate: z.string().min(1).max(20000),
+        company: z.string().min(1).max(20000),
+      })
+      .strict()
+      .parse(input);
+    await this.config.set('RECRUITING_BRIEF_TEMPLATES', value);
+    return this.briefTemplates();
+  }
 
   /** Resolves settings for every new operation; existing job checkpoints retain their generated output. */
   resolve(id: AiFeatureId): string {

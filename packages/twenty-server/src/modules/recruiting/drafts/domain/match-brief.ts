@@ -81,6 +81,7 @@ export const buildMatchBrief = async (
   return {
     context,
     jobIds: [...jobs.keys()],
+    candidateIds: [...candidates.keys()],
     version: contentVersion({
       context,
       policy: MATCH_BRIEF_VERSION,
