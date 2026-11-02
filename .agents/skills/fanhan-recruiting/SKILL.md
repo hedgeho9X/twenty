@@ -12,7 +12,7 @@ description: 通过 fanhan CLI 完成泛函招聘运营：公司/JD录入、简�
 ## 按任务加载
 
 - 用 `fanhan <组名> --help --json` 只读取当前需要的命令；`fanhan schema --json` 是完整的小型业务目录。
-- 入库：查公司、必要时创建 → `jobs import --company-id ID --text-file JD.txt --key KEY --wait`；简历用 `candidates upload --file 简历 --note-file 说明 --key KEY --wait`。
+- 入库：查公司、必要时创建 → `jobs import --company-id ID --employment-type full_time --text-file JD.txt --key KEY --wait`；简历用 `candidates upload --employment-type full_time --file 简历 --note-file 说明 --key KEY --wait`。
 - 匹配：`match candidate --id ID --wait` 或 `match job --id ID --wait`；`--targets ID,ID`限定池。指定组合用 `match pair`。最多十项，默认选前五；用户明确选择优先。
 - 文案：`draft generate --match-run-id ID --top 5 --key KEY --wait`；明确选择用`--selected-ids`。结果中的 `jobPageUrl` 已可分享，不重复创建同一分享。编辑用 `draft edit --id ID --data-file draft.json`，文件含 title/body。
 - 分享：`share create`接受`--job-ids`和`--candidate-ids`；`share list`找已创建链接；撤销用`share revoke --id`。链接本身是访问凭据，只交付给用户或任务指定接收者。
@@ -27,3 +27,5 @@ description: 通过 fanhan CLI 完成泛函招聘运营：公司/JD录入、简�
 输出简短交付清单：对象ID、处理结果、匹配覆盖、文案/分享链接、仍未完成的具体项。不得把匹配分数当录用概率，不承诺未验证的资格。发送消息不是CLI能力，不声称已联系候选人或公司。
 
 若需要给一个通用 Agent 配置完整角色，使用 [招聘助理角色](references/agent-role.md)。该角色只依赖终端执行和本 Skill，不需要几十个 MCP 工具。
+
+同一候选人最多5份文件，重复传 `--file` 合并为一次处理；不同候选人分别提交。简历与每条JD都必须通过 `--employment-type full_time|internship` 指定正式或实习，不能靠模型猜测替代提交者选择。

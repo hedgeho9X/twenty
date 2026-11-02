@@ -13,14 +13,15 @@ export const COMMANDS = {
   jobs: {
     list: '[--company-id ID] [--query 关键词]',
     get: '--id ID；读取岗位',
-    import: '--company-id ID --text-file JD.txt --key 请求标识 [--wait]',
+    import:
+      '--company-id ID --employment-type full_time|internship --text-file JD.txt --key 请求标识 [--wait]',
     status: '--id ID --status RECRUITING|CLOSED|PAUSED',
   },
   candidates: {
     list: '[--query 关键词]',
     get: '--id ID；读取解析资料',
     upload:
-      '--file 简历 [--note-file 说明] [--candidate-id ID] --key 请求标识 [--wait]',
+      '--employment-type full_time|internship --file 简历 [--file 补充材料，合计最多5份] [--note-file 说明] [--candidate-id ID] --key 请求标识 [--wait]',
   },
   tasks: {
     list: '[--offset N]；统一处理队列',

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button, Field, Input, Textarea } from 'twenty-ui/primitives/input';
+import { Select } from '@/ui/input/components/Select';
 import { IconPlus } from 'twenty-ui/icon';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/shared/api/request';
@@ -25,6 +26,7 @@ import {
 type JobTextEntry = {
   key: string;
   text: string;
+  employmentType: string;
   attempted?: boolean;
   companyId?: string;
   receipt?: RecruitingIntake;
@@ -34,6 +36,7 @@ type JobTextEntry = {
 const newEntry = (): JobTextEntry => ({
   key: crypto.randomUUID(),
   text: '',
+  employmentType: '',
 });
 
 /** Submission receipts stay in the input step; there is no mandatory preview or confirmation screen. */
@@ -124,6 +127,10 @@ export const RecruitingCompanyJobs = ({
   /** Sends one immutable request per JD so partial network failures never resubmit successful entries. */
   const submit = async () => {
     if (!chosen || busy || !pending.length) return;
+    if (pending.some((entry) => !entry.employmentType)) {
+      setError(t`请为每条JD选择正式或实习`);
+      return;
+    }
     setBusy(true);
     setError('');
     for (const entry of pending) {
@@ -137,6 +144,7 @@ export const RecruitingCompanyJobs = ({
             body: JSON.stringify({
               companyId,
               text: entry.text,
+              employmentType: entry.employmentType,
               source: 'manual',
               batchId,
               idempotencyKey: entry.key,
@@ -308,6 +316,21 @@ export const RecruitingCompanyJobs = ({
                     >{t`移除`}</Button>
                   )}
                 </StyledRecruitingRow>
+                <Select
+                  dropdownId={`job-employment-${entry.key}`}
+                  label={t`招聘类型（必选）`}
+                  value={entry.employmentType}
+                  options={[
+                    { value: '', label: t`请选择` },
+                    { value: 'full_time', label: t`正式` },
+                    { value: 'internship', label: t`实习` },
+                  ]}
+                  disabled={busy || entry.attempted}
+                  onChange={(employmentType) =>
+                    update(entry.key, { employmentType })
+                  }
+                  fullWidth
+                />
                 <Field.Root>
                   <Field.Label>{t`岗位描述`}</Field.Label>
                   <Textarea

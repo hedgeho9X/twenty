@@ -28,7 +28,34 @@ jest.mock('twenty-ui/icon', () => ({
   IconPlus: () => null,
   IconUpload: () => null,
 }));
-jest.mock('@/ui/input/components/Select', () => ({ Select: () => null }));
+jest.mock('@/ui/input/components/Select', () => ({
+  Select: ({
+    label,
+    value,
+    onChange,
+    options,
+    disabled,
+  }: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    options: { value: string; label: string }[];
+    disabled?: boolean;
+  }) => (
+    <select
+      aria-label={label}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  ),
+}));
 jest.mock('twenty-ui/primitives/input', () => ({
   Button: ({
     children,
@@ -124,6 +151,12 @@ it('uses two text-only steps, queues every JD independently, and retries only th
   fireEvent.change(screen.getByRole('textbox', { name: '岗位描述 2' }), {
     target: { value: '第二份完整 JD' },
   });
+  screen
+    .getAllByRole('combobox', { name: '招聘类型（必选）' })
+    .forEach((select) => {
+      if (!(select as HTMLSelectElement).disabled)
+        fireEvent.change(select, { target: { value: 'full_time' } });
+    });
   fireEvent.click(screen.getByRole('button', { name: '提交到队列' }));
   await screen.findByText('temporary failure');
   expect(screen.getByText('已加入队列')).toBeInTheDocument();
@@ -142,6 +175,12 @@ it('uses two text-only steps, queues every JD independently, and retries only th
   expect(second.text).toBe('第二份完整 JD');
   expect(first.batchId).toBe(second.batchId);
   expect(first.idempotencyKey).not.toBe(second.idempotencyKey);
+  screen
+    .getAllByRole('combobox', { name: '招聘类型（必选）' })
+    .forEach((select) => {
+      if (!(select as HTMLSelectElement).disabled)
+        fireEvent.change(select, { target: { value: 'full_time' } });
+    });
   fireEvent.click(screen.getByRole('button', { name: '提交到队列' }));
   await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(2));
   const retried = JSON.parse(

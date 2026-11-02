@@ -149,6 +149,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       note: { type: 'string' },
       'note-file': { type: 'string' },
       'company-id': { type: 'string' },
+      'employment-type': { type: 'string' },
       'candidate-id': { type: 'string' },
       'job-id': { type: 'string' },
       id: { type: 'string' },
@@ -414,17 +415,21 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       JSON.parse(await readFile(resolve(required('items-file')), 'utf8')),
     );
   else if (group === 'resume' && action === 'upload') {
-    if (values.file?.length !== 1)
-      throw new Error(
-        'resume upload takes one file; use one invocation per candidate',
-      );
-    const filePath = resolve(values.file[0]);
+    if (!values.file?.length || values.file.length > 5)
+      throw new Error('Upload 1 to 5 files for the same candidate');
+    const employmentType = required('employment-type');
+    if (!['full_time', 'internship'].includes(employmentType))
+      throw new Error('Use --employment-type full_time|internship');
     const form = new FormData();
-    form.append(
-      'file',
-      new Blob([await readFile(filePath)]),
-      basename(filePath),
-    );
+    form.append('employmentType', employmentType);
+    for (const filename of values.file) {
+      const filePath = resolve(filename);
+      form.append(
+        'file',
+        new Blob([await readFile(filePath)]),
+        basename(filePath),
+      );
+    }
     if (note !== undefined) form.append('note', note);
     if (values['candidate-id'])
       form.append('candidateId', values['candidate-id']);
@@ -439,6 +444,9 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   } else if (group === 'jobs' && action === 'submit') {
     if (positionals[1] === 'import' && values.file?.length)
       throw new Error('JD import uses --text-file, not uploaded documents');
+    const employmentType = required('employment-type');
+    if (!['full_time', 'internship'].includes(employmentType))
+      throw new Error('Use --employment-type full_time|internship');
     result = await submitJobMaterials({
       client,
       filenames: values.file ?? [],
@@ -447,6 +455,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       persistent: Boolean(values.key),
       request: {
         companyId: required('company-id'),
+        employmentType,
         text,
         note,
         source: 'api',
