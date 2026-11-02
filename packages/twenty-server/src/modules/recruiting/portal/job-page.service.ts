@@ -111,10 +111,14 @@ export class RecruitingJobPageService {
     ]);
     return `${this.config.get('FRONTEND_URL').replace(/\/$/, '')}/r/${key}`;
   }
-  /** Indexes links by their creator; revocation deletes the resolving token immediately. */
+  /** Shares business links within one workspace while retaining the publishing actor for public access checks. */
   private owner(context: WorkspaceAuthContext) {
-    const actor = this.actors.capture(context);
-    return `${actor.workspaceId}:${actor.userWorkspaceId ?? actor.apiKeyId ?? actor.applicationId}`;
+    return this.actors.capture(context).workspaceId;
+  }
+  /** Existing actor-scoped links remain constrained to their original workspace. */
+  private belongsToWorkspace(owner: string, context: WorkspaceAuthContext) {
+    const workspace = this.owner(context);
+    return owner === workspace || owner.startsWith(`${workspace}:`);
   }
   async list(context: WorkspaceAuthContext) {
     const keys = await this.links.setMembers(
@@ -138,7 +142,7 @@ export class RecruitingJobPageService {
     );
     const result = [];
     for (const row of rows) {
-      if (!row || row.owner !== this.owner(context)) continue;
+      if (!row || !this.belongsToWorkspace(row.owner, context)) continue;
       const jobs = await Promise.all(
         row.jobIds.map(async (id) => {
           const job = await this.records.one(context, 'recruitmentJob', id);
@@ -240,11 +244,17 @@ export class RecruitingJobPageService {
   }
 
   async revoke(context: WorkspaceAuthContext, key: string) {
-    const meta = await this.links.get<{ owner: string }>(
-      `recruiting-share-meta:${key}`,
-    );
-    if (!meta || meta.owner !== this.owner(context))
+    const meta = await this.links.get<{
+      owner: string;
+      jobIds: string[];
+      candidateIds: string[];
+    }>(`recruiting-share-meta:${key}`);
+    if (!meta || !this.belongsToWorkspace(meta.owner, context))
       throw new ForbiddenException('无权撤销此链接');
+    for (const id of meta.jobIds)
+      await this.records.one(context, 'recruitmentJob', id);
+    for (const id of meta.candidateIds)
+      await this.records.one(context, 'person', id);
     await this.links.del(`recruiting-job-page:${key}`);
     await this.links.del(`recruiting-share-meta:${key}`);
     await this.links.setRemove(

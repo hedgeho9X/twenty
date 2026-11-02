@@ -144,3 +144,28 @@ it('keeps older shares readable without inventing a source match', async () => {
     matchRunId: undefined,
   });
 });
+
+/** Multiple operators collaborate through one workspace without crossing tenant boundaries. */
+it('lets another workspace operator list and revoke a share', async () => {
+  const { service, actors } = setup();
+  const url = await service.create({} as never, [jobId]);
+  actors.capture.mockReturnValue({
+    ...actor,
+    userWorkspaceId: '66666666-6666-4666-8666-666666666666',
+  });
+  expect(await service.list({} as never)).toHaveLength(1);
+  await service.revoke({} as never, new URL(url).pathname.split('/').pop()!);
+  expect(await service.list({} as never)).toHaveLength(0);
+});
+it('never grants another workspace access to shared links', async () => {
+  const { service, actors } = setup();
+  const url = await service.create({} as never, [jobId]);
+  actors.capture.mockReturnValue({
+    ...actor,
+    workspaceId: '77777777-7777-4777-8777-777777777777',
+  });
+  expect(await service.list({} as never)).toHaveLength(0);
+  await expect(
+    service.revoke({} as never, new URL(url).pathname.split('/').pop()!),
+  ).rejects.toThrow('无权');
+});
