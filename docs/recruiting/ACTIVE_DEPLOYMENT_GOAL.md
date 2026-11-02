@@ -1,5 +1,12 @@
 # 完成泛函招聘系统在腾讯云 Dokploy 的自动部署与验收
 
+## 后续补充交付要求
+- 最后由主 Agent 实际调用 CLI 并在页面操作验收；通过后只删除自己创建的测试数据，保留原生产资料。
+- CLI 和 skill 发布到自有公开 GitHub Release，提供可下载产物与校验文件。
+- API Key 配置页可复制 Agent 接入提示词，包含服务地址、CLI/skill 下载地址和认证步骤。
+- 核实多个 API Key 和工作区权限行为，不假定每个新账号都有管理权限。
+- 用户要求后续不再使用子 Agent，主 Agent 直接完成剩余工作。
+
 ## 部署目标
 - 使用现有腾讯云服务器 ubuntu@150.158.164.85，保留并配置好 Dokploy。
 - 使用自有仓库 hedgeho9X/twenty 的 deploy/fanhan 专属分支进行自动部署，不再以 Zkkk-web/twenty 为发布源。

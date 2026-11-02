@@ -1,4 +1,5 @@
 import { SettingsPageContainer } from '@/settings/components/SettingsPageContainer';
+import { RecruitingAgentSetup } from '@/recruiting/shared/components/AgentSetup';
 import { SettingsSkeletonLoader } from '@/settings/components/SettingsSkeletonLoader';
 import { SettingsPageLayout } from '@/settings/components/layout/SettingsPageLayout';
 import { ApiKeyInput } from '@/settings/developers/components/ApiKeyInput';
@@ -273,6 +274,7 @@ export const SettingsDevelopersApiKeyDetail = () => {
           ]}
         >
           <SettingsPageContainer>
+            <RecruitingAgentSetup apiKey={apiKeyToken ?? undefined} />
             <Section.Root>
               {apiKeyToken ? (
                 <>
@@ -280,7 +282,7 @@ export const SettingsDevelopersApiKeyDetail = () => {
                     title={t`API Key`}
                     description={t`Copy this key as it will not be visible again`}
                   />
-                  <ApiKeyInput apiKey={apiKeyToken} />
+                  <ApiKeyInput apiKey={apiKeyToken ?? undefined} />
                 </>
               ) : (
                 <>
