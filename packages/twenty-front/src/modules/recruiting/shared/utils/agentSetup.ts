@@ -23,6 +23,7 @@ export const copyFanhanAgentPrompt = async (text: string) => {
 export const buildFanhanAgentPrompt = (baseUrl: string, apiKey?: string) =>
   `请作为泛函招聘助理，使用 fanhan CLI 和配套 skill 完成招聘运营任务。
 服务地址：${baseUrl}
+${baseUrl.startsWith('http:') ? '此入口使用 HTTP：运行 CLI 时设置 FANHAN_ALLOW_HTTP=1；切换 HTTPS 后取消该设置。' : ''}
 API Key：${apiKey || '请向我索取已有 API Key；不要重新生成或撤销其他 Key。'}
 
 CLI 下载：${FANHAN_RELEASE_URL}/fanhan-cli.tgz

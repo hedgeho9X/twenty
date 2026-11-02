@@ -5,6 +5,27 @@ import { createRecruitingClient, waitForRecruitingTask } from './cli.mjs';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { apiOrigin } from './cli-auth.mjs';
+
+test('remote HTTP requires explicit opt-in and still rejects embedded credentials', () => {
+  const original = process.env.FANHAN_ALLOW_HTTP;
+  try {
+    delete process.env.FANHAN_ALLOW_HTTP;
+    assert.throws(() => apiOrigin('http://150.158.164.85'));
+    process.env.FANHAN_ALLOW_HTTP = '1';
+    assert.equal(apiOrigin('http://150.158.164.85'), 'http://150.158.164.85');
+    assert.doesNotThrow(() =>
+      createRecruitingClient({
+        baseUrl: 'http://150.158.164.85',
+        token: 'synthetic',
+      }),
+    );
+    assert.throws(() => apiOrigin('http://secret@150.158.164.85'));
+  } finally {
+    if (original === undefined) delete process.env.FANHAN_ALLOW_HTTP;
+    else process.env.FANHAN_ALLOW_HTTP = original;
+  }
+});
 
 test('client never accepts a remote plaintext endpoint or embedded credentials', () => {
   assert.throws(() =>

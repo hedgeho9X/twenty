@@ -22,6 +22,7 @@ export const apiOrigin = (value) => {
     url.hash ||
     url.pathname !== '/' ||
     (url.protocol === 'http:' &&
+      process.env.FANHAN_ALLOW_HTTP !== '1' &&
       !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))
   )
     throw new Error('Use HTTPS or an explicit local API origin');

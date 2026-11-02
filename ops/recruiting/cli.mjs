@@ -39,6 +39,7 @@ export const createRecruitingClient = ({ baseUrl, token, fetcher = fetch }) => {
     base.hash ||
     base.pathname !== '/' ||
     (base.protocol === 'http:' &&
+      process.env.FANHAN_ALLOW_HTTP !== '1' &&
       !['localhost', '127.0.0.1', '[::1]'].includes(base.hostname))
   )
     throw new Error('Use HTTPS or an explicit local recruiting URL');
