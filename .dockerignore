@@ -3,3 +3,7 @@
 **/node_modules
 .nx/cache
 packages/twenty-server/.env
+.local
+.insta
+.codex
+.claude
