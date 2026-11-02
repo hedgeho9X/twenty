@@ -50,7 +50,9 @@ export const createRecruitingClient = ({ baseUrl, token, fetcher = fetch }) => {
         authorization: `Bearer ${token}`,
       },
     });
-    const body = await response.json();
+    const body = await response.json().catch(() => ({
+      message: `API returned an empty or invalid JSON body (${response.status})`,
+    }));
     if (!response.ok) {
       const error = new Error(
         (typeof body.message === 'string'
@@ -109,6 +111,12 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     allowPositionals: true,
     options: {
       base: { type: 'string' },
+      json: { type: 'boolean' },
+      'match-run-id': { type: 'string' },
+      'selected-ids': { type: 'string' },
+      'candidate-ids': { type: 'string' },
+      'job-ids': { type: 'string' },
+      status: { type: 'string' },
       file: { type: 'string', multiple: true },
       name: { type: 'string' },
       domain: { type: 'string' },
@@ -138,14 +146,39 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   });
   if (values.help || !positionals.length) {
     console.log(
-      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; mail import|select; match candidate|job|pair; draft greeting|publication|edit; portal create|list|link|revoke|status; activity note|list; task get|retry; queue list. Task kind: intake|match|draft|mail. Draft generation never sends or publishes. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
+      'Recruiting CLI: companies search|create; subjects candidates|jobs; resume upload; jobs submit|confirm; mail import|select; match candidate|job|pair; draft matches|greeting|publication|edit; share create|list|revoke; jobs status; auth status; schema; portal create|list|link|revoke|status; activity note|list; task get|retry; queue list. queue list (unified by default; --kind for a legacy resource). --match-run-id ID --selected-ids ID,ID generates a selected-result draft. share create --job-ids ID,ID --candidate-ids ID,ID; share revoke --id KEY. Task kind: intake|match|draft|mail. Draft generation never sends or publishes. Use --base or TWENTY_BASE_URL and TWENTY_API_KEY; --file may repeat, --note-file/--text-file preserve full materials; --wait queries durable state.',
+    );
+    return;
+  }
+  if (positionals[0] === 'schema') {
+    console.log(
+      JSON.stringify({
+        commands: [
+          'auth status',
+          'companies search|create',
+          'subjects candidates|jobs',
+          'jobs submit|status',
+          'resume upload',
+          'task get|retry',
+          'queue list',
+          'match candidate|job|pair',
+          'draft matches|edit',
+          'share create|list|revoke',
+        ],
+        auth: 'TWENTY_API_KEY',
+        base: 'TWENTY_BASE_URL',
+        json: true,
+      }),
     );
     return;
   }
   const client = createRecruitingClient({
     baseUrl:
-      values.base ?? process.env.TWENTY_BASE_URL ?? 'http://localhost:23001',
-    token: process.env.TWENTY_API_KEY,
+      values.base ??
+      process.env.FANHAN_BASE_URL ??
+      process.env.TWENTY_BASE_URL ??
+      'http://localhost:23001',
+    token: process.env.FANHAN_API_KEY ?? process.env.TWENTY_API_KEY,
   });
   const [group, action] = positionals;
   const note = values['note-file']
@@ -163,7 +196,40 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   let result;
   let taskKind;
   let taskId;
-  if (group === 'companies' && action === 'search')
+  if (group === 'auth' && action === 'status') {
+    await client.request('/recruiting/candidates');
+    result = { authenticated: true, canReadCandidates: true };
+  } else if (group === 'share' && action === 'list')
+    result = await client.request('/recruiting/share-links');
+  else if (group === 'share' && action === 'create')
+    result = await client.post('share-links', {
+      jobIds: (values['job-ids'] ?? '').split(',').filter(Boolean),
+      candidateIds: (values['candidate-ids'] ?? '').split(',').filter(Boolean),
+    });
+  else if (group === 'share' && action === 'revoke')
+    result = await client.post(
+      `share-links/${encodeURIComponent(required('id'))}/revoke`,
+      {},
+    );
+  else if (group === 'jobs' && action === 'status') {
+    const status = required('status');
+    if (!['RECRUITING', 'CLOSED', 'PAUSED'].includes(status))
+      throw new Error('status must be RECRUITING, CLOSED or PAUSED');
+    result = await client.request(
+      `/rest/recruitmentJobs/${encodeURIComponent(required('id'))}`,
+      { method: 'PATCH', body: JSON.stringify({ jobStatus: status }) },
+    );
+  } else if (group === 'draft' && action === 'matches') {
+    result = await client.post('drafts', {
+      kind: 'GREETING',
+      matchRunId: required('match-run-id'),
+      selectedIds: required('selected-ids').split(',').filter(Boolean),
+      note,
+      idempotencyKey: key,
+    });
+    taskKind = 'draft';
+    taskId = result.draftId;
+  } else if (group === 'companies' && action === 'search')
     result = await client.request(
       `/recruiting/companies?search=${encodeURIComponent(values.query ?? '')}&offset=${Number(values.offset) || 0}`,
     );
@@ -284,8 +350,11 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       client,
       filenames: values.file ?? [],
       baseUrl:
-        values.base ?? process.env.TWENTY_BASE_URL ?? 'http://localhost:23001',
-      token: process.env.TWENTY_API_KEY,
+        values.base ??
+        process.env.FANHAN_BASE_URL ??
+        process.env.TWENTY_BASE_URL ??
+        'http://localhost:23001',
+      token: process.env.FANHAN_API_KEY ?? process.env.TWENTY_API_KEY,
       persistent: Boolean(values.key),
       request: {
         companyId: required('company-id'),
@@ -331,7 +400,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     taskId = values.id;
   } else if (group === 'queue' && action === 'list')
     result = await client.request(
-      `/recruiting/${taskResource(values.kind)}?offset=${Number(values.offset) || 0}`,
+      `/recruiting/${arguments_.some((arg) => arg === '--kind' || arg.startsWith('--kind=')) ? taskResource(values.kind) : 'processing-tasks'}?offset=${Number(values.offset) || 0}`,
     );
   else throw new Error('Unknown command; run with --help');
   if (values.wait && taskId)

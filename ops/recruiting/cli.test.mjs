@@ -87,9 +87,64 @@ test('JD preview is a terminal intake phase requiring explicit confirmation', as
 });
 
 test('mail waiting includes MIME expansion and stops at explicit material selection', async () => {
-  const states = [{ status: 'UPLOADING' }, { status: 'QUEUED' }, { status: 'EXPANDING' }, { status: 'NEEDS_SELECTION' }];
+  const states = [
+    { status: 'UPLOADING' },
+    { status: 'QUEUED' },
+    { status: 'EXPANDING' },
+    { status: 'NEEDS_SELECTION' },
+  ];
   let calls = 0;
-  const value = await waitForRecruitingTask({ request: async (path) => { assert.equal(path, '/recruiting/mail-archives/mail'); return states[calls++]; } }, 'mail', 'mail', { sleep: async () => {} });
+  const value = await waitForRecruitingTask(
+    {
+      request: async (path) => {
+        assert.equal(path, '/recruiting/mail-archives/mail');
+        return states[calls++];
+      },
+    },
+    'mail',
+    'mail',
+    { sleep: async () => {} },
+  );
   assert.equal(value.status, 'NEEDS_SELECTION');
   assert.equal(calls, 4);
+});
+
+test('unified queue, selected-result drafts and share revocation use the business API', async () => {
+  const { main } = await import('./cli.mjs');
+  const oldFetch = globalThis.fetch,
+    oldLog = console.log,
+    oldKey = process.env.FANHAN_API_KEY;
+  const calls = [];
+  process.env.FANHAN_API_KEY = 'test-key';
+  console.log = () => {};
+  globalThis.fetch = async (url, options) => {
+    calls.push({
+      url,
+      body: options.body ? JSON.parse(options.body) : undefined,
+    });
+    return Response.json({ draftId: 'draft', deleted: true });
+  };
+  try {
+    await main(['queue', 'list', '--json']);
+    assert.ok(calls.at(-1).url.includes('/processing-tasks?'));
+    await main([
+      'draft',
+      'matches',
+      '--match-run-id',
+      'run',
+      '--selected-ids',
+      'a,b',
+      '--key',
+      'stable',
+    ]);
+    assert.deepEqual(calls.at(-1).body.selectedIds, ['a', 'b']);
+    assert.equal(calls.at(-1).body.matchRunId, 'run');
+    await main(['share', 'revoke', '--id', 'opaque']);
+    assert.ok(calls.at(-1).url.endsWith('/share-links/opaque/revoke'));
+  } finally {
+    globalThis.fetch = oldFetch;
+    console.log = oldLog;
+    if (oldKey === undefined) delete process.env.FANHAN_API_KEY;
+    else process.env.FANHAN_API_KEY = oldKey;
+  }
 });
