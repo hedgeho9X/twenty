@@ -23,6 +23,8 @@ jobs:
       - uses: ./.github/actions/yarn-install
       - name: Build shared package
         run: node ops/recruiting/build-source.mjs twenty-shared build
+      - name: Build UI package exports
+        run: yarn workspace twenty-ui build
       - name: CLI regression
         run: node --test ops/recruiting/cli-auth.test.mjs ops/recruiting/cli.test.mjs ops/recruiting/cli-job-upload.test.mjs
       - name: Server regression
