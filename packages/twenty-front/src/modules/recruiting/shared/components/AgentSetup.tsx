@@ -1,4 +1,4 @@
-/** Offers the same downloadable recruiting tools to every authorized workspace operator. */
+/** Provides a copyable setup prompt for the recruiting Agent. */
 import { useState } from 'react';
 import { Button } from 'twenty-ui/primitives/input';
 import { Section } from 'twenty-ui/components/layout';
@@ -6,7 +6,6 @@ import { IconCopy } from 'twenty-ui/icon';
 import {
   buildFanhanAgentPrompt,
   copyFanhanAgentPrompt,
-  FANHAN_RELEASE_URL,
 } from '../utils/agentSetup';
 
 /** Copies the visible account's onboarding prompt without persisting its API key. */
@@ -15,14 +14,7 @@ export const RecruitingAgentSetup = ({ apiKey }: { apiKey?: string }) => {
   return (
     <Section.Root>
       <Section.Header title="招聘 Agent 接入" />
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 12,
-          alignItems: 'center',
-        }}
-      >
+      <div>
         <Button
           startIcon={<IconCopy />}
           onClick={() => {
@@ -35,10 +27,6 @@ export const RecruitingAgentSetup = ({ apiKey }: { apiKey?: string }) => {
         >
           复制 Agent 接入提示词
         </Button>
-        <a href={`${FANHAN_RELEASE_URL}/fanhan-cli.tgz`}>下载 CLI</a>
-        <a href={`${FANHAN_RELEASE_URL}/fanhan-recruiting-skill.zip`}>
-          下载 Skill
-        </a>
       </div>
       {message && <span role="status">{message}</span>}
     </Section.Root>
