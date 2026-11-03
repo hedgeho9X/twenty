@@ -59,7 +59,9 @@ jobs:
       - name: Define application version
         id: version
         run: |
-          app_version="$(node -p "require('./packages/twenty-server/package.json').version")+$GITHUB_SHA"
+          base_version="$(cat ops/recruiting/deploy/APP_VERSION)"
+          [[ "$base_version" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]
+          app_version="$base_version+$GITHUB_SHA"
           echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
       - name: Publish verified application image
         id: app
@@ -95,6 +97,7 @@ jobs:
           DOKPLOY_COMPOSE_ID: ${{ secrets.FANHAN_DOKPLOY_COMPOSE_ID }}
           APP_DIGEST: ${{ steps.app.outputs.digest }}
           PARSER_DIGEST: ${{ steps.parser.outputs.digest }}
+          REGISTRY_HOST: ${{ vars.FANHAN_REGISTRY_HOST }}
         run: |
           set -euo pipefail
           test -n "$DOKPLOY_API_KEY" && test -n "$DOKPLOY_COMPOSE_ID"
@@ -107,7 +110,10 @@ jobs:
             -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$temp_dir/known_hosts" \
             -o ConnectTimeout=15 -o ExitOnForwardFailure=yes \
             -L 127.0.0.1:23090:127.0.0.1:3000 fanhan-deploy@43.136.55.30
-          sed -e "s#fanhan-twenty:fanhan-bootstrap#fanhan-twenty@$APP_DIGEST#g" \
+          registry_host="${REGISTRY_HOST:-ghcr.io}"
+          case "$registry_host" in ghcr.io|ghcr.nju.edu.cn) ;; *) exit 1 ;; esac
+          sed -e "s#ghcr.io/hedgeho9x/#$registry_host/hedgeho9x/#g" \
+              -e "s#fanhan-twenty:fanhan-bootstrap#fanhan-twenty@$APP_DIGEST#g" \
               -e "s#fanhan-mineru:fanhan-bootstrap#fanhan-mineru@$PARSER_DIGEST#g" \
               ops/recruiting/deploy/compose.yaml > "$temp_dir/compose.yaml"
           jq -n --arg id "$DOKPLOY_COMPOSE_ID" --rawfile compose "$temp_dir/compose.yaml" \
