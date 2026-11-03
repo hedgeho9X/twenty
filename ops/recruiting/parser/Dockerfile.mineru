@@ -1,0 +1,14 @@
+FROM python:3.12-slim-bookworm
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+RUN apt-get update && apt-get install -y --no-install-recommends libreoffice-writer fonts-noto-cjk \
+    && pip install --no-cache-dir fastapi==0.162.0 uvicorn==0.54.0 playwright==1.64.1 \
+      pillow pypdfium2 olefile charset-normalizer beautifulsoup4 markdown-it-py \
+    && python -m playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+RUN useradd --create-home --uid 1000 parser \
+    && mkdir -p /data/output /parser && chown -R parser:parser /data /parser
+WORKDIR /parser
+COPY service.py mineru.py /parser/
+USER parser
+EXPOSE 8000
+CMD ["python", "-m", "uvicorn", "service:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

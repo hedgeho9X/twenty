@@ -2,9 +2,10 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { dirname, extname, join, resolve } from 'node:path';
 import { z } from 'zod';
+import { v5 } from 'uuid';
 import { FileFolder } from 'twenty-shared/types';
 
 import { FileEntity } from 'src/engine/core-modules/file/entities/file.entity';
@@ -36,7 +37,7 @@ export type ParsedRecruitingMaterial = z.infer<typeof parsedSchema> & {
 };
 
 @Injectable()
-/** Shares one Docling model process across the ten ingestion jobs. */
+/** Shares content-addressed parser results across authorized submissions in the same workspace. */
 export class RecruitingParserService {
   constructor(
     @InjectWorkspaceScopedRepository(FileEntity)
@@ -133,39 +134,47 @@ export class RecruitingParserService {
     bytes: Buffer,
   ): Promise<ParsedRecruitingMaterial> {
     const hash = createHash('sha256').update(bytes).digest('hex');
-    const requestId = randomUUID();
+    const textFormat = extname(label).toLowerCase();
+    const requestId = v5(
+      `recruiting-material:${actor.workspaceId}:${hash}:${['.txt', '.html', '.htm', '.md', '.markdown'].includes(textFormat) ? textFormat : ''}`,
+      v5.URL,
+    );
     const root = resolve(this.config.get('STORAGE_LOCAL_PATH'));
-    const storageKey = `_recruiting-input/${actor.workspaceId}/${requestId}`;
+    const storageKey = `_recruiting-input/${actor.workspaceId}/${randomUUID()}`;
     await mkdir(dirname(join(root, storageKey)), {
       recursive: true,
       mode: 0o700,
     });
     await writeFile(join(root, storageKey), bytes, { mode: 0o600, flag: 'wx' });
-    const response = await fetch(
-      `${process.env.RECRUITING_PARSER_URL ?? 'http://127.0.0.1:23003'}/parse`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${process.env.RECRUITING_PARSER_TOKEN ?? ''}`,
+    try {
+      const response = await fetch(
+        `${process.env.RECRUITING_PARSER_URL ?? 'http://127.0.0.1:23003'}/parse`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${process.env.RECRUITING_PARSER_TOKEN ?? ''}`,
+          },
+          body: JSON.stringify({
+            requestId,
+            storageKey,
+            originalName: label,
+            sha256: hash,
+          }),
+          signal: AbortSignal.timeout(360_000),
         },
-        body: JSON.stringify({
-          requestId,
-          storageKey,
-          originalName: label,
-          sha256: hash,
-        }),
-        signal: AbortSignal.timeout(180_000),
-      },
-    );
-    if (!response.ok)
-      throw new BadRequestException(
-        '材料无法自动解析，请检查格式、加密或文件内容',
       );
-    const parsed = parsedSchema.parse(await response.json());
-    if (parsed.sourceHash !== hash || parsed.pages !== parsed.previews.length)
-      throw new BadRequestException('解析材料的完整性校验失败');
-    return { ...parsed, requestId, fileId, label };
+      if (!response.ok)
+        throw new BadRequestException(
+          '材料无法自动解析，请检查格式、加密或文件内容',
+        );
+      const parsed = parsedSchema.parse(await response.json());
+      if (parsed.sourceHash !== hash || parsed.pages !== parsed.previews.length)
+        throw new BadRequestException('解析材料的完整性校验失败');
+      return { ...parsed, requestId, fileId, label };
+    } finally {
+      await unlink(join(root, storageKey)).catch(() => undefined);
+    }
   }
 
   /** Returns only manifest-listed images from this material's isolated output directory. */

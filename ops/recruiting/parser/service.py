@@ -20,7 +20,8 @@ INPUT_ROOT = Path(os.environ.get("RECRUITING_INPUT_ROOT", "/data/input")).resolv
 OUTPUT_ROOT = Path(os.environ.get("RECRUITING_OUTPUT_ROOT", "/data/output")).resolve()
 MODEL_ROOT = Path(os.environ.get("RECRUITING_MODEL_ROOT", "/models/docling")).resolve()
 TOKEN = os.environ.get("RECRUITING_PARSER_TOKEN", "")
-PARSER_VERSION = "docling-2.145.0-preview-v2"
+MINERU_TOKEN = os.environ.get("MINERU_API_KEY", "").strip()
+PARSER_VERSION = "mineru-v4-vlm-preview-v1" if MINERU_TOKEN else "docling-2.145.0-preview-v2"
 MAX_BYTES = 50 * 1024 * 1024
 MAX_PAGES = 80
 Image.MAX_IMAGE_PIXELS = 40_000_000
@@ -218,9 +219,9 @@ def parse(request: ParseRequest) -> dict:
     manifest = output / "manifest.json"
     if manifest.is_file():
         existing = json.loads(manifest.read_text())
-        if existing["sourceHash"] != digest or existing["parserVersion"] != PARSER_VERSION or existing.get("resourceHashes", {}) != resource_hashes:
+        if existing["sourceHash"] != digest or existing.get("resourceHashes", {}) != resource_hashes:
             raise ValueError("request_version_conflict")
-        if existing["status"] == "complete":
+        if existing["parserVersion"] == PARSER_VERSION and existing["status"] == "complete":
             return existing
     kind = identify(original, request.originalName)
     source = output / f"input.{kind if kind != 'image' else 'png'}"
@@ -244,15 +245,20 @@ def parse(request: ParseRequest) -> dict:
             previews = ["page-001.png"]
         else:
             previews = render_pdf(source, output)
-        result = get_converter().convert(source, raises_on_error=False)
-        from docling_core.types.doc import ImageRefMode, ContentLayer
-        # Footer/header or note classification must not discard material that remains visible in the archived pages.
-        text = result.document.export_to_markdown(
-            image_mode=ImageRefMode.PLACEHOLDER,
-            included_content_layers=set(ContentLayer),
-            escape_underscores=False,
-        )
-        status = "complete" if str(result.status.value) == "success" else "partial"
+        if MINERU_TOKEN:
+            from mineru import extract
+            text = extract(source, output, MINERU_TOKEN)
+            status = "complete"
+        else:
+            result = get_converter().convert(source, raises_on_error=False)
+            from docling_core.types.doc import ImageRefMode, ContentLayer
+            # Footer/header or note classification must not discard material that remains visible in the archived pages.
+            text = result.document.export_to_markdown(
+                image_mode=ImageRefMode.PLACEHOLDER,
+                included_content_layers=set(ContentLayer),
+                escape_underscores=False,
+            )
+            status = "complete" if str(result.status.value) == "success" else "partial"
     if not text.strip() or missing_resources:
         status = "needs_review"
     payload = {"parserVersion": PARSER_VERSION, "sourceHash": digest, "format": kind,

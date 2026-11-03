@@ -21,7 +21,7 @@ RUN useradd --create-home --uid 10001 parser \
     && mkdir -p /data/output /models /parser \
     && chown -R parser:parser /data /models /parser
 WORKDIR /parser
-COPY service.py /parser/service.py
+COPY service.py mineru.py /parser/
 USER parser
 EXPOSE 8000
 CMD ["python", "-m", "uvicorn", "service:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
