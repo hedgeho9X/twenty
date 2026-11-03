@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button, Field, Textarea } from 'twenty-ui/primitives/input';
-import { IconFiles, IconUpload } from 'twenty-ui/icon';
+import { IconFiles, IconUpload, IconX } from 'twenty-ui/icon';
 import { Select } from '@/ui/input/components/Select';
 import { type RecruitingUpload } from '@/recruiting/intake/types/Upload';
 import {
@@ -113,6 +113,7 @@ export const RecruitingCandidateIntake = ({
               accept="image/*,.pdf,.doc,.docx,.txt,.html,.htm,.md,.markdown"
               onChange={(event) => {
                 const files = Array.from(event.target.files ?? []);
+                event.target.value = '';
                 if (
                   files.length > 5 ||
                   files.some((file) => file.size > 50 * 1024 * 1024)
@@ -133,6 +134,19 @@ export const RecruitingCandidateIntake = ({
           <StyledRecruitingRow key={entry.key}>
             <IconFiles size={16} />
             <strong>{entry.file.name}</strong>
+            <Button
+              variant="ghost"
+              size="sm"
+              startIcon={<IconX size={14} />}
+              aria-label={t`移除 ${entry.file.name}`}
+              disabled={locked}
+              onClick={() => {
+                setEntries((current) =>
+                  current.filter((item) => item.key !== entry.key),
+                );
+                setError('');
+              }}
+            />
           </StyledRecruitingRow>
         ))}
         <Field.Root>

@@ -43,7 +43,7 @@ it('opens only the selected template and keeps its field token on save', async (
   );
   expect(screen.queryByRole('textbox')).toBeNull();
   fireEvent.click(screen.getByText('候选人模板设置'));
-  expect(screen.getByRole('button', { name: '候选人信息' })).toHaveAttribute(
+  expect(screen.getByText('候选人信息', { selector: 'code' })).toHaveAttribute(
     'title',
     expect.stringContaining('profile'),
   );

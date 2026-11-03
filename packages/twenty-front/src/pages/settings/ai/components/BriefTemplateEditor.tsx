@@ -38,13 +38,12 @@ export const BriefTemplateEditor = ({
         selectable: false,
         addAttributes: () => ({ field: { default: '' } }),
         renderHTML: ({ node }) => [
-          'span',
+          'code',
           {
             contenteditable: 'false',
-            role: 'button',
             title: JSON.stringify(fields[node.attrs.field]?.value, null, 2),
             style:
-              'display:inline-block;padding:3px 9px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;color:#333;margin:2px;font-size:13px',
+              'font:inherit;padding:1px 4px;border-radius:4px;background:rgba(127,127,127,.13);cursor:help',
           },
           fields[node.attrs.field]?.label ?? node.attrs.field,
         ],

@@ -48,12 +48,14 @@ jest.mock('twenty-ui/primitives/input', () => ({
     children,
     onClick,
     disabled,
+    'aria-label': label,
   }: {
+    'aria-label'?: string;
     children: React.ReactNode;
     onClick: () => void;
     disabled: boolean;
   }) => (
-    <button onClick={onClick} disabled={disabled}>
+    <button onClick={onClick} disabled={disabled} aria-label={label}>
       {children}
     </button>
   ),
@@ -122,4 +124,16 @@ it('requires employment and submits five files as one candidate task', async () 
   );
   expect(body.files).toHaveLength(5);
   expect(body.employmentType).toBe('internship');
+});
+
+it('removes one selected file without clearing the other', () => {
+  render(<RecruitingCandidateIntake onSubmitted={jest.fn()} />);
+  fireEvent.change(screen.getByLabelText('选择简历文件'), {
+    target: {
+      files: [new File(['a'], 'keep.txt'), new File(['b'], 'remove.txt')],
+    },
+  });
+  fireEvent.click(screen.getByRole('button', { name: '移除 remove.txt' }));
+  expect(screen.getByText('keep.txt')).toBeInTheDocument();
+  expect(screen.queryByText('remove.txt')).not.toBeInTheDocument();
 });
