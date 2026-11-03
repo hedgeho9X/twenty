@@ -105,7 +105,7 @@ export const RecruitingCandidateIntake = ({
           <StyledRecruitingDrop>
             <IconUpload size={28} />
             <strong>{t`选择简历文件`}</strong>
-            <StyledRecruitingMuted>{t`同一候选人最多5份文件，单个文件最大50MB`}</StyledRecruitingMuted>
+            <StyledRecruitingMuted>{t`同一候选人最多6份文件，单个文件最大50MB`}</StyledRecruitingMuted>
             <input
               aria-label={t`选择简历文件`}
               type="file"
@@ -115,10 +115,10 @@ export const RecruitingCandidateIntake = ({
                 const files = Array.from(event.target.files ?? []);
                 event.target.value = '';
                 if (
-                  files.length > 5 ||
+                  files.length > 6 ||
                   files.some((file) => file.size > 50 * 1024 * 1024)
                 ) {
-                  setError(t`同一候选人最多5份文件，单个文件不能超过50MB`);
+                  setError(t`同一候选人最多6份文件，单个文件不能超过50MB`);
                   return;
                 }
                 setEntries(

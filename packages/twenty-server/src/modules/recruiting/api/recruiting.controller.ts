@@ -429,13 +429,13 @@ export class RecruitingController {
   @HttpCode(202)
   @UseGuards(RecruitingUploadPermissionGuard)
   @UseInterceptors(
-    FilesInterceptor('file', 5, {
+    FilesInterceptor('file', 6, {
       limits: {
-        files: 5,
+        files: 6,
         fileSize: 50 * 1024 * 1024,
         fields: 5,
         fieldSize: 100_000,
-        parts: 10,
+        parts: 11,
       },
     }),
   )
@@ -454,8 +454,8 @@ export class RecruitingController {
       ...file,
       originalname: decodeMultipartFilename(file.originalname),
     }));
-    if (!files.length || files.length > 5)
-      throw new BadRequestException('同一候选人请上传1至5份文件');
+    if (!files.length || files.length > 6)
+      throw new BadRequestException('同一候选人请上传1至6份文件');
     const parsed = z
       .object({
         note: z.string().max(100_000).optional(),

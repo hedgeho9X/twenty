@@ -30,7 +30,13 @@ const setup = () => {
   return {
     records,
     candidates,
-    save: (value = input) => service['storeCandidate']({} as never, value),
+    save: (
+      value: Parameters<RecruitingIntakeService['storeCandidate']>[1] = input,
+    ) =>
+      service['storeCandidate'](
+        (value.phone ? { workspace: { id: 'test-workspace' } } : {}) as never,
+        value,
+      ),
   };
 };
 it('updates an exact-email candidate without creating another person', async () => {
@@ -79,4 +85,17 @@ it('retains explicitly selected candidate identity without rematching its email'
     'selected',
   );
   expect(records.list).not.toHaveBeenCalled();
+});
+
+it('reuses a candidate with the same complete phone when email is absent', async () => {
+  const { records, save } = setup();
+  records.list.mockResolvedValue({
+    records: [
+      { id: 'existing', recruitingProfile: { phone: '+86 138 0013 8000' } },
+    ],
+  });
+  expect(await save({ ...input, email: null, phone: '+8613800138000' })).toBe(
+    'existing',
+  );
+  expect(records.create).not.toHaveBeenCalled();
 });

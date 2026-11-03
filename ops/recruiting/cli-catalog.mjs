@@ -21,7 +21,7 @@ export const COMMANDS = {
     list: '[--query 关键词]',
     get: '--id ID；读取解析资料',
     upload:
-      '--employment-type full_time|internship --file 简历 [--file 补充材料，合计最多5份] [--note-file 说明] [--candidate-id ID] --key 请求标识 [--wait]',
+      '--employment-type full_time|internship --file 简历 [--file 补充材料，合计最多6份] [--note-file 说明] [--candidate-id ID] --key 请求标识 [--wait]',
   },
   tasks: {
     list: '[--offset N]；统一处理队列',

@@ -4,7 +4,7 @@
 
 `fanhan candidates upload --employment-type full_time --file 简历.txt --key 本次提交标识 --wait` 会等待入库及关联匹配；`fanhan draft generate --match-run-id ID --top 5 --key 文案标识 --wait` 返回文案和分享链接。完整 Agent 工作说明在 `.agents/skills/fanhan-recruiting/SKILL.md`（仓库根目录）。
 
-命令行仅依赖 Node 内置模块。npm 包入口为 `fanhan.mjs`；`schema --json` 与分组帮助不要求凭据。默认远程实例使用 HTTPS；临时 HTTP IP 入口显式设置 FANHAN_ALLOW_HTTP=1。可通过 auth login 保存本机 Keychain，或使用环境变量注入凭据。同人最多5份文件，重复 --file；候选人和每条JD都必须指定 --employment-type full_time|internship。
+命令行仅依赖 Node 内置模块。npm 包入口为 `fanhan.mjs`；`schema --json` 与分组帮助不要求凭据。默认远程实例使用 HTTPS；临时 HTTP IP 入口显式设置 FANHAN_ALLOW_HTTP=1。可通过 auth login 保存本机 Keychain，或使用环境变量注入凭据。同人最多6份文件，重复 --file；候选人和每条JD都必须指定 --employment-type full_time|internship。
 
 以下是本仓库开发与部署说明，普通 CLI 使用者无需执行。
 

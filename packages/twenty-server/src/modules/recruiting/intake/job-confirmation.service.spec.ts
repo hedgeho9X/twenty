@@ -1,4 +1,5 @@
 /** Exercises stable batch identities, independent failure recovery and protection of manual edits. */
+import { v5 } from 'uuid';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { type PostgresAdvisoryLockService } from 'src/database/typeorm/postgres-advisory-lock.service';
@@ -42,6 +43,7 @@ const setup = () => {
   };
   const jobs = new Map<string, Record<string, unknown>>();
   const records = {
+    list: jest.fn().mockResolvedValue({ records: [], hasNextPage: false }),
     one: jest.fn(async (_context, object: string, id: string) => {
       if (object === 'company') return { id: 'company' };
       if (object === 'recruitingIntake') return structuredClone(intake);
@@ -235,3 +237,36 @@ it('keeps automatic creation in processing until the reviewed item checkpoints a
   expect(result.state).toBe('COMPLETED');
   expect((result.result as IntakeEnvelope).stage).toBe('STORED');
 });
+
+it.each([
+  ['维护\n 核心系统', true],
+  ['维护其他系统', false],
+])(
+  'uses the original JD text to decide whether to reuse the existing record',
+  async (text, reused) => {
+    const { service, envelope, records } = setup();
+    envelope.input.text = text;
+    envelope.input.employmentType = 'full_time';
+    records.list.mockResolvedValue({
+      records: [
+        {
+          id: 'existing',
+          recruitingProfile: {
+            originalText: '维护核心系统',
+            employmentTypes: ['full_time'],
+            sourceIntakeId: 'prior',
+            sourceItemId: v5('prior:item:0', v5.URL),
+          },
+        },
+      ],
+      hasNextPage: false,
+    });
+    const [first, ...rest] = service.preview('intake', envelope);
+    const result = await service.confirm(context, 'intake', {
+      items: [{ itemId: first.itemId, draft: first.draft }],
+      discardedItemIds: rest.map((item) => item.itemId),
+    });
+    expect(result.targetId).toBe(reused ? 'existing' : first.jobId);
+    expect(records.create).toHaveBeenCalledTimes(reused ? 0 : 1);
+  },
+);

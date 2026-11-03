@@ -9,6 +9,7 @@ import {
 import { RECRUITING_ADVISORY_LOCK } from '../shared/locking/advisory-lock.constant';
 
 import { v5 } from 'uuid';
+import { OrderByDirection } from 'twenty-shared/types';
 import {
   getRecruitingPreviewMissingFields,
   getRecruitingPreviewNameWarnings,
@@ -35,10 +36,15 @@ export type RecruitingJobItem = {
   draft: RecruitingJobProfile;
   status: 'DRAFT' | 'CREATED' | 'FAILED' | 'DISCARDED';
   confirmedHash?: string;
+  reused?: boolean;
   error?: string;
   matchingRunId?: string;
   matchingError?: string;
 };
+
+/** Canonicalizes only whitespace for JD identity, preserving the submitted original. */
+const compactJobText = (text: string | undefined) =>
+  text?.replace(/\s+/gu, '') ?? '';
 
 @Injectable()
 /** Preserves previously created jobs and human edits while allowing independent retries of failed items. */
@@ -159,8 +165,20 @@ export class RecruitingJobConfirmationService {
     value: unknown,
     automatic = false,
   ) {
+    const record = await this.records.one(
+      context,
+      'recruitingIntake',
+      intakeId,
+    );
+    const envelope = record.result as IntakeEnvelope | undefined;
+    const source = envelope?.input;
+    const original = !source?.files?.length ? compactJobText(source?.text) : '';
+    const identity =
+      source?.companyId && source.employmentType && original
+        ? contentVersion([source.companyId, source.employmentType, original])
+        : intakeId;
     const locked = await this.locks.tryWithLock(
-      `recruiting-confirm:${context.workspace.id}:${intakeId}`,
+      `recruiting-confirm:${context.workspace.id}:${identity}`,
       async () => this.confirmLocked(context, intakeId, value, automatic),
     );
     if (!locked.acquired)
@@ -208,11 +226,56 @@ export class RecruitingJobConfirmationService {
       item.status = 'DISCARDED';
       item.error = undefined;
     }
+    const original = envelope.input.files.length
+      ? ''
+      : compactJobText(envelope.input.text);
+    const knownJobs = new Map<number, string>();
+    if (original && envelope.input.employmentType) {
+      let offset = 0;
+      while (true) {
+        const page = await this.records.list(context, 'recruitmentJob', {
+          filter: { companyId: { eq: envelope.input.companyId } },
+          select: ['id', 'recruitingProfile'],
+          orderBy: [{ id: OrderByDirection.AscNullsLast }],
+          offset,
+          limit: 100,
+        });
+        for (const record of page.records) {
+          if (
+            !isPlainObject(record) ||
+            typeof record.id !== 'string' ||
+            !isPlainObject(record.recruitingProfile)
+          )
+            continue;
+          const profile = record.recruitingProfile;
+          if (
+            typeof profile.originalText !== 'string' ||
+            compactJobText(profile.originalText) !== original ||
+            !Array.isArray(profile.employmentTypes) ||
+            !profile.employmentTypes.includes(envelope.input.employmentType)
+          )
+            continue;
+          const priorIntakeId = profile.sourceIntakeId;
+          if (typeof priorIntakeId !== 'string' || priorIntakeId === id)
+            continue;
+          const ordinal = items.findIndex(
+            (_, index) =>
+              profile.sourceItemId ===
+              v5(`${priorIntakeId}:item:${index}`, v5.URL),
+          );
+          if (ordinal >= 0 && !knownJobs.has(ordinal))
+            knownJobs.set(ordinal, record.id);
+        }
+        if (!page.hasNextPage || !page.records.length) break;
+        offset += page.records.length;
+      }
+    }
     const attributes = await this.allowedAttributes(context);
     const automaticMatchingEnabled =
       process.env.RECRUITING_AUTO_MATCH_ENABLED !== 'false';
     const checkpoint = async () => {
       const created = items.filter((item) => item.status === 'CREATED');
+      const newJobs = created.filter((item) => !item.reused);
       const done = items.every((item) =>
         ['CREATED', 'DISCARDED'].includes(item.status),
       );
@@ -246,11 +309,11 @@ export class RecruitingJobConfirmationService {
             : undefined,
           matchingRunIds,
           matchingStatus:
-            created.length && !automaticMatchingEnabled
+            newJobs.length && !automaticMatchingEnabled
               ? 'DISABLED'
               : created.some((item) => item.matchingError)
                 ? 'PARTIAL'
-                : created.length
+                : newJobs.length
                   ? 'QUEUED'
                   : 'NOT_REQUIRED',
         },
@@ -288,6 +351,16 @@ export class RecruitingJobConfirmationService {
         throw new BadRequestException(
           '已忽略的岗位不能再次确认，请新建导入任务',
         );
+      const duplicateId = knownJobs.get(items.indexOf(item));
+      if (duplicateId) {
+        item.jobId = duplicateId;
+        item.status = 'CREATED';
+        item.reused = true;
+        item.confirmedHash = hash;
+        item.error = undefined;
+        await checkpoint();
+        continue;
+      }
       try {
         const existing = await this.optionalJob(context, item.jobId);
         if (existing) {

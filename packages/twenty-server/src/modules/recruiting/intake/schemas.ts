@@ -88,12 +88,12 @@ export const intakeInputSchema = z
     }
     if (
       value.kind === 'CANDIDATE' &&
-      value.files.filter((file) => file.role !== 'archive').length > 5
+      value.files.filter((file) => file.role !== 'archive').length > 6
     ) {
       context.addIssue({
         code: 'custom',
         path: ['files'],
-        message: '同一候选人最多上传5份文件',
+        message: '同一候选人最多上传6份文件',
       });
     }
 

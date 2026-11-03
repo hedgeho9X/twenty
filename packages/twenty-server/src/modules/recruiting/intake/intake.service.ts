@@ -73,6 +73,13 @@ export type IntakeEnvelope = {
   jobItems?: import('./job-confirmation.service').RecruitingJobItem[];
 };
 
+/** Removes formatting from a complete phone number while retaining its explicit country code. */
+const exactPhone = (value: unknown) => {
+  const number =
+    typeof value === 'string' ? value.replace(/[\s().-]+/g, '') : '';
+  return /^\+?\d{7,15}$/.test(number) ? number : undefined;
+};
+
 @Injectable()
 /** Makes ingestion independent from later matching failures. */
 export class RecruitingIntakeService {
@@ -97,13 +104,52 @@ export class RecruitingIntakeService {
       proposedId: string;
       explicitId?: string;
       email?: string | null;
+      phone?: string | null;
       profile: Record<string, unknown>;
       files: { fileId: string; label: string }[];
       createData: Record<string, unknown>;
     },
   ): Promise<string> {
+    const phone = !input.email ? exactPhone(input.phone) : undefined;
     const findExisting = async () => {
-      if (!input.email) return undefined;
+      if (!input.email) {
+        if (!phone) return undefined;
+        let match: string | undefined;
+        let offset = 0;
+        while (true) {
+          const page = await this.records.list(context, 'person', {
+            filter: { contactRoles: { containsAny: ['CANDIDATE'] } },
+            select: ['id', 'phones', 'recruitingProfile'],
+            offset,
+            limit: 100,
+            orderBy: [{ id: OrderByDirection.AscNullsLast }],
+          });
+          for (const record of page.records) {
+            if (!isPlainObject(record) || typeof record.id !== 'string')
+              continue;
+            const profile = isPlainObject(record.recruitingProfile)
+              ? record.recruitingProfile
+              : {};
+            const native = isPlainObject(record.phones) ? record.phones : {};
+            const nativeNumber =
+              typeof native.primaryPhoneNumber === 'string'
+                ? `${native.primaryPhoneCallingCode ?? ''}${native.primaryPhoneNumber}`
+                : '';
+            if (
+              exactPhone(profile.phone) !== phone &&
+              exactPhone(nativeNumber) !== phone
+            )
+              continue;
+            if (match && match !== record.id)
+              throw new ConflictException(
+                '有多位候选人使用同一手机号，请指定要更新的候选人',
+              );
+            match = record.id;
+          }
+          if (!page.hasNextPage || !page.records.length) return match;
+          offset += page.records.length;
+        }
+      }
       const page = await this.records.list(context, 'person', {
         filter: { emails: { primaryEmail: { eq: input.email.trim() } } },
         limit: 1,
@@ -114,7 +160,11 @@ export class RecruitingIntakeService {
         : undefined;
     };
     const existingId = input.explicitId ?? (await findExisting());
-    const id = existingId ?? input.proposedId;
+    const id =
+      existingId ??
+      (phone
+        ? v5(`${context.workspace.id}:recruiting-phone:${phone}`, v5.URL)
+        : input.proposedId);
     const update = async (target: string) => {
       await this.candidates.replaceProfile(
         context,
@@ -410,9 +460,17 @@ export class RecruitingIntakeService {
       )) {
         if (materials.some((material) => material.fileId === file.fileId))
           continue;
-        materials.push(
-          await this.parser.parse(data.actor, file.fileId, file.label),
+        const material = await this.parser.parse(
+          data.actor,
+          file.fileId,
+          file.label,
         );
+        if (
+          !materials.some(
+            (previous) => previous.sourceHash === material.sourceHash,
+          )
+        )
+          materials.push(material);
         await update('PARSING', { materials });
       }
       await update('EXTRACTING');
@@ -510,9 +568,7 @@ export class RecruitingIntakeService {
       }
       const proposedId = v5(`${record.id}:candidate`, v5.URL);
       const candidateFiles = envelope.candidateFiles ?? [];
-      for (const file of envelope.input.files.filter(
-        (entry) => entry.role !== 'archive',
-      )) {
+      for (const file of materials) {
         if (candidateFiles.some((entry) => entry.sourceFileId === file.fileId))
           continue;
         const copy = await this.parser.copyResumeAttachment(
@@ -544,6 +600,7 @@ export class RecruitingIntakeService {
         proposedId,
         explicitId: envelope.input.candidateId,
         email: profile.email,
+        phone: profile.phone,
         profile: recruitingProfile,
         files,
         createData: {

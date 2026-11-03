@@ -251,9 +251,9 @@ test('public command aliases read a candidate and default the shortlist to five'
   }
 });
 
-test('candidate upload requires employment and sends five documents in one request', async () => {
+test('candidate upload requires employment and sends six documents in one request', async () => {
   const { main } = await import('./cli.mjs');
-  const directory = await mkdtemp(join(tmpdir(), 'fanhan-five-files-'));
+  const directory = await mkdtemp(join(tmpdir(), 'fanhan-six-files-'));
   const originalFetch = globalThis.fetch;
   const originalKey = process.env.FANHAN_API_KEY;
   const originalLog = console.log;
@@ -269,10 +269,10 @@ test('candidate upload requires employment and sends five documents in one reque
     await writeFile(file, 'Synthetic candidate only');
     const base = ['candidates', 'upload', '--base', 'http://127.0.0.1:23001'];
     await assert.rejects(main([...base, '--file', file]), /employment-type/);
-    const files = Array.from({ length: 5 }, () => ['--file', file]).flat();
+    const files = Array.from({ length: 6 }, () => ['--file', file]).flat();
     await main([...base, ...files, '--employment-type', 'internship']);
     assert.equal(requests.length, 1);
-    assert.equal(requests[0].options.body.getAll('file').length, 5);
+    assert.equal(requests[0].options.body.getAll('file').length, 6);
     assert.equal(requests[0].options.body.get('employmentType'), 'internship');
     await assert.rejects(
       main([
@@ -283,7 +283,7 @@ test('candidate upload requires employment and sends five documents in one reque
         '--employment-type',
         'full_time',
       ]),
-      /1 to 5/,
+      /1 to 6/,
     );
   } finally {
     globalThis.fetch = originalFetch;

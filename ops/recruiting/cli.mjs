@@ -416,8 +416,8 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       JSON.parse(await readFile(resolve(required('items-file')), 'utf8')),
     );
   else if (group === 'resume' && action === 'upload') {
-    if (!values.file?.length || values.file.length > 5)
-      throw new Error('Upload 1 to 5 files for the same candidate');
+    if (!values.file?.length || values.file.length > 6)
+      throw new Error('Upload 1 to 6 files for the same candidate');
     const employmentType = required('employment-type');
     if (!['full_time', 'internship'].includes(employmentType))
       throw new Error('Use --employment-type full_time|internship');
