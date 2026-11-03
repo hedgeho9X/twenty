@@ -2,6 +2,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { RecruitingJobPage } from './RecruitingJobPage';
 
+jest.mock('@/ai/components/LazyMarkdownRenderer', () => ({
+  LazyMarkdownRenderer: ({ text }: { text: string }) => <div>{text}</div>,
+}));
 jest.mock('react-router-dom', () => ({
   useParams: () => ({}),
   useLocation: () => ({ hash: '#access=scoped-token' }),

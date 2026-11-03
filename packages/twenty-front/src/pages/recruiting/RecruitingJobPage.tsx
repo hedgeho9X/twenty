@@ -1,5 +1,6 @@
 /** Public read-only job introductions loaded with a scoped URL-fragment capability, without a CRM login. */
 import { useEffect, useState } from 'react';
+import { LazyMarkdownRenderer } from '@/ai/components/LazyMarkdownRenderer';
 import { useLocation, useParams } from 'react-router-dom';
 import { t } from '@lingui/core/macro';
 import { REACT_APP_SERVER_BASE_URL } from '~/config';
@@ -141,11 +142,7 @@ export const RecruitingJobPage = () => {
                     ...job.workModes.map((value) => labels[value] ?? value),
                   ].join(' · ')}
                 </StyledRecruitingMuted>
-                <p
-                  style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8, margin: 0 }}
-                >
-                  {job.description}
-                </p>
+                <LazyMarkdownRenderer text={job.description} />
               </StyledRecruitingPanel>
             ),
           })),
