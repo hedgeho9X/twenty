@@ -112,10 +112,10 @@ it('does not request judgment flags for candidate extraction', () => {
 });
 
 /** Operator declarations are required and bound the number of documents sent for one person. */
-it('requires explicit employment and caps candidate materials at five', () => {
+it('requires explicit employment and caps candidate materials at six', () => {
   const input = {
     kind: 'CANDIDATE',
-    files: Array.from({ length: 5 }, () => file),
+    files: Array.from({ length: 6 }, () => file),
     employmentType: 'internship',
   };
   expect(intakeInputSchema.safeParse(input).success).toBe(true);

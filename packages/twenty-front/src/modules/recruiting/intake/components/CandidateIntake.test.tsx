@@ -96,7 +96,7 @@ it('clears accepted files and notes instead of requiring continue-upload', async
   expect(screen.queryByText('继续上传简历')).not.toBeInTheDocument();
 });
 
-it('requires employment and submits five files as one candidate task', async () => {
+it('requires employment and submits six files as one candidate task', async () => {
   jest.mocked(recruitingRequest).mockClear();
   jest.mocked(uploadRecruitingFile).mockClear();
   jest.mocked(recruitingRequest).mockResolvedValue({ intakeId: 'group' });
@@ -107,7 +107,7 @@ it('requires employment and submits five files as one candidate task', async () 
   fireEvent.change(screen.getByLabelText('选择简历文件'), {
     target: {
       files: Array.from(
-        { length: 5 },
+        { length: 6 },
         (_, i) => new File(['synthetic'], `${i}.txt`),
       ),
     },
@@ -118,11 +118,11 @@ it('requires employment and submits five files as one candidate task', async () 
   });
   fireEvent.click(screen.getByRole('button', { name: '上传并开始整理' }));
   await waitFor(() => expect(recruitingRequest).toHaveBeenCalledTimes(1));
-  expect(uploadRecruitingFile).toHaveBeenCalledTimes(5);
+  expect(uploadRecruitingFile).toHaveBeenCalledTimes(6);
   const body = JSON.parse(
     jest.mocked(recruitingRequest).mock.calls[0][1]!.body as string,
   );
-  expect(body.files).toHaveLength(5);
+  expect(body.files).toHaveLength(6);
   expect(body.employmentType).toBe('internship');
 });
 
