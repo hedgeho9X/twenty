@@ -26,6 +26,10 @@ const evidenceSchema = z.object({
   uncertainties: z.array(z.string()),
 });
 
+/** Supplies the schema in the prompt for providers that only support JSON mode. */
+const withOutputSchema = (instructions: string, schema: z.ZodType) =>
+  `${instructions}\n请返回符合以下 JSON Schema 的对象：\n${JSON.stringify(z.toJSONSchema(schema))}`;
+
 /** Checkpoints contain generated evidence, not executable instructions or credentials. */
 export type RecruitingExtractionPart = {
   key: string;
@@ -147,8 +151,6 @@ export class RecruitingExtractorService {
     progress?: RecruitingExtractionProgress,
     feature: AiFeatureId = 'candidate_extraction',
   ) {
-    // Some providers require an explicit JSON instruction to enable object output.
-    const structuredInstructions = `${instructions}\n请返回符合输出结构的 JSON 对象。`;
     const modelId =
       this.features?.resolve(feature) ??
       process.env.RECRUITING_MODEL_ID ??
@@ -180,7 +182,7 @@ export class RecruitingExtractorService {
         schema,
         materials,
         note,
-        structuredInstructions,
+        instructions,
         modelId,
         budget,
         progress,
@@ -200,7 +202,7 @@ export class RecruitingExtractorService {
       model: registered.model,
       maxRetries: 0,
       abortSignal: AbortSignal.timeout(180_000),
-      system: structuredInstructions,
+      system: withOutputSchema(instructions, schema),
       output: Output.object({ schema }),
       messages: [
         {
@@ -257,7 +259,7 @@ export class RecruitingExtractorService {
       );
     }
     const namespace = contentVersion({
-      version: 'material-evidence-v1',
+      version: 'material-evidence-v2',
       modelId,
       instructions,
       hashes: materials.map((material) => material.sourceHash),
@@ -284,7 +286,10 @@ export class RecruitingExtractorService {
         model,
         maxRetries: 0,
         abortSignal: AbortSignal.timeout(180_000),
-        system: `${instructions}\n当前是完整材料的一部分。只提取可核查事实并保留原文中的数值、时间、技能、职责、成果、身份和条件，不写笼统摘要。意向原话单列，历史经历不能作为本次意向；跨片段结论留给最终合并。内容缺损或无法辨认明确记录。`,
+        system: withOutputSchema(
+          `${instructions}\n当前是完整材料的一部分。只提取可核查事实并保留原文中的数值、时间、技能、职责、成果、身份和条件，不写笼统摘要。意向原话单列，历史经历不能作为本次意向；跨片段结论留给最终合并。内容缺损或无法辨认明确记录。`,
+          evidenceSchema,
+        ),
         output: Output.object({ schema: evidenceSchema }),
         messages: [
           {
@@ -308,7 +313,10 @@ export class RecruitingExtractorService {
       model,
       maxRetries: 0,
       abortSignal: AbortSignal.timeout(180_000),
-      system: `${instructions}\n合并全部分段事实，去除重复事实，不丢失具体技能、项目、日期、职责和明确条件。不确定信息保持空值，不能擅自解决矛盾。分段文字与页图可能重复，请按事实合并，不能把不同岗位或不同候选人混为一体。`,
+      system: withOutputSchema(
+        `${instructions}\n合并全部分段事实，去除重复事实，不丢失具体技能、项目、日期、职责和明确条件。不确定信息保持空值，不能擅自解决矛盾。分段文字与页图可能重复，请按事实合并，不能把不同岗位或不同候选人混为一体。`,
+        schema,
+      ),
       output: Output.object({ schema }),
       prompt: evidence,
     });
