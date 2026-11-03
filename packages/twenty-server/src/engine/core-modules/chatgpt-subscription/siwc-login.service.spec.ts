@@ -132,3 +132,24 @@ it('rechecks the administrator before storing and revokes a newly issued session
     'synthetic-refresh',
   );
 });
+
+it('accepts only the owner’s exact redirect and consumes it once', async () => {
+  const { service, store } = setup();
+  const attempt = await service.start('owner');
+  const url = callback(attempt.authorizeUrl);
+  await expect(
+    service.completeFromRedirect('other', attempt.attemptId, url.href),
+  ).rejects.toThrow('不存在');
+  const wrongHost = new URL(url);
+  wrongHost.hostname = 'example.com';
+  await expect(
+    service.completeFromRedirect('owner', attempt.attemptId, wrongHost.href),
+  ).rejects.toThrow('已失效');
+  await expect(
+    service.completeFromRedirect('owner', attempt.attemptId, url.href),
+  ).resolves.toMatchObject({ status: 'COMPLETED' });
+  await expect(
+    service.completeFromRedirect('owner', attempt.attemptId, url.href),
+  ).rejects.toThrow('已失效');
+  expect(store.protocol.exchange).toHaveBeenCalledTimes(1);
+});

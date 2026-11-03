@@ -136,6 +136,21 @@ export class ChatgptSubscriptionController {
   ) {
     return this.login.status(this.owner(request), id);
   }
+  /** Accepts a browser loopback redirect for the administrator's own pending attempt. */
+  @Post('attempts/:id/complete') complete(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() input: unknown,
+  ) {
+    const owner = this.owner(request);
+    const parsed = z
+      .object({ redirect: z.string().max(8192) })
+      .strict()
+      .safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestException('请输入完整的授权回调地址');
+    return this.login.completeFromRedirect(owner, id, parsed.data.redirect);
+  }
   /** Cancels a pending, unconsumed authorization. */
   @Post('attempts/:id/cancel') cancel(
     @Req() request: Request,

@@ -208,11 +208,42 @@ export class SiwcLoginService implements OnModuleDestroy {
     }
     const expected = new URL(attempt.transaction.redirectUri);
     const url = new URL(request.url ?? '/', expected.origin);
+    if (request.headers.host !== expected.host) {
+      response.statusCode = 400;
+      response.end('授权请求不可用');
+      return;
+    }
+    try {
+      response.end(await this.complete(attempt, url));
+    } catch (error) {
+      response.statusCode = 400;
+      response.end(
+        error instanceof BadRequestException ? error.message : '授权未完成',
+      );
+    }
+  }
+  /** Completes a cloud-hosted attempt using the redirect received in the administrator’s browser. */
+  async completeFromRedirect(ownerId: string, id: string, redirect: string) {
+    const attempt = this.owned(ownerId, id);
+    let url: URL;
+    try {
+      url = new URL(redirect);
+    } catch {
+      throw new BadRequestException('请输入完整的授权回调地址');
+    }
+    await this.complete(attempt, url);
+    return this.status(ownerId, id);
+  }
+  /** Shares callback validation and one-time code exchange between both transports. */
+  private async complete(attempt: Attempt, url: URL) {
+    const expected = new URL(attempt.transaction.redirectUri);
     const state = url.searchParams.get('state') ?? '';
     if (
-      request.headers.host !== expected.host ||
       url.origin !== expected.origin ||
       url.pathname !== expected.pathname ||
+      url.username ||
+      url.password ||
+      url.hash ||
       ['state', 'code', 'client_id', 'error'].some(
         (name) => url.searchParams.getAll(name).length > 1,
       ) ||
@@ -225,9 +256,7 @@ export class SiwcLoginService implements OnModuleDestroy {
       attempt.status !== 'PENDING' ||
       attempt.expiresAt <= Date.now()
     ) {
-      response.statusCode = 400;
-      response.end('授权请求已失效，请返回Twenty重试');
-      return;
+      throw new BadRequestException('授权请求已失效，请返回Twenty重试');
     }
     attempt.status = 'PROCESSING';
     let issuedSession: { clientId: string; refreshToken?: string } | undefined;
@@ -253,9 +282,8 @@ export class SiwcLoginService implements OnModuleDestroy {
           await this.store.protocol
             .revoke(result.clientId, result.tokens.refresh_token)
             .catch(() => false);
-        response.statusCode = 400;
-        response.end('此授权已取消或超时，请返回Twenty重试');
-        return;
+        issuedSession = undefined;
+        throw new BadRequestException('此授权已取消或超时，请返回Twenty重试');
       }
       await this.owner(attempt.ownerId);
       const connection = await this.store.save(
@@ -271,19 +299,18 @@ export class SiwcLoginService implements OnModuleDestroy {
       );
       attempt.completedConnectionId = connection.id;
       this.finish(attempt, 'COMPLETED');
-      response.end(
-        connection.status === 'READY'
-          ? '授权已完成，请返回Twenty选择模型。'
-          : '账号身份已确认，但未授权使用ChatGPT订阅，请返回Twenty重新授权。',
-      );
+      return connection.status === 'READY'
+        ? '授权已完成，请返回Twenty选择模型。'
+        : '账号身份已确认，但未授权使用ChatGPT订阅，请返回Twenty重新授权。';
     } catch {
       if (issuedSession?.refreshToken)
         await this.store.protocol
           .revoke(issuedSession.clientId, issuedSession.refreshToken)
           .catch(() => false);
       if (attempt.status === 'PROCESSING') this.finish(attempt, 'FAILED');
-      response.statusCode = 400;
-      response.end('授权未完成，请返回Twenty重试。已有模型连接未被替换。');
+      throw new BadRequestException(
+        '授权未完成，请返回Twenty重试。已有模型连接未被替换。',
+      );
     }
   }
   /** Rejects another administrator's transaction even though both may manage instance providers. */

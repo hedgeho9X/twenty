@@ -1,4 +1,5 @@
 import { SettingsBriefTemplates } from './SettingsBriefTemplates';
+import { SettingsSubscriptionConnection } from './SettingsSubscriptionConnection';
 import { useClientConfig } from '@/client-config/hooks/useClientConfig';
 import { TextInput } from '@/ui/input/components/TextInput';
 /** Configures registered business features and shows account-reported quota without exposing credentials. */
@@ -130,6 +131,15 @@ export const SettingsRecruitingAiTab = ({
           </StyledSubscriptionError>
         )}
         {notice && <div role="status">{notice}</div>}
+        {kind === 'subscription' && (
+          <SettingsSubscriptionConnection
+            onActivated={async () => {
+              setConfig(await subscriptionRequest<FeatureConfig>('/features'));
+              await loadQuota();
+              await refreshClientConfig();
+            }}
+          />
+        )}
         {kind === 'subscription' && (
           <StyledSubscriptionPanel>
             <StyledSubscriptionRow>
