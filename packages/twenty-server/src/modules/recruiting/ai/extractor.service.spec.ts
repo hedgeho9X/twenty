@@ -101,7 +101,7 @@ it('resumes completed parts after a provider failure and merges the final page e
     .mocked(generateText)
     .mock.calls.map(([request]) => request);
   expect(requests[0].system).toContain('"intentStatements"');
-  expect(requests.at(-1)?.system).toContain('"materialKind"');
+  expect(requests[requests.length - 1].system).toContain('"materialKind"');
 });
 
 it('does not re-read or regenerate already persisted parts when retrying unchanged material', async () => {
