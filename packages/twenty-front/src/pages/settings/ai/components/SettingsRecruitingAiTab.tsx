@@ -31,11 +31,15 @@ type Quota = {
     resetsAt: string | null;
   }[];
 };
-type JevConfig = {
+type JevConnection = {
   modelId: string;
   providerName: string;
+  label: string;
   baseUrl: string;
   hasApiKey: boolean;
+};
+type JevConfig = JevConnection & {
+  connections: JevConnection[];
   inputPricePerMillion: number | null;
 };
 
@@ -50,6 +54,7 @@ export const SettingsRecruitingAiTab = ({
   const [quota, setQuota] = useState<Quota>();
   const [quotaError, setQuotaError] = useState('');
   const [jev, setJev] = useState<JevConfig>();
+  const [jevModelId, setJevModelId] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [price, setPrice] = useState('');
@@ -89,6 +94,7 @@ export const SettingsRecruitingAiTab = ({
         .then((result) => {
           if (!controller.signal.aborted) {
             setJev(result);
+            setJevModelId(result.modelId);
             setBaseUrl(result.baseUrl);
             setPrice(
               result.inputPricePerMillion == null
@@ -118,7 +124,15 @@ export const SettingsRecruitingAiTab = ({
     config?.features.filter(
       (feature) => kind === 'subscription' && feature.kind === 'language',
     ) ?? [];
-  const models = kind === 'jev' ? config?.evaluationModels : config?.models;
+  const models = config?.models;
+  const selectedJev = jev?.connections.find(
+    (connection) => connection.modelId === jevModelId,
+  );
+  const jevConnectionInput = {
+    ...(jevModelId !== jev?.modelId ? { modelId: jevModelId } : {}),
+    baseUrl,
+    ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+  };
   return (
     <Section.Root>
       <Section.Header
@@ -223,11 +237,6 @@ export const SettingsRecruitingAiTab = ({
                       },
                     ),
                   );
-                  if (kind === 'jev') {
-                    const next = await subscriptionRequest<JevConfig>('/jev');
-                    setJev(next);
-                    setBaseUrl(next.baseUrl);
-                  }
                   setNotice(t`已保存，新任务将使用所选模型`);
                 })
               }
@@ -236,6 +245,27 @@ export const SettingsRecruitingAiTab = ({
         ))}
         {kind === 'jev' && jev && (
           <StyledSubscriptionPanel>
+            <Select
+              dropdownId="recruiting-jev-model"
+              label={t`评分模型`}
+              value={jevModelId}
+              disabled={busy}
+              options={jev.connections.map((connection) => ({
+                value: connection.modelId,
+                label: `${connection.label} · ${connection.modelId.split('/').slice(1).join('/')}`,
+              }))}
+              onChange={(modelId) => {
+                const connection = jev.connections.find(
+                  (item) => item.modelId === modelId,
+                );
+                if (!connection) return;
+                setJevModelId(modelId);
+                setBaseUrl(connection.baseUrl);
+                setApiKey('');
+                setError('');
+                setNotice('');
+              }}
+            />
             <label>
               {t`服务地址`}
               <TextInput
@@ -256,7 +286,9 @@ export const SettingsRecruitingAiTab = ({
                 type="password"
                 autoComplete="new-password"
                 value={apiKey}
-                placeholder={jev.hasApiKey ? t`已配置，留空保留` : t`未配置`}
+                placeholder={
+                  selectedJev?.hasApiKey ? t`已配置，留空保留` : t`未配置`
+                }
                 onChange={setApiKey}
                 style={{
                   display: 'block',
@@ -284,10 +316,7 @@ export const SettingsRecruitingAiTab = ({
                       elapsedMs: number;
                     }>('/jev/test', {
                       method: 'POST',
-                      body: JSON.stringify({
-                        baseUrl,
-                        ...(apiKey ? { apiKey } : {}),
-                      }),
+                      body: JSON.stringify(jevConnectionInput),
                     });
                     setNotice(t`Jev 测试成功，耗时 ${result.elapsedMs} ms`);
                   })
@@ -301,11 +330,10 @@ export const SettingsRecruitingAiTab = ({
                       await subscriptionRequest<JevConfig>('/jev', {
                         method: 'POST',
                         body: JSON.stringify({
-                          baseUrl,
+                          ...jevConnectionInput,
                           ...(price.trim()
                             ? { inputPricePerMillion: Number(price) }
                             : {}),
-                          ...(apiKey ? { apiKey } : {}),
                         }),
                       }),
                     );

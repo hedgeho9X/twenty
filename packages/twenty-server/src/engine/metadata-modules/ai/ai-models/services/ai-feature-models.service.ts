@@ -16,6 +16,10 @@ export const AI_FEATURES = [
 ] as const;
 export type AiFeatureId = (typeof AI_FEATURES)[number]['id'];
 
+const JEV_DEFAULT_MODEL = 'typesafe-ai/jev-latest';
+const JEV_GATEWAY_MODEL = 'recruiting-gateway/typesafe-ai/jev';
+const JEV_MODEL_SELECTION = z.enum([JEV_DEFAULT_MODEL, JEV_GATEWAY_MODEL]);
+
 @Injectable()
 export class AiFeatureModelsService {
   constructor(
@@ -49,8 +53,7 @@ export class AiFeatureModelsService {
     return (
       this.config.get('AI_FEATURE_MODELS')[id] ||
       (id === 'jev_matching'
-        ? process.env.RECRUITING_JEV_MODEL_ID ||
-          'recruiting-gateway/typesafe-ai/jev'
+        ? process.env.RECRUITING_JEV_MODEL_ID || JEV_DEFAULT_MODEL
         : process.env.RECRUITING_MODEL_ID ||
           this.registry.getDefaultModelForTier('smart').modelId)
     );
@@ -81,15 +84,32 @@ export class AiFeatureModelsService {
     };
   }
 
+  /** Returns displayable settings and credential presence for each supported Jev connection. */
   jevConfig() {
+    const providers = this.providers.getResolvedProviders();
     const modelId = this.resolve('jev_matching');
-    const providerName = modelId.split('/')[0];
-    const provider = this.providers.getResolvedProviders()[providerName];
+    const modelSettings = (id: string) => {
+      const providerName = id.split('/')[0];
+      const provider = providers[providerName];
+      return {
+        modelId: id,
+        providerName,
+        label: provider?.label ?? providerName,
+        baseUrl:
+          provider?.baseUrl ||
+          (id === JEV_DEFAULT_MODEL
+            ? 'https://api.typesafe.ai/v1'
+            : id === JEV_GATEWAY_MODEL
+              ? 'https://ai-gateway.vercel.sh/v4/ai'
+              : ''),
+        hasApiKey: Boolean(provider?.apiKey),
+      };
+    };
     return {
-      modelId,
-      providerName,
-      baseUrl: provider?.baseUrl ?? '',
-      hasApiKey: Boolean(provider?.apiKey),
+      ...modelSettings(modelId),
+      connections: [...new Set([JEV_DEFAULT_MODEL, JEV_GATEWAY_MODEL, modelId])]
+        .filter((id) => providers[id.split('/')[0]])
+        .map(modelSettings),
       inputPricePerMillion:
         this.config.get('RECRUITING_JEV_INPUT_PRICE') ?? null,
     };
@@ -98,6 +118,7 @@ export class AiFeatureModelsService {
   async saveJev(input: unknown) {
     const parsed = z
       .object({
+        modelId: JEV_MODEL_SELECTION.optional(),
         baseUrl: z.union([z.literal(''), z.url()]),
         apiKey: z.string().min(1).max(4096).optional(),
         inputPricePerMillion: z.number().finite().nonnegative().optional(),
@@ -106,7 +127,8 @@ export class AiFeatureModelsService {
       .safeParse(input);
     if (!parsed.success)
       throw new BadRequestException('请填写有效的服务地址和凭据');
-    const { providerName } = this.jevConfig();
+    const modelId = parsed.data.modelId ?? this.resolve('jev_matching');
+    const providerName = modelId.split('/')[0];
     const provider = this.providers.getResolvedProviders()[providerName];
     if (!provider) throw new BadRequestException('评分提供方不存在');
     const configured = this.config.get('AI_PROVIDERS');
@@ -123,6 +145,12 @@ export class AiFeatureModelsService {
         'RECRUITING_JEV_INPUT_PRICE',
         parsed.data.inputPricePerMillion,
       );
+    if (
+      parsed.data.modelId &&
+      parsed.data.modelId !== this.resolve('jev_matching')
+    ) {
+      await this.set('jev_matching', modelId);
+    }
     return this.jevConfig();
   }
 
@@ -130,6 +158,7 @@ export class AiFeatureModelsService {
   async testJev(input: unknown) {
     const parsed = z
       .object({
+        modelId: JEV_MODEL_SELECTION.optional(),
         baseUrl: z.union([z.literal(''), z.url()]),
         apiKey: z.string().min(1).max(4096).optional(),
       })
@@ -137,7 +166,8 @@ export class AiFeatureModelsService {
       .safeParse(input);
     if (!parsed.success)
       throw new BadRequestException('请填写有效的服务地址和凭据');
-    const { modelId, providerName } = this.jevConfig();
+    const modelId = parsed.data.modelId ?? this.resolve('jev_matching');
+    const providerName = modelId.split('/')[0];
     const provider = this.providers.getResolvedProviders()[providerName];
     if (!provider) throw new BadRequestException('评分提供方不存在');
     const started = performance.now();
