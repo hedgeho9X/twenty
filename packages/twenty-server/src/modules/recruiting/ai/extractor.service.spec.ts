@@ -97,6 +97,9 @@ it('resumes completed parts after a provider failure and merges the final page e
   ).toContain('最后一页特有事实');
   expect(result.coverage).toMatchObject({ previews: 3, merged: true });
   expect(registry.getDefaultModelForTier).toHaveBeenCalledWith('smart');
+  for (const [request] of jest.mocked(generateText).mock.calls) {
+    expect(request.system).toContain('JSON');
+  }
 });
 
 it('does not re-read or regenerate already persisted parts when retrying unchanged material', async () => {
@@ -157,6 +160,9 @@ it.each(['candidate', 'jobs', 'draft'] as const)(
       }[operation],
     );
     expect(registry.getModel).toHaveBeenCalledWith('chosen-feature-model');
+    expect(generateText).toHaveBeenCalledWith(
+      expect.objectContaining({ system: expect.stringContaining('JSON') }),
+    );
   },
 );
 

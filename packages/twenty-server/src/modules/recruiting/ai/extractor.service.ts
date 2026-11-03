@@ -147,6 +147,8 @@ export class RecruitingExtractorService {
     progress?: RecruitingExtractionProgress,
     feature: AiFeatureId = 'candidate_extraction',
   ) {
+    // Some providers require an explicit JSON instruction to enable object output.
+    const structuredInstructions = `${instructions}\n请返回符合输出结构的 JSON 对象。`;
     const modelId =
       this.features?.resolve(feature) ??
       process.env.RECRUITING_MODEL_ID ??
@@ -178,7 +180,7 @@ export class RecruitingExtractorService {
         schema,
         materials,
         note,
-        instructions,
+        structuredInstructions,
         modelId,
         budget,
         progress,
@@ -198,7 +200,7 @@ export class RecruitingExtractorService {
       model: registered.model,
       maxRetries: 0,
       abortSignal: AbortSignal.timeout(180_000),
-      system: instructions,
+      system: structuredInstructions,
       output: Output.object({ schema }),
       messages: [
         {
