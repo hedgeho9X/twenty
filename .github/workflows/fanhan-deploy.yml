@@ -44,75 +44,92 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     environment: fanhan-production
+    permissions:
+      contents: read
+      packages: write
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Define application version
         id: version
-        run: echo "app_version=$(node -p "require('./packages/twenty-server/package.json').version")+$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-      - name: Build verified image
+        run: |
+          app_version="$(node -p "require('./packages/twenty-server/package.json').version")+$GITHUB_SHA"
+          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
+      - name: Publish verified application image
+        id: app
         uses: docker/build-push-action@v6
         with:
           context: .
           file: packages/twenty-docker/twenty/Dockerfile
           target: twenty
-          load: true
           platforms: linux/amd64
-          tags: fanhan/twenty:${{ github.sha }}
+          push: true
+          tags: ghcr.io/hedgeho9x/fanhan-twenty:${{ github.sha }}
           build-args: APP_VERSION=${{ steps.version.outputs.app_version }}
           labels: org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      - name: Transfer image over authenticated SSH
+          cache-from: type=gha,scope=fanhan-twenty
+          cache-to: type=gha,scope=fanhan-twenty,mode=max
+      - name: Publish MinerU parser image
+        id: parser
+        uses: docker/build-push-action@v6
+        with:
+          context: ops/recruiting/parser
+          file: ops/recruiting/parser/Dockerfile.mineru
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/hedgeho9x/fanhan-mineru:${{ github.sha }}
+          cache-from: type=gha,scope=fanhan-mineru
+          cache-to: type=gha,scope=fanhan-mineru,mode=max
+      - name: Deploy verified images through Dokploy
+        if: vars.FANHAN_DEPLOY_ENABLED == 'true'
         env:
-          DEPLOY_KEY: ${{ secrets.FANHAN_DEPLOY_KEY }}
-          KNOWN_HOSTS: ${{ secrets.FANHAN_KNOWN_HOSTS }}
-          REVISION: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          # BBR avoids severe CUBIC throughput loss on the cross-region upload.
-          sudo modprobe tcp_bbr 2>/dev/null || true
-          if sysctl -n net.ipv4.tcp_available_congestion_control | grep -qw bbr; then
-            sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
-          fi
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/fanhan
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/fanhan ~/.ssh/known_hosts
-          { printf '%s\n' "$REVISION"; docker save "fanhan/twenty:$REVISION" | gzip -1; } | \
-            ssh -i ~/.ssh/fanhan -o ServerAliveInterval=15 -o IPQoS=none -o BatchMode=yes -o StrictHostKeyChecking=yes fanhan-deploy@150.158.164.85
-          ssh -fN -i ~/.ssh/fanhan -o BatchMode=yes -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -L 127.0.0.1:23090:127.0.0.1:3000 fanhan-deploy@150.158.164.85
-          rm -f ~/.ssh/fanhan
-      - name: Deploy exact verified revision
-        env:
-          DOKPLOY_URL: http://127.0.0.1:23090
+          DEPLOY_TUNNEL_KEY: ${{ secrets.FANHAN_DOKPLOY_TUNNEL_KEY }}
+          KNOWN_HOSTS: ${{ secrets.FANHAN_DOKPLOY_KNOWN_HOSTS }}
           DOKPLOY_API_KEY: ${{ secrets.FANHAN_DOKPLOY_API_KEY }}
           DOKPLOY_COMPOSE_ID: ${{ secrets.FANHAN_DOKPLOY_COMPOSE_ID }}
-          REVISION: ${{ github.sha }}
+          APP_DIGEST: ${{ steps.app.outputs.digest }}
+          PARSER_DIGEST: ${{ steps.parser.outputs.digest }}
         run: |
           set -euo pipefail
-          test -n "$DOKPLOY_URL" && test -n "$DOKPLOY_API_KEY" && test -n "$DOKPLOY_COMPOSE_ID"
-          sed "s/:fanhan-bootstrap/:$REVISION/g" ops/recruiting/deploy/compose.yaml > /tmp/fanhan-compose.yaml
-          jq -n --arg id "$DOKPLOY_COMPOSE_ID" --rawfile compose /tmp/fanhan-compose.yaml \
-            '{composeId:$id, composeFile:$compose}' > /tmp/fanhan-update.json
-          curl --fail-with-body --silent --show-error --max-time 60 \
-            -H "x-api-key: $DOKPLOY_API_KEY" -H 'Content-Type: application/json' \
-            --data-binary @/tmp/fanhan-update.json "$DOKPLOY_URL/api/compose.update" > /dev/null
-          curl --fail-with-body --silent --show-error --max-time 60 \
-            -H "x-api-key: $DOKPLOY_API_KEY" -H 'Content-Type: application/json' \
-            --data "$(jq -nc --arg id "$DOKPLOY_COMPOSE_ID" --arg revision "$REVISION" '{composeId:$id, title:("Verified release " + $revision), description:$revision}')" \
-            "$DOKPLOY_URL/api/compose.deploy"
+          test -n "$DOKPLOY_API_KEY" && test -n "$DOKPLOY_COMPOSE_ID"
+          umask 077
+          temp_dir="$(mktemp -d)"
+          printf '%s\n' "$DEPLOY_TUNNEL_KEY" > "$temp_dir/tunnel"
+          printf '%s\n' "$KNOWN_HOSTS" > "$temp_dir/known_hosts"
+          printf 'x-api-key: %s\n' "$DOKPLOY_API_KEY" > "$temp_dir/headers"
+          ssh -fN -i "$temp_dir/tunnel" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$temp_dir/known_hosts" \
+            -o ConnectTimeout=15 -o ExitOnForwardFailure=yes \
+            -L 127.0.0.1:23090:127.0.0.1:3000 fanhan-deploy@43.136.55.30
+          sed -e "s#fanhan-twenty:fanhan-bootstrap#fanhan-twenty@$APP_DIGEST#g" \
+              -e "s#fanhan-mineru:fanhan-bootstrap#fanhan-mineru@$PARSER_DIGEST#g" \
+              ops/recruiting/deploy/compose.yaml > "$temp_dir/compose.yaml"
+          jq -n --arg id "$DOKPLOY_COMPOSE_ID" --rawfile compose "$temp_dir/compose.yaml" \
+            '{composeId:$id, composeFile:$compose}' > "$temp_dir/update.json"
+          curl --fail --silent --show-error --max-time 60 \
+            -H @"$temp_dir/headers" -H 'Content-Type: application/json' \
+            --data-binary @"$temp_dir/update.json" http://127.0.0.1:23090/api/compose.update >/dev/null
+          jq -n --arg id "$DOKPLOY_COMPOSE_ID" --arg revision "$GITHUB_SHA" \
+            '{composeId:$id, title:("Verified release " + $revision), description:$revision}' > "$temp_dir/deploy.json"
+          curl --fail --silent --show-error --max-time 60 \
+            -H @"$temp_dir/headers" -H 'Content-Type: application/json' \
+            --data-binary @"$temp_dir/deploy.json" http://127.0.0.1:23090/api/compose.deploy >/dev/null
       - name: Verify deployed revision
+        if: vars.FANHAN_DEPLOY_ENABLED == 'true'
         env:
           APP_VERSION: ${{ steps.version.outputs.app_version }}
-          REVISION: ${{ github.sha }}
         run: |
           set -euo pipefail
           for attempt in $(seq 1 90); do
-            if curl --fail --silent --max-time 10 http://150.158.164.85/healthz >/dev/null && \
-               curl --fail --silent --max-time 10 http://150.158.164.85/client-config | jq -e --arg version "$APP_VERSION" '.appVersion == $version' >/dev/null; then
-              echo "Verified deployed revision $REVISION"
+            if curl --fail --silent --max-time 10 http://43.136.55.30/healthz >/dev/null && \
+               curl --fail --silent --max-time 10 http://43.136.55.30/client-config | jq -e --arg version "$APP_VERSION" '.appVersion == $version' >/dev/null; then
+              echo "Verified deployed revision $GITHUB_SHA"
               exit 0
             fi
             sleep 10
