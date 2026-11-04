@@ -83,9 +83,12 @@ export const RecruitingMailboxSettings = ({ active }: { active: boolean }) => {
           <Skeleton className="h-24 w-full" />
         </div>
       )}
-      {!query.loading && !query.error && !query.data?.connections.length && (
-        <StyledRecruitingMuted>{t`请先添加邮箱账号。`}</StyledRecruitingMuted>
-      )}
+      {query.data &&
+        !query.loading &&
+        !query.error &&
+        !query.data.connections.length && (
+          <StyledRecruitingMuted>{t`请先添加邮箱账号。`}</StyledRecruitingMuted>
+        )}
       {query.data && !query.data.nativeIntegrationEnabled && (
         <StyledRecruitingMuted>{t`邮箱接入未启用。`}</StyledRecruitingMuted>
       )}

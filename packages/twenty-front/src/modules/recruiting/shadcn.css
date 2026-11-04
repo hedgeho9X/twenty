@@ -91,3 +91,8 @@
 .recruiting-recommendations-table th:last-child { width: 112px; }
 .recruiting-recommendations-table td:nth-child(2), .recruiting-recommendations-table td:nth-child(3) { overflow: hidden; text-overflow: ellipsis; }
 .recruiting-recommendations-table th:last-child, .recruiting-recommendations-table td:last-child { text-align: right; }
+
+.recruiting-share-table { table-layout: fixed; min-width: 720px; }
+.recruiting-share-table th:first-child, .recruiting-share-table td:first-child { padding-left: 24px; }
+.recruiting-share-table th:nth-child(2) { width: 200px; }
+.recruiting-share-table th:last-child, .recruiting-share-table td:last-child { width: 152px; padding-right: 24px; }

@@ -213,13 +213,22 @@ export const RecruitingMatchResults = ({
           </div>
           {run ? (
             <>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <CardTitle>{run.subjectLabel}</CardTitle>
                 <Badge
                   variant={run.status === 'COMPLETED' ? 'success' : 'secondary'}
                 >
                   {stateLabels[run.status] ?? run.status}
                 </Badge>
+                <Button variant="outline" size="sm" asChild>
+                  <a
+                    href={`/object/${run.direction === 'JOB_TO_CANDIDATES' ? 'recruitmentJob' : 'person'}/${run.subjectId}`}
+                  >
+                    {run.direction === 'JOB_TO_CANDIDATES'
+                      ? '查看岗位资料'
+                      : '查看候选人资料'}
+                  </a>
+                </Button>
               </div>
               <CardDescription>
                 已处理 {run.counts.processed} / {run.counts.total} · 已评分{' '}
