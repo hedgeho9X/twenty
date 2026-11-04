@@ -21,6 +21,33 @@ describe('candidate contact projection', () => {
     expect(candidateFields({ phone: '(202) 555-0123' }).phones).toBeUndefined();
     expect(candidateFields({ phone: '12' }).phones).toBeUndefined();
   });
+  it('keeps multiple explicit international phones without losing secondary contact choices', () => {
+    expect(
+      candidateFields({
+        phone: '+86 13800138000 | +44 20 7946 0958 | +86 13800138000',
+      }).phones,
+    ).toEqual({
+      primaryPhoneNumber: '13800138000',
+      primaryPhoneCallingCode: '+86',
+      primaryPhoneCountryCode: 'CN',
+      additionalPhones: [
+        { number: '2079460958', callingCode: '+44', countryCode: 'GB' },
+      ],
+    });
+  });
+  it('preserves a manually maintained secondary number when a parsed contact becomes primary', () => {
+    const existing = {
+      number: '2079460958',
+      callingCode: '+44',
+      countryCode: 'GB',
+    };
+    expect(
+      candidateFields(
+        { phone: '+86 13800138000 | +44 20 7946 0958' },
+        { phones: { additionalPhones: [existing] } },
+      ).phones,
+    ).toMatchObject({ additionalPhones: [existing] });
+  });
   it('does not overwrite a manual primary number or erase it on missing extraction', () => {
     const current = { phones: { primaryPhoneNumber: '12345678' } };
     expect(
