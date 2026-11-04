@@ -7,8 +7,11 @@ import {
   apiOrigin,
 } from './cli-auth.mjs';
 /** Runs recruiting operations as a thin authenticated API client; credentials come only from the environment. */
-import { readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { link, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -45,10 +48,10 @@ export const createRecruitingClient = ({ baseUrl, token, fetcher = fetch }) => {
     throw new Error('Use HTTPS or an explicit local recruiting URL');
   if (!token || !/^[A-Za-z0-9_.-]+$/.test(token))
     throw new Error('Run fanhan auth login or set FANHAN_API_KEY');
-  const request = async (path, options = {}) => {
+  const send = async (path, options = {}) => {
     if (!path.startsWith('/') || path.startsWith('//') || path.includes('..'))
       throw new Error('Invalid API path');
-    const response = await fetcher(`${base.origin}${path}`, {
+    return fetcher(`${base.origin}${path}`, {
       ...options,
       redirect: 'error',
       signal: options.signal ?? AbortSignal.timeout(120_000),
@@ -60,6 +63,8 @@ export const createRecruitingClient = ({ baseUrl, token, fetcher = fetch }) => {
         authorization: `Bearer ${token}`,
       },
     });
+  };
+  const json = async (response) => {
     let body;
     try {
       body = await response.json();
@@ -83,12 +88,42 @@ export const createRecruitingClient = ({ baseUrl, token, fetcher = fetch }) => {
     }
     return body;
   };
+  const request = async (path, options = {}) => json(await send(path, options));
+  const download = async (path, output) => {
+    const response = await send(path);
+    if (!response.ok) await json(response);
+    if (
+      !response.body ||
+      response.headers.get('content-type')?.split(';')[0].trim() !==
+        'application/octet-stream'
+    ) {
+      await response.body?.cancel();
+      throw new Error('API did not return an original file download');
+    }
+    const destination = resolve(output);
+    let temporary;
+    try {
+      temporary = await mkdtemp(join(dirname(destination), '.fanhan-download-'));
+      const partial = join(temporary, 'file');
+      await pipeline(
+        Readable.fromWeb(response.body),
+        createWriteStream(partial, { flags: 'wx', mode: 0o600 }),
+      );
+      const { size } = await stat(partial);
+      // Hard-link publication is atomic and refuses existing files or symlinks.
+      await link(partial, destination);
+      return { path: destination, bytes: size };
+    } finally {
+      if (temporary) await rm(temporary, { recursive: true, force: true });
+      if (!response.body.locked) await response.body.cancel();
+    }
+  };
   const post = (path, body) =>
     request(`/recruiting/${path}`, {
       method: 'POST',
       body: JSON.stringify(body),
     });
-  return { request, post };
+  return { request, post, download };
 };
 
 /** Waits for durable business state, treating partial and failed work distinctly from a successful HTTP response. */
@@ -152,6 +187,8 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       'company-id': { type: 'string' },
       'employment-type': { type: 'string' },
       'candidate-id': { type: 'string' },
+      'file-id': { type: 'string' },
+      out: { type: 'string' },
       'job-id': { type: 'string' },
       id: { type: 'string' },
       kind: { type: 'string', default: 'intake' },
@@ -265,6 +302,15 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     const resource = group === 'draft' ? 'drafts' : group;
     result = await client.request(
       `/recruiting/${resource}/${encodeURIComponent(required('id'))}`,
+    );
+  } else if (group === 'candidates' && action === 'files') {
+    result = await client.request(
+      `/recruiting/candidates/${encodeURIComponent(required('id'))}/files`,
+    );
+  } else if (group === 'candidates' && action === 'download') {
+    result = await client.download(
+      `/recruiting/candidates/${encodeURIComponent(required('id'))}/files/${encodeURIComponent(required('file-id'))}`,
+      required('out'),
     );
   } else if (group === 'auth' && action === 'status') {
     await client.request('/recruiting/candidates');

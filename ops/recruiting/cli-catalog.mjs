@@ -20,6 +20,8 @@ export const COMMANDS = {
   candidates: {
     list: '[--query 关键词]',
     get: '--id ID；读取解析资料',
+    files: '--id ID；列出当前有权读取的候选人原件引用',
+    download: '--id ID --file-id FILE_ID --out 路径；下载原件，不覆盖已有文件',
     upload:
       '--employment-type full_time|internship --file 简历 [--file 补充材料，合计最多6份] [--note-file 说明] [--candidate-id ID] --key 请求标识 [--wait]',
   },

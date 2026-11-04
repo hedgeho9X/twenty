@@ -2,10 +2,186 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRecruitingClient, waitForRecruitingTask } from './cli.mjs';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import {
+  mkdtemp,
+  writeFile,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  symlink,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { apiOrigin } from './cli-auth.mjs';
+
+test('candidate files/download commands preserve original bytes and explicit output paths', async () => {
+  const { main } = await import('./cli.mjs');
+  const directory = await mkdtemp(join(tmpdir(), 'fanhan-download-'));
+  const originalFetch = globalThis.fetch;
+  const originalKey = process.env.FANHAN_API_KEY;
+  const originalLog = console.log;
+  const bytes = Buffer.from([0x25, 0x50, 0x44, 0x46, 0, 0xff, 0x0a]);
+  const output = join(directory, '简历.pdf');
+  const logs = [];
+  const requests = [];
+  process.env.FANHAN_API_KEY = 'test-key';
+  console.log = (value) => logs.push(JSON.parse(value));
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    assert.equal(options.redirect, 'error');
+    assert.equal(options.headers.authorization, 'Bearer test-key');
+    assert.ok(options.signal instanceof AbortSignal);
+    return url.endsWith('/files')
+      ? Response.json({
+          candidateId: 'candidate',
+          files: [{ fileId: 'resume', label: '../../remote-name.pdf' }],
+        })
+      : new Response(bytes, {
+          headers: {
+            'content-type': 'application/octet-stream',
+            'content-disposition': 'attachment; filename="../../remote-name.pdf"',
+          },
+        });
+  };
+  try {
+    const base = ['--base', 'http://127.0.0.1:23001'];
+    await main(['candidates', 'files', ...base, '--id', 'candidate', '--json']);
+    assert.deepEqual(logs[0].files, [
+      { fileId: 'resume', label: '../../remote-name.pdf' },
+    ]);
+    await main([
+      'candidates',
+      'download',
+      ...base,
+      '--id',
+      'candidate',
+      '--file-id',
+      'resume',
+      '--out',
+      output,
+      '--json',
+    ]);
+    assert.deepEqual(logs[1], { path: output, bytes: bytes.length });
+    assert.deepEqual(await readFile(output), bytes);
+    assert.equal((await stat(output)).mode & 0o777, 0o600);
+    assert.deepEqual(await readdir(directory), ['简历.pdf']);
+    assert.deepEqual(
+      requests.map(({ url }) => url),
+      [
+        'http://127.0.0.1:23001/recruiting/candidates/candidate/files',
+        'http://127.0.0.1:23001/recruiting/candidates/candidate/files/resume',
+      ],
+    );
+    for (const missing of [['--file-id', 'resume'], ['--out', output]]) {
+      await assert.rejects(
+        main(['candidates', 'download', ...base, '--id', 'candidate', ...missing]),
+        /is required/,
+      );
+    }
+    assert.equal(requests.length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.log = originalLog;
+    if (originalKey === undefined) delete process.env.FANHAN_API_KEY;
+    else process.env.FANHAN_API_KEY = originalKey;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('downloads reject authorization errors, redirects and unexpected JSON without saving files', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'fanhan-download-errors-'));
+  const token = 'test-private-token';
+  const path = '/recruiting/candidates/candidate/files/resume';
+  try {
+    for (const status of [403, 404, 302]) {
+      let calls = 0;
+      const client = createRecruitingClient({
+        baseUrl: 'https://example.test',
+        token,
+        fetcher: async (url, options) => {
+          calls++;
+          assert.equal(url, `https://example.test${path}`);
+          assert.equal(options.redirect, 'error');
+          return Response.json(
+            { message: `Denied ${token}` },
+            {
+              status,
+              headers: { location: 'https://elsewhere.test/file' },
+            },
+          );
+        },
+      });
+      await assert.rejects(
+        client.download(path, join(directory, 'original.pdf')),
+        (error) => error.status === status && !error.message.includes(token),
+      );
+      assert.equal(calls, 1);
+      await assert.rejects(client.download('//elsewhere.test/file', 'unused'));
+      assert.equal(calls, 1);
+    }
+    const client = createRecruitingClient({
+      baseUrl: 'https://example.test',
+      token,
+      fetcher: async () => Response.json({ message: 'not a file' }),
+    });
+    await assert.rejects(
+      client.download(path, join(directory, 'original.pdf')),
+      /original file download/,
+    );
+    assert.deepEqual(await readdir(directory), []);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('downloads refuse existing files and symlinks and remove partial transfers', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'fanhan-download-cleanup-'));
+  const path = '/recruiting/candidates/candidate/files/resume';
+  const original = join(directory, 'existing.pdf');
+  const shortcut = join(directory, 'symlink.pdf');
+  const client = createRecruitingClient({
+    baseUrl: 'https://example.test',
+    token: 'test',
+    fetcher: async () =>
+      new Response('replacement', {
+        headers: { 'content-type': 'application/octet-stream' },
+      }),
+  });
+  try {
+    await writeFile(original, 'keep');
+    await symlink(original, shortcut);
+    for (const output of [original, shortcut]) {
+      await assert.rejects(client.download(path, output), { code: 'EEXIST' });
+      assert.equal(await readFile(original, 'utf8'), 'keep');
+    }
+    let chunks = 0;
+    const failing = createRecruitingClient({
+      baseUrl: 'https://example.test',
+      token: 'test',
+      fetcher: async () =>
+        new Response(
+          new ReadableStream({
+            pull(controller) {
+              if (chunks++ === 0) controller.enqueue(new Uint8Array([1, 2, 3]));
+              else controller.error(new Error('interrupted transfer'));
+            },
+          }),
+          { headers: { 'content-type': 'application/octet-stream' } },
+        ),
+    });
+    await assert.rejects(
+      failing.download(path, join(directory, 'partial.pdf')),
+      /interrupted transfer/,
+    );
+    assert.deepEqual((await readdir(directory)).sort(), [
+      'existing.pdf',
+      'symlink.pdf',
+    ]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('remote HTTP requires explicit opt-in and still rejects embedded credentials', () => {
   const original = process.env.FANHAN_ALLOW_HTTP;

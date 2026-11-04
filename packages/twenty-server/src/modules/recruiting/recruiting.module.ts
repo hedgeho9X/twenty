@@ -30,6 +30,7 @@ import { RecruitingMatchJob } from './matching/match.job';
 import { TypeORMModule } from 'src/database/typeorm/typeorm.module';
 import { RecruitingRecordChangeListener } from './matching/record-change.listener';
 import { RecruitingUploadService } from './files/upload.service';
+import { RecruitingCandidateFilesService } from './files/candidate-files.service';
 import { FileUploadModule } from 'src/engine/core-modules/file/file-upload/file-upload.module';
 import { PermissionsModule } from 'src/engine/metadata-modules/permissions/permissions.module';
 import { RecruitingUploadPermissionGuard } from './auth/upload-permission.guard';
@@ -96,6 +97,7 @@ import { RecruitingPortalController } from './portal/portal.controller';
     RecruitingExtractorService,
     RecruitingIntakeService,
     RecruitingUploadService,
+    RecruitingCandidateFilesService,
     RecruitingUploadPermissionGuard,
     RecruitingJobConfirmationService,
     RecruitingDirectoryService,

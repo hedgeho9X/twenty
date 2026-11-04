@@ -14,6 +14,7 @@ description: 通过 fanhan CLI 完成泛函招聘运营：公司/JD录入、简�
 - 用 `fanhan <组名> --help --json` 只读取当前需要的命令；`fanhan schema --json` 是完整的小型业务目录。
 - 入库：查公司、必要时创建 → `jobs import --company-id ID --employment-type full_time --text-file JD.txt --key KEY --wait`；简历用 `candidates upload --employment-type full_time --file 简历 --note-file 说明 --key KEY --wait`。
 - 匹配：`match candidate --id ID --wait` 或 `match job --id ID --wait`；`--targets ID,ID`限定池。指定组合用 `match pair`。最多十项，默认选前五；用户明确选择优先。
+- 原件：`candidates files --id ID --json` 查询有权读取的 `fileId/label`；`candidates download --id ID --file-id FILE_ID --out 本地路径` 下载，不覆盖已有文件。引用可能对应已缺失原件，下载错误不能声称成功；不返回公开链接。
 - 文案：`draft generate --match-run-id ID --top 5 --key KEY --wait`；明确选择用`--selected-ids`。结果中的 `jobPageUrl` 已可分享，不重复创建同一分享。编辑用 `draft edit --id ID --data-file draft.json`，文件含 title/body。
 - 分享：`share create`接受`--job-ids`和`--candidate-ids`；`share list`找已创建链接；撤销用`share revoke --id`。链接本身是访问凭据，只交付给用户或任务指定接收者。
 - 恢复：`tasks list` → `tasks get --id ID --kind intake|match|draft|mail`；失败时看具体原因后重试，不循环创建新任务。`tasks wait`可继续等待。

@@ -13,6 +13,7 @@ import {
   UseGuards,
   Param,
   Headers,
+  Header,
   HttpCode,
   Res,
   UploadedFile,
@@ -22,6 +23,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { createHash } from 'node:crypto';
+import { pipeline } from 'node:stream/promises';
 
 import { type Request, type Response } from 'express';
 import { ApiPath } from 'twenty-shared/types';
@@ -44,6 +46,7 @@ import { RecruitingRecordsService } from '../records/records.service';
 import { RecruitingIntakeService } from '../intake/intake.service';
 import { RecruitingMatchingService } from '../matching/matching.service';
 import { RecruitingUploadService } from '../files/upload.service';
+import { RecruitingCandidateFilesService } from '../files/candidate-files.service';
 import { RecruitingUploadPermissionGuard } from '../auth/upload-permission.guard';
 import { contentVersion } from '../matching/domain/match-context';
 import { userIsFullAdmin } from 'src/engine/core-modules/impersonation/utils/user-is-full-admin.util';
@@ -82,6 +85,7 @@ export class RecruitingController {
     private readonly consents: RecruitingShareConsentService,
     private readonly activities: RecruitingActivityService,
     private readonly processingTasks: ProcessingTasksService,
+    private readonly candidateFiles: RecruitingCandidateFilesService,
   ) {}
   @Post('brief-test') testBrief(@Body() input: unknown) {
     return this.drafts.testTemplate(input);
@@ -382,6 +386,43 @@ export class RecruitingController {
       Math.max(0, Number.parseInt(offset, 10) || 0),
       Number.parseInt(limit, 10) || 50,
     );
+  }
+
+  /** Lists only visible candidate originals, without granting file capabilities. */
+  @Get('candidates/:id/files')
+  @Header('Cache-Control', 'private, no-store')
+  candidateFileList(@Req() request: Request, @Param('id') id: string) {
+    return this.candidateFiles.list(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
+
+  /** Streams a parent-authorized original as a download without buffering it. */
+  @Get('candidates/:id/files/:fileId')
+  async candidateFileDownload(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+    @Res() response: Response,
+  ) {
+    const file = await this.candidateFiles.download(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      fileId,
+    );
+    try {
+      response.setHeader('Content-Type', 'application/octet-stream');
+      response.setHeader(
+        'Content-Disposition',
+        `attachment; filename*=UTF-8''${encodeURIComponent(file.label)}`,
+      );
+      response.setHeader('X-Content-Type-Options', 'nosniff');
+      response.setHeader('Cache-Control', 'private, no-store');
+      await pipeline(file.stream, response);
+    } finally {
+      file.stream.destroy();
+    }
   }
 
   /** Searches company-bound jobs without duplicating the matching pool rules. */
