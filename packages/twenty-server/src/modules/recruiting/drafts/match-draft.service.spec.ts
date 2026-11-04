@@ -1,5 +1,5 @@
 /** Verifies selection-bound drafting loads current full context and persists the result association. */
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { RecruitingDraftsService } from './drafts.service';
 const candidateId = '11111111-1111-4111-8111-111111111111';
 const jobId = '22222222-2222-4222-8222-222222222222';
@@ -51,12 +51,16 @@ const setup = () => {
   };
   const queue = { add: jest.fn() };
   const matching = {
-    one: jest.fn(async () => ({
-      complete: true,
-      subjectLabel: '候选人',
-      direction: 'CANDIDATE_TO_JOBS',
-      top: [{ candidateId, jobId, score: 3 }],
-    })),
+    selection: jest.fn(async (_context, _id, ids) => {
+      if (ids.some((id) => id !== jobId))
+        throw new BadRequestException('请选择当前匹配结果');
+      return {
+        complete: true,
+        subjectLabel: '候选人',
+        direction: 'CANDIDATE_TO_JOBS',
+        results: [{ candidateId, jobId, score: 3 }],
+      };
+    }),
   };
   const jobPages = { activeDraftUrl: jest.fn() };
   const service = new RecruitingDraftsService(

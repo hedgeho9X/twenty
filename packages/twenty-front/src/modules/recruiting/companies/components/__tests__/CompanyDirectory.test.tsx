@@ -60,11 +60,12 @@ it('distinguishes same-name company choices using their actual domains', () => {
       onSelect={jest.fn()}
     />,
   );
+  fireEvent.click(screen.getByRole('button', { name: '选择公司' }));
   expect(
-    screen.getByRole('button', { name: /a\.example\.invalid/ }),
+    screen.getByRole('option', { name: /a\.example\.invalid/ }),
   ).toBeTruthy();
   expect(
-    screen.getByRole('button', { name: /b\.example\.invalid/ }),
+    screen.getByRole('option', { name: /b\.example\.invalid/ }),
   ).toBeTruthy();
 });
 

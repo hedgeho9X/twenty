@@ -114,7 +114,7 @@ export const RecruitingMatchResults = ({
   );
   const results = useRecruitingQuery<ResultPage>(
     runId
-      ? `match-runs/${runId}/results?offset=0&limit=${topLimit}&status=SCORED`
+      ? `match-runs/${runId}/results?offset=0&limit=${topLimit}&status=${summary.data?.direction === 'PAIR' ? '' : 'SCORED'}`
       : null,
     running ? 3000 : 0,
     active && Boolean(runId),
@@ -257,6 +257,33 @@ export const RecruitingMatchResults = ({
                 </AlertDescription>
               </Alert>
             )}
+            {page?.records
+              .filter((pair) => pair.status !== 'SCORED')
+              .map((pair) => (
+                <Alert key={`${pair.candidateId}:${pair.jobId}`}>
+                  <AlertDescription>
+                    <strong>
+                      {pair.status === 'EXCLUDED'
+                        ? '明确条件冲突'
+                        : pair.status === 'NEEDS_REVIEW'
+                          ? '待补资料或人工核对'
+                          : pair.status === 'FAILED'
+                            ? '处理失败'
+                            : '资料已更新'}
+                    </strong>
+                    <div>
+                      <a href={pair.candidateUrl}>{pair.candidateLabel}</a> ·{' '}
+                      <a href={pair.jobUrl}>{pair.jobLabel}</a>
+                    </div>
+                    <p>
+                      {pair.error ||
+                        pair.eligibility?.reasons
+                          .map((reason) => reason.message)
+                          .join('；')}
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              ))}
             {!page ? (
               <LoadingRows />
             ) : !page.records.length ? (
@@ -335,7 +362,7 @@ export const RecruitingMatchResults = ({
             </Button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="recruiting-results-filters">
           <Input
             className="min-w-48 flex-1"
             placeholder="搜索姓名、岗位或公司"
@@ -398,7 +425,10 @@ export const RecruitingMatchResults = ({
         {list.loading ? (
           <LoadingRows />
         ) : (
-          <Table>
+          <Table
+            className="recruiting-results-table"
+            data-direction={direction}
+          >
             <TableHeader className="sticky top-0 bg-background">
               <TableRow>
                 <TableHead>
@@ -454,12 +484,18 @@ export const RecruitingMatchResults = ({
                     </Badge>
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {new Date(row.createdAt).toLocaleString('zh-CN', {
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    <time
+                      dateTime={row.createdAt}
+                      title={new Date(row.createdAt).toLocaleString('zh-CN')}
+                    >
+                      {new Date(row.createdAt).toLocaleString('zh-CN', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
+                    </time>
                   </TableCell>
                   <TableCell>
                     <Button

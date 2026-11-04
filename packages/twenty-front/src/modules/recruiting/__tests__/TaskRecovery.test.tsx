@@ -40,6 +40,7 @@ jest.mock('@/recruiting/shared/styles', () => ({
   StyledRecruitingTable: 'table',
 }));
 jest.mock('twenty-ui/icon', () => ({
+  ...jest.requireActual('twenty-ui/icon'),
   IconRefresh: () => null,
   IconArrowLeft: () => null,
   IconX: () => null,

@@ -25,6 +25,7 @@ jest.mock('@/recruiting/shared/styles', () => ({
   StyledRecruitingTitle: 'h2',
 }));
 jest.mock('twenty-ui/icon', () => ({
+  ...jest.requireActual('twenty-ui/icon'),
   IconBuildingSkyscraper: () => null,
   IconPlus: () => null,
   IconUpload: () => null,
@@ -137,7 +138,24 @@ beforeEach(() => {
   jest
     .mocked(useRecruitingQuery)
     .mockImplementation(<T,>(path: string | null) => ({
-      data: queryData[path ?? ''] as T,
+      data: (() => {
+        if (path?.endsWith('/summary'))
+          return queryData[path.replace('/summary', '')];
+        if (path?.includes('/results?')) {
+          const run = queryData[path.split('/results?')[0]] as
+            | { runId: string; top?: unknown[]; results?: unknown[] }
+            | undefined;
+          if (run && !queryData[path])
+            queryData[path] = {
+              runId: run.runId,
+              records: run.results ?? run.top ?? [],
+              count: (run.results ?? run.top ?? []).length,
+              staleOnPage: 0,
+            };
+          return queryData[path];
+        }
+        return queryData[path ?? ''];
+      })() as T,
       error: '',
       loading: false,
       reload: jest.fn().mockResolvedValue(undefined),
@@ -266,9 +284,9 @@ it('shows a single candidate header and compact job results without follow-up co
   };
   render(<RecruitingMatchResults initialRunId="completed" />);
   expect(screen.getAllByText('合成候选人')).toHaveLength(1);
-  expect(screen.getByText(/TypeScript/)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: '后端工程师' })).toBeInTheDocument();
   expect(screen.getByText('3.20 / 4')).toBeInTheDocument();
-  expect(screen.queryByText('已完成')).toBeNull();
+  expect(screen.getByText('已完成')).toBeInTheDocument();
   expect(screen.queryByText(/共 46 个组合/)).toBeNull();
   expect(screen.queryByRole('button', { name: '生成问候草稿' })).toBeNull();
   expect(screen.queryByRole('button', { name: '标记为已查看' })).toBeNull();
@@ -276,21 +294,22 @@ it('shows a single candidate header and compact job results without follow-up co
 });
 
 it('shows the full matching timestamp including seconds', () => {
-  queryData['match-runs?offset=0&direction=CANDIDATE_TO_JOBS&completed=true'] =
-    {
-      records: [
-        {
-          runId: 'time-fixture',
-          direction: 'CANDIDATE_TO_JOBS',
-          subjectLabel: '时间显示验收',
-          expectedRoles: [],
-          createdAt: '2026-11-01T03:04:05.000Z',
-        },
-      ],
-      hasNextPage: false,
-    };
+  queryData[
+    'match-results?offset=0&limit=20&direction=CANDIDATE_TO_JOBS&search=&read=&followUp=&from=&to='
+  ] = {
+    records: [
+      {
+        runId: 'time-fixture',
+        direction: 'CANDIDATE_TO_JOBS',
+        subjectLabel: '时间显示验收',
+        expectedRoles: [],
+        createdAt: '2026-11-01T03:04:05.000Z',
+      },
+    ],
+    hasNextPage: false,
+  };
   render(<RecruitingMatchResults />);
-  const timestamp = screen.getByText(/03:04:05/);
+  const timestamp = screen.getByText(/04:05/);
   expect(timestamp.tagName).toBe('TIME');
   expect(timestamp).toHaveAttribute('datetime', '2026-11-01T03:04:05.000Z');
 });

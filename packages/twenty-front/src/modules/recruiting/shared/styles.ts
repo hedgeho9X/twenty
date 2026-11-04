@@ -4,13 +4,13 @@ import { Table } from '@/recruiting/shadcn/ui/table';
 import { ErrorAlert } from '@/recruiting/shadcn/compat';
 import { css } from '@linaria/core';
 import { styled } from '@linaria/react';
-import { themeCssVariables as theme } from 'twenty-ui/theme';
 
 export const StyledRecruitingWorkspace = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   width: 100%;
   button:focus:not(:focus-visible),
   a:focus:not(:focus-visible) {
@@ -21,32 +21,33 @@ export const StyledRecruitingWorkspace = styled.div`
 export const StyledRecruitingBody = styled.div`
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow: auto;
-  padding: ${theme.spacing[5]};
+  padding: 20px;
 `;
 export const StyledRecruitingStack = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${theme.spacing[4]};
+  gap: 16px;
 `;
 export const StyledRecruitingRow = styled.div`
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: ${theme.spacing[2]};
+  gap: 8px;
 `;
 export const StyledRecruitingPanel = styled(Card)`
-  background: ${theme.background.primary};
-  border: 1px solid ${theme.border.color.medium};
-  border-radius: ${theme.border.radius.md};
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
-  gap: ${theme.spacing[4]};
-  padding: ${theme.spacing[5]};
+  gap: 16px;
+  padding: 20px;
 `;
 export const StyledRecruitingMuted = styled.p`
-  color: ${theme.font.color.tertiary};
-  font-size: ${theme.font.size.sm};
+  color: var(--muted-foreground);
+  font-size: 14px;
   line-height: 1.65;
   margin: 0;
 `;
@@ -56,9 +57,9 @@ export const StyledRecruitingContextText = styled.p`
   white-space: pre-wrap;
 `;
 export const StyledRecruitingTitle = styled.h2`
-  color: ${theme.font.color.primary};
-  font-size: ${theme.font.size.lg};
-  font-weight: ${theme.font.weight.medium};
+  color: var(--foreground);
+  font-size: 18px;
+  font-weight: 500;
   margin: 0;
   a {
     color: inherit;
@@ -69,33 +70,33 @@ export const StyledRecruitingTitle = styled.h2`
   }
 `;
 export const StyledRecruitingError = styled(ErrorAlert)`
-  border: 1px solid ${theme.border.color.medium};
-  border-radius: ${theme.border.radius.sm};
-  color: ${theme.color.red};
-  padding: ${theme.spacing[3]};
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--destructive);
+  padding: 12px;
 `;
 export const StyledRecruitingTable = styled(Table)`
   border-collapse: collapse;
-  font-size: ${theme.font.size.sm};
+  font-size: 14px;
   text-align: left;
   width: 100%;
   th {
     position: sticky;
     top: 0;
     z-index: 1;
-    background: ${theme.background.primary};
+    background: var(--card);
     white-space: nowrap;
-    color: ${theme.font.color.tertiary};
-    font-weight: ${theme.font.weight.medium};
+    color: var(--muted-foreground);
+    font-weight: 500;
   }
   th,
   td {
-    border-bottom: 1px solid ${theme.border.color.medium};
-    padding: ${theme.spacing[3]};
+    border-bottom: 1px solid var(--border);
+    padding: 12px;
     vertical-align: middle;
   }
   a {
-    color: ${theme.color.blue};
+    color: var(--info);
     text-decoration: none;
   }
   a:hover {
@@ -108,23 +109,23 @@ export const StyledRecruitingScroll = styled.div`
 `;
 export const StyledRecruitingDrop = styled.label`
   align-items: center;
-  background: ${theme.background.secondary};
-  border: 1px dashed ${theme.border.color.medium};
-  border-radius: ${theme.border.radius.md};
+  background: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: ${theme.spacing[3]};
+  gap: 12px;
   justify-content: center;
   &:has(input:focus-visible) {
-    outline: 2px solid ${theme.color.blue};
+    outline: 2px solid var(--info);
   }
   min-height: 170px;
-  padding: ${theme.spacing[6]};
+  padding: 24px;
   position: relative;
   transition: border-color 120ms;
   &:hover {
-    border-color: ${theme.color.blue};
+    border-color: var(--info);
   }
   input {
     cursor: pointer;
@@ -144,14 +145,14 @@ export const StyledRecruitingForm = styled.div`
 `;
 /** Compact left-aligned directory choices retain native button semantics. */
 export const StyledRecruitingChoices = styled.div`
-  border: 1px solid ${theme.border.color.medium};
-  border-radius: ${theme.border.radius.md};
+  border: 1px solid var(--border);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   max-height: 260px;
   overflow: auto;
   button {
-    border-bottom: 1px solid ${theme.border.color.light};
+    border-bottom: 1px solid var(--border);
     border-radius: 0;
     justify-content: flex-start;
     min-height: 42px;
@@ -161,13 +162,13 @@ export const StyledRecruitingChoices = styled.div`
 `;
 /** Stable three-step progress shows the current task instead of stacking the whole SOP. */
 export const StyledRecruitingSteps = styled.nav`
-  color: ${theme.font.color.tertiary};
+  color: var(--muted-foreground);
   display: flex;
-  font-size: ${theme.font.size.sm};
+  font-size: 14px;
   gap: 24px;
   padding: 8px 0 20px;
   [aria-current='step'] {
-    color: ${theme.font.color.primary};
+    color: var(--foreground);
     font-weight: 600;
   }
 `;
@@ -186,11 +187,11 @@ export const StyledRecruitingJobHover = styled.div`
     overflow: auto;
     padding: 16px;
     white-space: pre-wrap;
-    background: ${theme.background.primary};
-    border: 1px solid ${theme.border.color.medium};
-    border-radius: ${theme.border.radius.md};
-    box-shadow: ${theme.boxShadow.light};
-    color: ${theme.font.color.primary};
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px #00000012;
+    color: var(--foreground);
   }
   &:hover .job-preview-card,
   &:focus-within .job-preview-card {
@@ -219,10 +220,10 @@ export const recruitingDialogClass = css`
 /** Quiet native record links retain a clear hover and keyboard affordance. */
 export const StyledRecruitingRecordLink = styled.a`
   && {
-    color: ${theme.font.color.primary};
+    color: var(--foreground);
     text-decoration: none;
   }
-  font-weight: ${theme.font.weight.medium};
+  font-weight: 500;
   &:hover {
     text-decoration: underline;
     text-underline-offset: 3px;
@@ -255,7 +256,7 @@ export const StyledRecruitingDenseQueue = styled.div`
 
 /** Places the detail navigation in normal document flow. */
 export const StyledRecruitingSticky = styled.div`
-  background: ${theme.background.primary};
+  background: var(--card);
   padding: 8px 0;
 `;
 
@@ -266,8 +267,8 @@ export const StyledRecruitingProfileFacts = styled.dl`
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   margin: 0;
   dt {
-    color: ${theme.font.color.tertiary};
-    font-size: ${theme.font.size.sm};
+    color: var(--muted-foreground);
+    font-size: 14px;
     margin-bottom: 5px;
   }
   dd {
@@ -277,7 +278,7 @@ export const StyledRecruitingProfileFacts = styled.dl`
 `;
 /** Separates skills, occupational history and review notes without nested card borders. */
 export const StyledRecruitingProfileSection = styled.section`
-  border-top: 1px solid ${theme.border.color.light};
+  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 10px;

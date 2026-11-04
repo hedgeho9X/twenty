@@ -37,11 +37,11 @@ export const ResultPagination = ({
   const total = Math.max(1, Math.ceil(count / pageSize));
   const pages = resultPages(page, total);
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3">
+    <div className="recruiting-pagination flex flex-wrap items-center justify-between gap-3 border-t px-6 py-3">
       <span className="text-sm text-muted-foreground">
         共 {count} 条 · 第 {page} / {total} 页
       </span>
-      <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <Select
           value={String(pageSize)}
           onValueChange={(value) => onPageSize(Number(value))}
@@ -72,7 +72,7 @@ export const ResultPagination = ({
               </Button>
             </PaginationItem>
             {pages.map((value, index) => (
-              <PaginationItem key={value}>
+              <PaginationItem key={value} className="flex shrink-0 items-center">
                 {index > 0 && value - pages[index - 1] > 1 && (
                   <span className="px-1">…</span>
                 )}

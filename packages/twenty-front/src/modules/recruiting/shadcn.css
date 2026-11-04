@@ -54,3 +54,33 @@
   .recruiting-shadcn button:disabled { cursor: not-allowed; }
   .recruiting-shadcn h1, .recruiting-shadcn h2, .recruiting-shadcn h3, .recruiting-shadcn p { margin: 0; }
 }
+
+/* Keep the workbench grid self-contained in both the CRM shell and local preview. */
+.recruiting-shadcn [data-slot="card-header"] { flex-shrink: 0; }
+.recruiting-shadcn [data-slot="card-title"] { font-size: 18px; line-height: 1.4; }
+.recruiting-shadcn [data-slot="tabs-content"] { min-width: 0; }
+.recruiting-results-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.recruiting-results-filters > input { flex: 1 1 260px; min-width: 0; }
+.recruiting-results-filters > button, .recruiting-results-filters > div { flex-shrink: 0; }
+.recruiting-results-table { table-layout: fixed; min-width: 1120px; }
+.recruiting-results-table th, .recruiting-results-table td { height: 52px; padding: 10px 16px; }
+.recruiting-results-table th:first-child, .recruiting-results-table td:first-child { width: 19%; padding-left: 24px; overflow: hidden; text-overflow: ellipsis; }
+.recruiting-results-table th:nth-child(2) { width: 24%; }
+.recruiting-results-table th:nth-child(3) { width: 88px; }
+.recruiting-results-table th:nth-child(4) { width: 184px; }
+.recruiting-results-table th:nth-child(5) { width: 108px; }
+.recruiting-results-table th:nth-child(6) { width: 160px; }
+.recruiting-results-table th:last-child, .recruiting-results-table td:last-child { width: 112px; padding-right: 24px; }
+.recruiting-pagination { flex-shrink: 0; }
+.recruiting-pagination nav { margin: 0; }
+@media (max-width: 760px) {
+  .recruiting-results-filters > input { flex-basis: 100%; }
+  .recruiting-pagination > div { flex-basis: 100%; }
+}
+
+.recruiting-results-table[data-direction="JOB_TO_CANDIDATES"] th:first-child { width: auto; }
+.recruiting-results-table[data-direction="JOB_TO_CANDIDATES"] th:nth-child(2) { width: 88px; }
+.recruiting-results-table[data-direction="JOB_TO_CANDIDATES"] th:nth-child(3) { width: 184px; }
+.recruiting-results-table[data-direction="JOB_TO_CANDIDATES"] th:nth-child(4) { width: 108px; }
+.recruiting-results-table[data-direction="JOB_TO_CANDIDATES"] th:nth-child(5) { width: 160px; }
+.recruiting-results-table[data-direction="JOB_TO_CANDIDATES"] th:last-child { width: 112px; }

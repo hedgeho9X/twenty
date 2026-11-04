@@ -71,7 +71,7 @@ export const RecruitingWorkspacePage = ({
         style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
       >
         <Tabs.Root
-          className="h-full min-h-0"
+          className="h-full min-h-0 min-w-0"
           value={tab}
           onValueChange={(value) => {
             if (typeof value === 'string')
@@ -87,7 +87,10 @@ export const RecruitingWorkspacePage = ({
               display: 'flex',
               alignItems: 'center',
               gap: 16,
-              marginBottom: 20,
+              flexShrink: 0,
+              overflowX: 'auto',
+              paddingBottom: 4,
+              marginBottom: 12,
             }}
           >
             <Tabs.List aria-label={t`招聘工作区`}>

@@ -52,7 +52,7 @@ export const DateRangeFilter = ({
     );
   };
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <Select value={preset} onValueChange={choose}>
         <SelectTrigger className="w-36" aria-label="时间范围">
           <SelectValue />
