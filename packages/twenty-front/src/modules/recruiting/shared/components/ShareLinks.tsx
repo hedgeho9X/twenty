@@ -190,6 +190,8 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
         </StyledRecruitingTable>
       </div>
       <ResultPagination
+        isLoading={query.loading}
+        hasCount={query.data !== undefined}
         count={query.data?.count ?? 0}
         page={currentPage}
         pageSize={pageSize}

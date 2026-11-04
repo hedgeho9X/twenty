@@ -124,6 +124,8 @@ export const RecruitingMailboxSettings = ({ active }: { active: boolean }) => {
         ))}
       {query.data && query.data.count > pageSize && (
         <ResultPagination
+          isLoading={query.loading}
+          hasCount={query.data !== undefined}
           count={query.data.count}
           page={page}
           pageSize={pageSize}

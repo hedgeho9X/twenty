@@ -528,6 +528,8 @@ export const RecruitingMatchResults = ({
         )}
       </ScrollArea>
       <ResultPagination
+        isLoading={list.loading}
+        hasCount={list.data !== undefined}
         count={list.data?.count ?? 0}
         page={Math.floor(offset / pageSize) + 1}
         pageSize={pageSize}

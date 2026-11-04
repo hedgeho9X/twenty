@@ -37,3 +37,41 @@ it('navigates to valid pages and rejects out of range jumps', () => {
   );
   expect(onPage).not.toHaveBeenCalled();
 });
+
+it('keeps the requested page while its count is unavailable and clamps only after loading completes', () => {
+  const onPage = jest.fn();
+  const { rerender } = render(
+    <ResultPagination
+      count={0}
+      page={3}
+      pageSize={50}
+      onPage={onPage}
+      onPageSize={jest.fn()}
+      isLoading
+    />,
+  );
+  expect(screen.getByText('正在加载…')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '下一页' })).toBeDisabled();
+  expect(onPage).not.toHaveBeenCalled();
+  rerender(
+    <ResultPagination
+      count={0}
+      page={3}
+      pageSize={50}
+      onPage={onPage}
+      onPageSize={jest.fn()}
+      hasCount={false}
+    />,
+  );
+  expect(onPage).not.toHaveBeenCalled();
+  rerender(
+    <ResultPagination
+      count={100}
+      page={3}
+      pageSize={50}
+      onPage={onPage}
+      onPageSize={jest.fn()}
+    />,
+  );
+  expect(onPage).toHaveBeenCalledWith(2);
+});
