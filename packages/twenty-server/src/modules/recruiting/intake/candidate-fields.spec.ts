@@ -3,6 +3,9 @@ import { candidateFields } from './candidate-fields';
 import { candidateProfileSchema } from './schemas';
 
 describe('candidate contact projection', () => {
+  it('marks a successfully stored extraction complete in the native candidate table', () => {
+    expect(candidateFields({ summary: 'parsed' }).candidateAiStatus).toBe('COMPLETED');
+  });
   it('projects an international number into native phone components', () => {
     expect(candidateFields({ phone: '+86 138 0013 8000' }).phones).toEqual({
       primaryPhoneNumber: '13800138000',

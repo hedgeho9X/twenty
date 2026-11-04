@@ -5,7 +5,7 @@ export const candidateFields = (
   profile: Record<string, unknown>,
   current: Record<string, unknown> = {},
 ) => {
-  const fields: Record<string, unknown> = {};
+  const fields: Record<string, unknown> = { candidateAiStatus: 'COMPLETED' };
   const roles = Array.isArray(profile.expectedRoles)
     ? profile.expectedRoles.filter(
         (value): value is string => typeof value === 'string',
