@@ -1,7 +1,14 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
 import { ResultInput } from '@/recruiting/shared/components/ResultControls';
 /** Lists share subjects with compact actions and an optional link to their source match. */
 import { ResultPagination } from './ResultPagination';
-import { Button } from 'twenty-ui/primitives/input';
+import { Button } from '@/recruiting/shadcn/compat';
 import { IconCopy, IconEye, IconPlayerStop } from 'twenty-ui/icon';
 import { useState } from 'react';
 import { useRecruitingQuery } from '../hooks/useRecruitingQuery';
@@ -80,17 +87,17 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
         }}
       >
         <StyledRecruitingTable>
-          <thead>
-            <tr>
-              <th>分享对象</th>
-              <th>创建时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
+          <TableHeader>
+            <TableRow>
+              <TableHead>分享对象</TableHead>
+              <TableHead>创建时间</TableHead>
+              <TableHead>操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((row) => (
-              <tr key={row.key}>
-                <td>
+              <TableRow key={row.key}>
+                <TableCell>
                   {row.matchRunId ? (
                     <StyledRecruitingRecordLink
                       href={`/recruiting-workspace?tab=matches&runId=${encodeURIComponent(row.matchRunId)}`}
@@ -112,11 +119,11 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
                       .filter(Boolean)
                       .join(' · ')}
                   </StyledRecruitingMuted>
-                </td>
-                <td style={{ whiteSpace: 'nowrap' }}>
+                </TableCell>
+                <TableCell style={{ whiteSpace: 'nowrap' }}>
                   {new Date(row.createdAt).toLocaleString()}
-                </td>
-                <td style={{ width: 132 }}>
+                </TableCell>
+                <TableCell style={{ width: 132 }}>
                   <div style={{ display: 'flex', flexWrap: 'nowrap', gap: 8 }}>
                     <Button
                       variant="ghost"
@@ -165,10 +172,10 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
                       />
                     </Button>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
+          </TableBody>
         </StyledRecruitingTable>
       </div>
       <ResultPagination

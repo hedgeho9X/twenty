@@ -1,4 +1,7 @@
 /** Composes recruiting layouts with the official Twenty design tokens. */
+import { Card } from '@/recruiting/shadcn/ui/card';
+import { Table } from '@/recruiting/shadcn/ui/table';
+import { ErrorAlert } from '@/recruiting/shadcn/compat';
 import { css } from '@linaria/core';
 import { styled } from '@linaria/react';
 import { themeCssVariables as theme } from 'twenty-ui/theme';
@@ -32,7 +35,7 @@ export const StyledRecruitingRow = styled.div`
   flex-wrap: wrap;
   gap: ${theme.spacing[2]};
 `;
-export const StyledRecruitingPanel = styled.section`
+export const StyledRecruitingPanel = styled(Card)`
   background: ${theme.background.primary};
   border: 1px solid ${theme.border.color.medium};
   border-radius: ${theme.border.radius.md};
@@ -65,13 +68,13 @@ export const StyledRecruitingTitle = styled.h2`
     text-decoration: underline;
   }
 `;
-export const StyledRecruitingError = styled.div`
+export const StyledRecruitingError = styled(ErrorAlert)`
   border: 1px solid ${theme.border.color.medium};
   border-radius: ${theme.border.radius.sm};
   color: ${theme.color.red};
   padding: ${theme.spacing[3]};
 `;
-export const StyledRecruitingTable = styled.table`
+export const StyledRecruitingTable = styled(Table)`
   border-collapse: collapse;
   font-size: ${theme.font.size.sm};
   text-align: left;
@@ -196,33 +199,7 @@ export const StyledRecruitingJobHover = styled.div`
 `;
 
 /** Semantic low-contrast result state. */
-export const StyledRecruitingStatus = styled.span`
-  border-radius: 5px;
-  display: inline-block;
-  font-size: ${theme.font.size.sm};
-  padding: 3px 8px;
-  white-space: nowrap;
-  &[data-tone='green'] {
-    background: color-mix(in srgb, ${theme.color.green} 12%, transparent);
-    color: ${theme.color.green};
-  }
-  &[data-tone='red'] {
-    background: color-mix(in srgb, ${theme.color.red} 12%, transparent);
-    color: ${theme.color.red};
-  }
-  &[data-tone='yellow'] {
-    background: color-mix(in srgb, ${theme.color.orange} 12%, transparent);
-    color: ${theme.color.orange};
-  }
-  &[data-tone='neutral'] {
-    background: ${theme.background.secondary};
-    color: ${theme.font.color.secondary};
-  }
-  &[data-tone='blue'] {
-    background: color-mix(in srgb, ${theme.color.blue} 12%, transparent);
-    color: ${theme.color.blue};
-  }
-`;
+export { StatusBadge as StyledRecruitingStatus } from '@/recruiting/shadcn/compat';
 
 /** Portal dialogs share the workbench focus treatment without altering other Twenty screens. */
 export const recruitingDialogClass = css`

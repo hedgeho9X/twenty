@@ -7,9 +7,9 @@ import {
   Field,
   Input,
   Textarea,
-} from 'twenty-ui/primitives/input';
-import { Badge } from 'twenty-ui/primitives/data-display';
-import { Select } from '@/ui/input/components/Select';
+} from '@/recruiting/shadcn/compat';
+import { Badge } from '@/recruiting/shadcn/compat';
+import { Select } from '@/recruiting/shadcn/compat';
 import {
   getRecruitingPreviewMissingFields,
   type RecruitingPreviewNameWarning,

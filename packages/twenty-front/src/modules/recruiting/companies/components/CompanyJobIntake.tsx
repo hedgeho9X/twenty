@@ -1,8 +1,8 @@
 /** Collects company-bound JD text entries and submits each independently to the background queue. */
 import { useEffect, useRef, useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button, Field, Input, Textarea } from 'twenty-ui/primitives/input';
-import { Select } from '@/ui/input/components/Select';
+import { Button, Field, Input, Textarea } from '@/recruiting/shadcn/compat';
+import { Select } from '@/recruiting/shadcn/compat';
 import { IconPlus } from 'twenty-ui/icon';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/shared/api/request';

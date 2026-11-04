@@ -1,9 +1,9 @@
 /** Previews authorized originals without executing HTML or loading remote resources from uploaded documents. */
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
+import { Button } from '@/recruiting/shadcn/compat';
 import { IconX, IconArrowLeft } from 'twenty-ui/icon';
-import { Dialog } from 'twenty-ui/primitives/surfaces';
+import { Dialog } from '@/recruiting/shadcn/compat';
 import {
   recruitingBlob,
   recruitingRequest,

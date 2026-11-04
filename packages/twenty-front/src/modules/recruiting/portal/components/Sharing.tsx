@@ -1,7 +1,14 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
 /** Lets operators prepare scoped candidate and company links without declaring an actual recommendation or contact. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
+import { Button } from '@/recruiting/shadcn/compat';
 import { RecruitingRecordPicker } from '@/recruiting/shared/components/RecordPicker';
 import { RecruitingActivities } from '@/recruiting/activities/components/ActivityList';
 import { type RecruitingCandidate } from '@/recruiting/intake/types/Candidate';
@@ -192,35 +199,37 @@ export const RecruitingSharing = ({
           </StyledRecruitingError>
         )}
         <StyledRecruitingTable>
-          <thead>
-            <tr>
-              <th>{t`候选人`}</th>
-              <th>{t`访问对象`}</th>
-              <th>{t`有效期`}</th>
-              <th>{t`状态`}</th>
-              <th>{t`操作`}</th>
-            </tr>
-          </thead>
-          <tbody>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t`候选人`}</TableHead>
+              <TableHead>{t`访问对象`}</TableHead>
+              <TableHead>{t`有效期`}</TableHead>
+              <TableHead>{t`状态`}</TableHead>
+              <TableHead>{t`操作`}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {list.data?.records.map((invite) => (
-              <tr key={invite.inviteId}>
-                <td>
+              <TableRow key={invite.inviteId}>
+                <TableCell>
                   <a href={invite.candidateUrl}>
                     {invite.candidateLabel ?? t`候选人`}
                   </a>
-                </td>
-                <td>
+                </TableCell>
+                <TableCell>
                   {invite.kind === 'CANDIDATE' ? t`候选人本人` : t`公司预览`}
-                </td>
-                <td>{new Date(invite.expiresAt).toLocaleString()}</td>
-                <td>
+                </TableCell>
+                <TableCell>
+                  {new Date(invite.expiresAt).toLocaleString()}
+                </TableCell>
+                <TableCell>
                   {invite.expired
                     ? t`已过期`
                     : invite.status === 'ACTIVE'
                       ? t`有效`
                       : t`已撤销`}
-                </td>
-                <td>
+                </TableCell>
+                <TableCell>
                   <StyledRecruitingRow>
                     <Button
                       disabled={
@@ -251,10 +260,10 @@ export const RecruitingSharing = ({
                       }}
                     >{t`撤销入口`}</Button>
                   </StyledRecruitingRow>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
+          </TableBody>
         </StyledRecruitingTable>
         {!list.data?.records.length && !list.loading && (
           <StyledRecruitingMuted>{t`还没有创建入口。`}</StyledRecruitingMuted>

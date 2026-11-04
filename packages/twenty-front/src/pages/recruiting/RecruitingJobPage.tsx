@@ -1,3 +1,5 @@
+import '@/recruiting/shadcn.css';
+import { Button } from '@/recruiting/shadcn/compat';
 /** Public read-only job introductions loaded with a scoped URL-fragment capability, without a CRM login. */
 import { useEffect, useState } from 'react';
 import { LazyMarkdownRenderer } from '@/ai/components/LazyMarkdownRenderer';
@@ -56,7 +58,10 @@ export const RecruitingJobPage = () => {
   const download = async (
     candidateId: string,
     file: { fileId: string; label: string },
+    preview = false,
   ) => {
+    const viewer = preview ? window.open('about:blank', '_blank') : null;
+    if (viewer) viewer.opener = null;
     setDownloading(file.fileId);
     try {
       const response = await fetch(
@@ -70,7 +75,15 @@ export const RecruitingJobPage = () => {
         },
       );
       if (!response.ok) throw new Error(t`材料无法下载，请确认分享仍然有效`);
-      const url = URL.createObjectURL(await response.blob());
+      const blob = await response.blob();
+      const url = URL.createObjectURL(
+        preview ? new Blob([blob], { type: 'application/pdf' }) : blob,
+      );
+      if (viewer) {
+        viewer.location.href = url;
+        window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+        return;
+      }
       const link = document.createElement('a');
       link.href = url;
       link.download = file.label;
@@ -79,6 +92,7 @@ export const RecruitingJobPage = () => {
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (failure) {
+      viewer?.close();
       setError(failure instanceof Error ? failure.message : t`下载失败`);
     } finally {
       setDownloading(undefined);
@@ -124,7 +138,10 @@ export const RecruitingJobPage = () => {
     return () => abort.abort();
   }, [token]);
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}>
+    <main
+      className="recruiting-shadcn"
+      style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 20px' }}
+    >
       <StyledRecruitingTitle>{t`推荐资料`}</StyledRecruitingTitle>
       {error && (
         <StyledRecruitingError role="alert">{error}</StyledRecruitingError>
@@ -165,15 +182,28 @@ export const RecruitingJobPage = () => {
                       </a>
                     ))}
                   {person.files?.map((file) => (
-                    <button
-                      key={file.fileId}
-                      disabled={Boolean(downloading) || !person.id}
-                      onClick={() =>
-                        person.id && void download(person.id, file)
-                      }
-                    >
-                      {t`下载`} {file.label}
-                    </button>
+                    <div key={file.fileId} className="flex items-center gap-2">
+                      {/\.pdf$/i.test(file.label) && (
+                        <Button
+                          variant="outline"
+                          disabled={Boolean(downloading) || !person.id}
+                          onClick={() =>
+                            person.id && void download(person.id, file, true)
+                          }
+                        >
+                          打开 PDF
+                        </Button>
+                      )}
+                      <Button
+                        key={file.fileId}
+                        disabled={Boolean(downloading) || !person.id}
+                        onClick={() =>
+                          person.id && void download(person.id, file)
+                        }
+                      >
+                        {t`下载`} {file.label}
+                      </Button>
+                    </div>
                   ))}
                 </div>
                 <p>{person.skills?.join(' · ')}</p>

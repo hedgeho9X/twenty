@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { IconRefresh } from 'twenty-ui/icon';
-import { Button, Checkbox, Field } from 'twenty-ui/primitives/input';
+import { Button, Checkbox, Field } from '@/recruiting/shadcn/compat';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/shared/api/request';
 import {

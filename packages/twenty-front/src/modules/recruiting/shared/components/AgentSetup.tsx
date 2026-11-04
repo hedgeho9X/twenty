@@ -1,6 +1,6 @@
 /** Provides a copyable setup prompt for the recruiting Agent. */
 import { useState } from 'react';
-import { Button } from 'twenty-ui/primitives/input';
+import { Button } from '@/recruiting/shadcn/compat';
 import { Section } from 'twenty-ui/components/layout';
 import { IconCopy } from 'twenty-ui/icon';
 import {

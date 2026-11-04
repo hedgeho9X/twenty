@@ -1,3 +1,4 @@
+import '@/recruiting/shadcn.css';
 /** Provides candidate self-service and consented company viewing outside the authenticated CRM workspace. */
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -9,12 +10,9 @@ import {
   Field,
   Input,
   Textarea,
-} from 'twenty-ui/primitives/input';
+} from '@/recruiting/shadcn/compat';
 import { themeCssVariables } from 'twenty-ui/theme';
-import {
-  portalDownload,
-  portalRequest,
-} from '@/recruiting/portal/api/request';
+import { portalDownload, portalRequest } from '@/recruiting/portal/api/request';
 import {
   type RecruitingPortalView,
   type PortalSelfProfile,
@@ -227,7 +225,7 @@ export const RecruitingPortalPage = () => {
       .filter(Boolean);
 
   return (
-    <StyledPortalMain>
+    <StyledPortalMain className="recruiting-shadcn">
       <StyledRecruitingStack>
         <h1>
           {view?.kind === 'COMPANY' ? t`候选人推荐资料` : t`候选人资料确认`}
@@ -410,7 +408,7 @@ export const RecruitingPortalPage = () => {
           <StyledRecruitingPanel>
             <StyledRecruitingTitle>{t`上传新版简历`}</StyledRecruitingTitle>
             <StyledRecruitingMuted>{t`支持图片、PDF、Word、TXT、HTML与Markdown，单个文件50MB以内。结构化职业资料以本次完整材料为准，历史原件保留。`}</StyledRecruitingMuted>
-            <input
+            <Input
               type="file"
               aria-label={t`选择新版简历`}
               accept="image/*,.pdf,.doc,.docx,.txt,.html,.htm,.md,.markdown"

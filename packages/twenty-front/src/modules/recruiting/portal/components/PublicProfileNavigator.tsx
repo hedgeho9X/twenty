@@ -1,5 +1,6 @@
 /** Presents shared profiles as one selectable list and one reading pane. */
 import styled from '@emotion/styled';
+import { Button } from '@/recruiting/shadcn/compat';
 import { THEME_LIGHT } from 'twenty-ui/theme';
 import { type ReactNode, useState } from 'react';
 
@@ -29,7 +30,7 @@ const List = styled.nav`
     }
   }
 `;
-const Choice = styled.button`
+const Choice = styled(Button)`
   background: transparent;
   border: 1px solid transparent;
   border-radius: 8px;

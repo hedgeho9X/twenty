@@ -1,7 +1,7 @@
 /** Edits global admission limits without pausing or restarting active work. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { TextInput } from '@/ui/input/components/TextInput';
+import { TextInput } from '@/recruiting/shadcn/compat';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/shared/api/request';
 import {

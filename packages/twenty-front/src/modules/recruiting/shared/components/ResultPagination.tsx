@@ -1,19 +1,25 @@
-import {
-  ResultInput,
-  ResultSelect,
-} from '@/recruiting/shared/components/ResultControls';
-/** Keeps result pagination visible and supports direct navigation without a wall of page buttons. */
+/** Compact shadcn pagination with bounded page buttons and explicit direct jumps. */
 import { useState } from 'react';
-import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
-
-/** Derives a bounded page window, including first and last pages. */
+import { Button } from '@/recruiting/shadcn/ui/button';
+import { Input } from '@/recruiting/shadcn/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/recruiting/shadcn/ui/select';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+} from '@/recruiting/shadcn/ui/pagination';
 export const resultPages = (page: number, totalPages: number) =>
   [...new Set([1, page - 1, page, page + 1, totalPages])]
     .filter((value) => value >= 1 && value <= totalPages)
-    .sort((left, right) => left - right);
-
-/** Uses one-based pages; changing page size returns to the first page at the caller. */
+    .sort((a, b) => a - b);
+/** Uses one-based pages and clamps page jumps to the current filtered result count. */
 export const ResultPagination = ({
   count,
   page,
@@ -28,70 +34,91 @@ export const ResultPagination = ({
   onPageSize: (size: number) => void;
 }) => {
   const [jump, setJump] = useState('');
-  const totalPages = Math.max(1, Math.ceil(count / pageSize));
-  const pages = resultPages(page, totalPages);
+  const total = Math.max(1, Math.ceil(count / pageSize));
+  const pages = resultPages(page, total);
   return (
-    <nav
-      aria-label={t`结果分页`}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        flexWrap: 'wrap',
-        paddingTop: 12,
-      }}
-    >
-      <span>
-        {t`共 ${count} 条`} · {page} / {totalPages}
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3">
+      <span className="text-sm text-muted-foreground">
+        共 {count} 条 · 第 {page} / {total} 页
       </span>
-      <ResultSelect
-        aria-label={t`每页条数`}
-        value={pageSize}
-        onChange={(event) => onPageSize(Number(event.target.value))}
-      >
-        {[20, 50, 100].map((size) => (
-          <option key={size} value={size}>{t`每页 ${size} 条`}</option>
-        ))}
-      </ResultSelect>
-      <Button
-        disabled={page <= 1}
-        onClick={() => onPage(page - 1)}
-      >{t`上一页`}</Button>
-      {pages.map((value, index) => (
-        <span key={value}>
-          {index > 0 && value - pages[index - 1] > 1 && <span> … </span>}
-          <Button
-            aria-current={value === page ? 'page' : undefined}
-            disabled={value === page}
-            onClick={() => onPage(value)}
-          >
-            {value}
+      <div className="flex items-center gap-2">
+        <Select
+          value={String(pageSize)}
+          onValueChange={(value) => onPageSize(Number(value))}
+        >
+          <SelectTrigger aria-label="每页条数" className="w-28">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {[20, 50, 100].map((size) => (
+                <SelectItem key={size} value={String(size)}>
+                  每页 {size} 条
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Pagination className="w-auto">
+          <PaginationContent>
+            <PaginationItem>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => onPage(page - 1)}
+              >
+                上一页
+              </Button>
+            </PaginationItem>
+            {pages.map((value, index) => (
+              <PaginationItem key={value}>
+                {index > 0 && value - pages[index - 1] > 1 && (
+                  <span className="px-1">…</span>
+                )}
+                <Button
+                  variant={value === page ? 'secondary' : 'ghost'}
+                  size="icon-sm"
+                  aria-current={value === page ? 'page' : undefined}
+                  onClick={() => onPage(value)}
+                >
+                  {value}
+                </Button>
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= total}
+                onClick={() => onPage(page + 1)}
+              >
+                下一页
+              </Button>
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+        <form
+          className="flex items-center gap-1"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = Number(jump);
+            if (Number.isInteger(value) && value >= 1 && value <= total)
+              onPage(value);
+          }}
+        >
+          <Input
+            aria-label="跳转页码"
+            inputMode="numeric"
+            value={jump}
+            onChange={(event) => setJump(event.target.value)}
+            className="w-16"
+          />
+          <Button variant="ghost" size="sm" type="submit">
+            跳转
           </Button>
-        </span>
-      ))}
-      <Button
-        disabled={page >= totalPages}
-        onClick={() => onPage(page + 1)}
-      >{t`下一页`}</Button>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          const value = Number(jump);
-          if (Number.isInteger(value) && value >= 1 && value <= totalPages)
-            onPage(value);
-        }}
-      >
-        <ResultInput
-          aria-label={t`跳转页码`}
-          type="number"
-          min={1}
-          max={totalPages}
-          value={jump}
-          onChange={(event) => setJump(event.target.value)}
-          style={{ width: 64 }}
-        />
-        <button type="submit">{t`跳转`}</button>
-      </form>
-    </nav>
+        </form>
+      </div>
+    </div>
   );
 };

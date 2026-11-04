@@ -1,6 +1,6 @@
 /** Shows mutually exclusive create and active-link states with serialized mutations. */
-import { useEffect, useState } from 'react';
-import { Button } from 'twenty-ui/primitives/input';
+import { useEffect, useState, useId, useRef } from 'react';
+import { Button, Checkbox, Field } from '@/recruiting/shadcn/compat';
 import { IconCopy, IconExternalLink, IconLink } from 'twenty-ui/icon';
 import { recruitingRequest } from '../api/request';
 import { StyledRecruitingPanel, StyledRecruitingRow } from '../styles';
@@ -16,6 +16,18 @@ export const MatchShareActions = ({
   matchRunId: string;
 }) => {
   const [url, setUrl] = useState(currentUrl ?? '');
+  const [includeFiles, setIncludeFiles] = useState(true);
+  const optionId = useId();
+  const selectionKey =
+    [...jobIds].sort().join(',') + ':' + [...candidateIds].sort().join(',');
+  const previousSelection = useRef(selectionKey);
+  useEffect(() => {
+    if (previousSelection.current !== selectionKey) {
+      setUrl('');
+      setMessage('');
+      previousSelection.current = selectionKey;
+    }
+  }, [selectionKey]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   useEffect(() => {
@@ -51,7 +63,12 @@ export const MatchShareActions = ({
                   'share-links',
                   {
                     method: 'POST',
-                    body: JSON.stringify({ jobIds, candidateIds, matchRunId }),
+                    body: JSON.stringify({
+                      jobIds,
+                      candidateIds,
+                      matchRunId,
+                      includeFiles,
+                    }),
                   },
                 );
                 setUrl(result.url);
@@ -62,6 +79,19 @@ export const MatchShareActions = ({
           </Button>
         )}
       </StyledRecruitingRow>
+      {!url && candidateIds.length > 0 && (
+        <Field.Root orientation="horizontal">
+          <Checkbox
+            id={optionId}
+            checked={includeFiles}
+            onCheckedChange={setIncludeFiles}
+            disabled={busy}
+          />
+          <Field.Label htmlFor={optionId}>
+            附带所选候选人的全部 PDF / 原始附件
+          </Field.Label>
+        </Field.Root>
+      )}
       {url && (
         <>
           <span style={{ overflowWrap: 'anywhere', fontSize: 13 }}>{url}</span>

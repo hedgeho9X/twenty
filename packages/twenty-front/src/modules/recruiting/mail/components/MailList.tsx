@@ -1,7 +1,14 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
 /** Shows received candidate mail with downstream processing progress. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
+import { Button } from '@/recruiting/shadcn/compat';
 import { IconArrowLeft } from 'twenty-ui/icon';
 import { type RecruitingMailArchive } from '@/recruiting/mail/types/MailArchive';
 import { type RecruitingPage } from '@/recruiting/shared/types/Page';
@@ -150,20 +157,20 @@ export const RecruitingMailSources = ({
         <StyledRecruitingPanel>
           <StyledRecruitingTitle>{t`已接收邮件`}</StyledRecruitingTitle>
           <StyledRecruitingTable>
-            <thead>
-              <tr>
-                <th>{t`邮件主题`}</th>
-                <th>{t`接收时间`}</th>
-                <th>{t`附件数量`}</th>
-                <th>{t`处理进度`}</th>
-                <th>{t`操作`}</th>
-              </tr>
-            </thead>
-            <tbody>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t`邮件主题`}</TableHead>
+                <TableHead>{t`接收时间`}</TableHead>
+                <TableHead>{t`附件数量`}</TableHead>
+                <TableHead>{t`处理进度`}</TableHead>
+                <TableHead>{t`操作`}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {list.data?.records.map((item) => (
-                <tr key={item.archiveId}>
-                  <td>{item.name}</td>
-                  <td
+                <TableRow key={item.archiveId}>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell
                     style={{ whiteSpace: 'nowrap' }}
                     title={
                       item.receivedAtSource === 'archive'
@@ -188,9 +195,9 @@ export const RecruitingMailSources = ({
                     ) : (
                       '—'
                     )}
-                  </td>
-                  <td>{item.attachmentCount ?? '—'}</td>
-                  <td>
+                  </TableCell>
+                  <TableCell>{item.attachmentCount ?? '—'}</TableCell>
+                  <TableCell>
                     <StyledRecruitingStatus
                       data-tone={recruitingTaskTone(
                         item.processingStatus ?? item.status,
@@ -198,16 +205,16 @@ export const RecruitingMailSources = ({
                     >
                       {mailLabel(item.processingStatus ?? item.status)}
                     </StyledRecruitingStatus>
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <Button
                       disabled={busy}
                       onClick={() => setArchiveId(item.archiveId)}
                     >{t`查看`}</Button>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
+            </TableBody>
           </StyledRecruitingTable>
           <StyledRecruitingRow>
             <Button

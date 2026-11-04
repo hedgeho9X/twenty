@@ -1,8 +1,15 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
 /** Shows complete archived assets and lets the operator explicitly choose candidate material. */
 import { RecruitingFilePreview } from '@/recruiting/shared/components/FilePreview';
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button, Checkbox, Field, Textarea } from 'twenty-ui/primitives/input';
+import { Button, Checkbox, Field, Textarea } from '@/recruiting/shadcn/compat';
 import { type RecruitingMailArchive } from '@/recruiting/mail/types/MailArchive';
 import { type RecruitingCandidate } from '@/recruiting/intake/types/Candidate';
 import { type RecruitingIntake } from '@/recruiting/intake/types/Intake';
@@ -92,18 +99,18 @@ export const RecruitingMailSelection = ({
       <StyledRecruitingTitle>{t`选择候选人材料`}</StyledRecruitingTitle>
       <StyledRecruitingMuted>{t`完整原文、正文和所有内嵌资源均已保留。默认选择普通简历附件；签名图保留为归档，可按实际情况手动选择。完整邮件正文会自动加入资料整理。`}</StyledRecruitingMuted>
       <StyledRecruitingTable>
-        <thead>
-          <tr>
-            <th>{t`作为简历`}</th>
-            <th>{t`材料`}</th>
-            <th>{t`类型`}</th>
-            <th>{t`查看原件`}</th>
-          </tr>
-        </thead>
-        <tbody>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t`作为简历`}</TableHead>
+            <TableHead>{t`材料`}</TableHead>
+            <TableHead>{t`类型`}</TableHead>
+            <TableHead>{t`查看原件`}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {artifacts.map((file) => (
-            <tr key={file.key}>
-              <td>
+            <TableRow key={file.key}>
+              <TableCell>
                 {!['raw', 'metadata'].includes(file.kind) && (
                   <Checkbox
                     aria-label={`${t`选择材料`} ${file.label}`}
@@ -119,9 +126,9 @@ export const RecruitingMailSelection = ({
                     }
                   />
                 )}
-              </td>
-              <td>{file.label}</td>
-              <td>
+              </TableCell>
+              <TableCell>{file.label}</TableCell>
+              <TableCell>
                 {file.inline
                   ? t`内嵌资源`
                   : file.kind === 'attachment'
@@ -131,8 +138,8 @@ export const RecruitingMailSelection = ({
                       : file.kind === 'metadata'
                         ? t`原始信息`
                         : t`完整正文`}
-              </td>
-              <td>
+              </TableCell>
+              <TableCell>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -152,10 +159,10 @@ export const RecruitingMailSelection = ({
                     ).catch((failure) => setError(failure.message));
                   }}
                 >{t`下载`}</Button>
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
+        </TableBody>
       </StyledRecruitingTable>
       {artifacts.some((file) => file.kind === 'text') && (
         <Button

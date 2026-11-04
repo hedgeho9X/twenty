@@ -99,7 +99,7 @@ it('defaults to five selections, expands to ten and saves/copies the selected dr
   expect(
     screen
       .getAllByRole('checkbox')
-      .filter((box) => (box as HTMLInputElement).checked),
+      .filter((box) => box.getAttribute('aria-checked') === 'true'),
   ).toHaveLength(5);
   const toggle = screen.getByRole('button', { name: '取消全选' });
   expect(toggle.closest('th')).not.toBeNull();
@@ -184,20 +184,18 @@ it('restores saved selection without copying an existing draft on page load', as
   expect(
     screen
       .getAllByRole('checkbox')
-      .filter((box) => (box as HTMLInputElement).checked),
+      .filter((box) => box.getAttribute('aria-checked') === 'true'),
   ).toHaveLength(2);
   expect(writeText).not.toHaveBeenCalled();
 });
 
 it('shows and searches scored matches beyond the former top ten', () => {
-  jest
-    .mocked(useRecruitingQuery)
-    .mockReturnValue({
-      data: undefined,
-      loading: false,
-      error: '',
-      reload: jest.fn(),
-    });
+  jest.mocked(useRecruitingQuery).mockReturnValue({
+    data: undefined,
+    loading: false,
+    error: '',
+    reload: jest.fn(),
+  });
   const results = Array.from({ length: 15 }, (_, index) => ({
     ...run.top![0],
     jobId: `job-${index}`,

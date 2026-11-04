@@ -2,8 +2,8 @@
 import { useState } from 'react';
 import { RecruitingMatchResults } from './MatchResults';
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
-import { Select } from '@/ui/input/components/Select';
+import { Button } from '@/recruiting/shadcn/compat';
+import { Select } from '@/recruiting/shadcn/compat';
 import { RecruitingRecordPicker } from '@/recruiting/shared/components/RecordPicker';
 import { type RecruitingCandidate } from '@/recruiting/intake/types/Candidate';
 import { type RecruitingCompany } from '@/recruiting/companies/types/Company';

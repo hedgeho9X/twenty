@@ -21,13 +21,17 @@ it('navigates to valid pages and rejects out of range jumps', () => {
       onPageSize={jest.fn()}
     />,
   );
-  fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '62' } });
+  fireEvent.change(screen.getByRole('textbox', { name: '跳转页码' }), {
+    target: { value: '62' },
+  });
   fireEvent.submit(
     screen.getByRole('button', { name: '跳转' }).closest('form')!,
   );
   expect(onPage).toHaveBeenLastCalledWith(62);
   onPage.mockClear();
-  fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '63' } });
+  fireEvent.change(screen.getByRole('textbox', { name: '跳转页码' }), {
+    target: { value: '63' },
+  });
   fireEvent.submit(
     screen.getByRole('button', { name: '跳转' }).closest('form')!,
   );

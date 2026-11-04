@@ -1,10 +1,11 @@
+import '@/recruiting/shadcn.css';
 import { ShareLinks } from '@/recruiting/shared/components/ShareLinks';
 /** Hosts recruiting operations inside the native authenticated Twenty workspace. */
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
-import { Tabs } from 'twenty-ui/primitives/navigation';
+import { Button } from '@/recruiting/shadcn/compat';
+import { Tabs } from '@/recruiting/shadcn/compat';
 import { IconBriefcase, IconClock } from 'twenty-ui/icon';
 import { PageHeader } from '@/ui/layout/page/components/PageHeader';
 import { RecruitingCandidateIntake } from '@/recruiting/intake/components/CandidateIntake';
@@ -20,7 +21,11 @@ import {
 } from '@/recruiting/shared/styles';
 
 /** Uses normal pages for material editing and a short popup for queue progress. */
-export const RecruitingWorkspacePage = () => {
+export const RecruitingWorkspacePage = ({
+  standalone = false,
+}: {
+  standalone?: boolean;
+}) => {
   const [params, setParams] = useSearchParams();
   const [queueOpen, setQueueOpen] = useState(false);
   const [hasNewTasks, setHasNewTasks] = useState(false);
@@ -38,20 +43,35 @@ export const RecruitingWorkspacePage = () => {
   const companyJobsId = params.get('companyJobs');
   const candidateId = params.get('candidateId') ?? undefined;
   return (
-    <StyledRecruitingWorkspace>
-      <PageHeader title={t`招聘工作台`} Icon={IconBriefcase}>
-        <Button
-          startIcon={<IconClock size={16} />}
-          onClick={() => {
-            setQueueOpen(true);
-            setHasNewTasks(false);
-          }}
-        >
-          {hasNewTasks ? t`处理队列 · 有新任务` : t`处理队列`}
-        </Button>
-      </PageHeader>
-      <StyledRecruitingBody>
+    <StyledRecruitingWorkspace className="recruiting-shadcn">
+      {standalone ? (
+        <header className="flex items-center justify-between border-b px-6 py-4">
+          <div>
+            <h1 className="font-semibold">招聘工作台</h1>
+            <p className="text-xs text-muted-foreground">
+              本地预览 · 连接线上数据
+            </p>
+          </div>
+          <Button onClick={() => setQueueOpen(true)}>处理队列</Button>
+        </header>
+      ) : (
+        <PageHeader title={t`招聘工作台`} Icon={IconBriefcase}>
+          <Button
+            startIcon={<IconClock size={16} />}
+            onClick={() => {
+              setQueueOpen(true);
+              setHasNewTasks(false);
+            }}
+          >
+            {hasNewTasks ? t`处理队列 · 有新任务` : t`处理队列`}
+          </Button>
+        </PageHeader>
+      )}
+      <StyledRecruitingBody
+        style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+      >
         <Tabs.Root
+          className="h-full min-h-0"
           value={tab}
           onValueChange={(value) => {
             if (typeof value === 'string')

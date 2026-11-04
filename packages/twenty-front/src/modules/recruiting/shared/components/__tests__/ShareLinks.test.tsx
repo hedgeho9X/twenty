@@ -25,6 +25,12 @@ jest.mock('twenty-ui/icon', () => ({
   IconCopy: () => null,
   IconEye: () => null,
   IconPlayerStop: () => null,
+  IconChevronDown: () => null,
+  IconChevronUp: () => null,
+  IconCheck: () => null,
+  IconChevronLeft: () => null,
+  IconChevronRight: () => null,
+  IconDotsVertical: () => null,
 }));
 it('shows the matching subject and serializable icon actions instead of a wall of job names', async () => {
   const reload = jest.fn();

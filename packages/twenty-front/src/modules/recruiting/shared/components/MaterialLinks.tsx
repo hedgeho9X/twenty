@@ -2,7 +2,7 @@
 import { RecruitingFilePreview } from './FilePreview';
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
+import { Button } from '@/recruiting/shadcn/compat';
 import { type RecruitingIntake } from '@/recruiting/intake/types/Intake';
 import { downloadRecruitingArtifact } from '@/recruiting/shared/api/request';
 import {

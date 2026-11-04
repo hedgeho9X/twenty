@@ -1,9 +1,16 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
 import { ResultInput } from '@/recruiting/shared/components/ResultControls';
 import { MatchShareActions } from '@/recruiting/shared/components/MatchShareActions';
 /** Selects up to ten ranked results and generates a persistent editable communication draft. */
 import { useEffect, useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button, Checkbox, Textarea } from 'twenty-ui/primitives/input';
+import { Button, Checkbox, Textarea } from '@/recruiting/shadcn/compat';
 import { type RecruitingMatchRun } from '@/recruiting/matching/types/MatchRun';
 import { type RecruitingDraft } from '@/recruiting/drafts/types/Draft';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
@@ -77,9 +84,11 @@ const DraftText = ({ draft }: { draft: RecruitingDraft }) => {
 export const MatchSelection = ({
   run,
   active = true,
+  showAll = false,
 }: {
   run: RecruitingMatchRun;
   active?: boolean;
+  showAll?: boolean;
 }) => {
   const pairs = (
     run.results
@@ -177,20 +186,22 @@ export const MatchSelection = ({
   };
   return (
     <StyledRecruitingStack>
-      <ResultInput
-        aria-label={t`搜索匹配项`}
-        placeholder={t`搜索岗位、公司或候选人`}
-        value={search}
-        onChange={(event) => {
-          setSearch(event.target.value);
-          setVisibleCount(20);
-        }}
-      />
+      {!showAll && (
+        <ResultInput
+          aria-label={t`搜索匹配项`}
+          placeholder={t`搜索岗位、公司或候选人`}
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setVisibleCount(20);
+          }}
+        />
+      )}
       <div style={{ maxHeight: '55vh', overflow: 'auto' }}>
         <StyledRecruitingTable>
-          <thead>
-            <tr>
-              <th>
+          <TableHeader>
+            <TableRow>
+              <TableHead>
                 <Button
                   variant="ghost"
                   onClick={() => {
@@ -210,49 +221,54 @@ export const MatchSelection = ({
                     : t`全选当前结果`}
                 </Button>
                 <span>{t`已选 ${selected.size} 项`}</span>
-              </th>
-              <th>
+              </TableHead>
+              <TableHead>
                 {run.direction === 'JOB_TO_CANDIDATES' ? t`姓名` : t`岗位`}
-              </th>
-              <th>{t`公司`}</th>
-              <th>{t`匹配值`}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.slice(0, visibleCount).map((pair) => (
-              <tr key={identifier(pair)}>
-                <td>
-                  <Checkbox
-                    aria-label={`${t`选择`} ${run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateLabel : pair.jobLabel}`}
-                    checked={selected.has(identifier(pair))}
-                    onCheckedChange={(checked) => {
-                      const next = new Set(selected);
-                      if (checked) next.add(identifier(pair));
-                      else next.delete(identifier(pair));
-                      select(next);
-                    }}
-                  />
-                </td>
-                <td>
-                  {run.direction === 'JOB_TO_CANDIDATES' ? (
-                    <a href={pair.candidateUrl}>{pair.candidateLabel}</a>
-                  ) : (
-                    <RecruitingJobFacts id={pair.jobId} label={pair.jobLabel} />
-                  )}
-                </td>
-                <td>
-                  <RecruitingCompanyName
-                    id={pair.companyId}
-                    label={pair.companyLabel}
-                  />
-                </td>
-                <td>{pair.score?.toFixed(2)} / 4</td>
-              </tr>
-            ))}
-          </tbody>
+              </TableHead>
+              <TableHead>{t`公司`}</TableHead>
+              <TableHead>{t`匹配值`}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered
+              .slice(0, showAll ? filtered.length : visibleCount)
+              .map((pair) => (
+                <TableRow key={identifier(pair)}>
+                  <TableCell>
+                    <Checkbox
+                      aria-label={`${t`选择`} ${run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateLabel : pair.jobLabel}`}
+                      checked={selected.has(identifier(pair))}
+                      onCheckedChange={(checked) => {
+                        const next = new Set(selected);
+                        if (checked) next.add(identifier(pair));
+                        else next.delete(identifier(pair));
+                        select(next);
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {run.direction === 'JOB_TO_CANDIDATES' ? (
+                      <a href={pair.candidateUrl}>{pair.candidateLabel}</a>
+                    ) : (
+                      <RecruitingJobFacts
+                        id={pair.jobId}
+                        label={pair.jobLabel}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <RecruitingCompanyName
+                      id={pair.companyId}
+                      label={pair.companyLabel}
+                    />
+                  </TableCell>
+                  <TableCell>{pair.score?.toFixed(2)} / 4</TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
         </StyledRecruitingTable>
       </div>
-      {filtered.length > visibleCount && (
+      {!showAll && filtered.length > visibleCount && (
         <Button
           variant="ghost"
           onClick={() => setVisibleCount((count) => count + 20)}
@@ -260,7 +276,6 @@ export const MatchSelection = ({
       )}
       <Button
         disabled={
-          !run.complete ||
           !selected.size ||
           busy ||
           ['QUEUED', 'PROCESSING'].includes(draft?.status ?? '')
