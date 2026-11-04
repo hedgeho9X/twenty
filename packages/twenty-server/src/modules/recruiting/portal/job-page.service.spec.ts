@@ -51,7 +51,7 @@ const setup = () => {
     setRemove: jest.fn(async () => 1),
   };
   const files = {
-    list: jest.fn(async () => ({ files: [] })),
+    list: jest.fn(async () => ({ files: [{ fileId: 'resume', label: 'resume.pdf' }] })),
     download: jest.fn(async () => ({ label: 'resume.pdf', stream: {} })),
   };
   const matching = { selection: jest.fn(async () => ({})) };
@@ -254,4 +254,23 @@ it('checks share membership and revocation before downloading candidate attachme
     '已失效',
   );
   expect(files.download).toHaveBeenCalledTimes(1);
+});
+
+it('omits and refuses PDFs when sharing is disabled', async () => {
+  const { service, records, files } = setup();
+  records.one.mockImplementation(async (_context, kind) => kind === 'person' ? { id: candidateId, name: 'Candidate', contactRoles: ['CANDIDATE'] } as never : { id: jobId, name: 'Job' } as never);
+  const url = await service.create({} as never, [], [candidateId], undefined, false);
+  const token = new URL(url).pathname.split('/').pop()!;
+  expect((await service.view(token)).candidates[0].files).toEqual([]);
+  await expect(service.download(token, candidateId, 'resume')).rejects.toThrow();
+  expect(files.download).not.toHaveBeenCalled();
+});
+it('freezes the file scope when the share is created', async () => {
+  const { service, records, files } = setup();
+  records.one.mockImplementation(async (_context, kind) => kind === 'person' ? { id: candidateId, name: 'Candidate', contactRoles: ['CANDIDATE'] } as never : { id: jobId, name: 'Job' } as never);
+  const url = await service.create({} as never, [], [candidateId]);
+  const token = new URL(url).pathname.split('/').pop()!;
+  files.list.mockResolvedValue({ files: [{ fileId:'resume',label:'resume.pdf' }, {fileId:'private-new',label:'new.pdf'}] });
+  expect((await service.view(token)).candidates[0].files).toHaveLength(1);
+  await expect(service.download(token,candidateId,'private-new')).rejects.toThrow();
 });

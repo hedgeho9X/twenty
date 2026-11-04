@@ -29,6 +29,8 @@ const SHARE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const scopeSchema = z.object({
   jobIds: z.array(z.string().uuid()).max(10),
   candidateIds: z.array(z.string().uuid()).max(10).default([]),
+  includeFiles: z.boolean().default(true),
+  fileIds: z.record(z.string(), z.array(z.string())).optional(),
   actor: z.object({
     workspaceId: z.string().uuid(),
     userWorkspaceId: z.string().uuid().optional(),
@@ -57,6 +59,7 @@ export class RecruitingJobPageService {
     jobIds: string[],
     candidateIds: string[] = [],
     matchRunId?: string,
+    includeFiles = true,
   ) {
     const ids = [...new Set(jobIds)];
     if (
@@ -77,9 +80,18 @@ export class RecruitingJobPageService {
     const source = matchRunId
       ? await this.matchSource(context, matchRunId, ids, candidateIds)
       : undefined;
+    const fileIds: Record<string, string[]> = {};
+    if (includeFiles && this.candidateFiles) {
+      for (const id of candidateIds)
+        fileIds[id] = (await this.candidateFiles.list(context, id)).files.map(
+          (file) => file.fileId,
+        );
+    }
     const scope = scopeSchema.parse({
       jobIds: ids,
       candidateIds: [...new Set(candidateIds)],
+      includeFiles,
+      fileIds,
       actor: this.actors.capture(context),
     });
     const token = sign(scope, this.config.get('APP_SECRET'), {
@@ -109,6 +121,7 @@ export class RecruitingJobPageService {
         key,
         jobIds: ids,
         candidateIds: scope.candidateIds,
+        includeFiles: scope.includeFiles,
         createdAt: new Date().toISOString(),
         source,
         owner: this.owner(context),
@@ -385,7 +398,12 @@ export class RecruitingJobPageService {
     if (!/^[A-Za-z0-9_-]{10,24}$/.test(token))
       throw new ForbiddenException('请使用有效的分享链接');
     const { scope, context } = await this.resolveScope(token);
-    if (!scope.candidateIds.includes(candidateId) || !this.candidateFiles)
+    if (
+      !scope.includeFiles ||
+      !scope.candidateIds.includes(candidateId) ||
+      !this.candidateFiles ||
+      (scope.fileIds && !scope.fileIds[candidateId]?.includes(fileId))
+    )
       throw new ForbiddenException('此分享不包含该候选人');
     return this.candidateFiles.download(context, candidateId, fileId);
   }
@@ -430,9 +448,13 @@ export class RecruitingJobPageService {
             ),
           ]
         : [];
-      const files = this.candidateFiles
-        ? (await this.candidateFiles.list(context, id)).files
-        : [];
+      const files =
+        scope.includeFiles && this.candidateFiles
+          ? (await this.candidateFiles.list(context, id)).files.filter(
+              (file) =>
+                !scope.fileIds || scope.fileIds[id]?.includes(file.fileId),
+            )
+          : [];
       candidates.push({
         id,
         urls,

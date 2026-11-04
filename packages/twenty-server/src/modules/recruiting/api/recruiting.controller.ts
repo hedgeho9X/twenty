@@ -125,6 +125,7 @@ export class RecruitingController {
         jobIds: z.array(z.string().uuid()).max(10).default([]),
         candidateIds: z.array(z.string().uuid()).max(10).default([]),
         matchRunId: z.string().uuid().optional(),
+        includeFiles: z.boolean().default(true),
       })
       .parse(body);
     return this.shareLinks
@@ -133,6 +134,7 @@ export class RecruitingController {
         value.jobIds,
         value.candidateIds,
         value.matchRunId,
+        value.includeFiles,
       )
       .then((url) => ({ url }));
   }

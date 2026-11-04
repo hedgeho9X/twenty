@@ -285,6 +285,8 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       'selected-ids': { type: 'string' },
       'candidate-ids': { type: 'string' },
       'job-ids': { type: 'string' },
+      'include-files': { type: 'boolean' },
+      'no-files': { type: 'boolean' },
       status: { type: 'string' },
       file: { type: 'string', multiple: true },
       name: { type: 'string' },
@@ -527,12 +529,15 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     result = await client.request(
       `/recruiting/share-results?${new URLSearchParams({ search: values.query ?? '', offset: String(offset), limit: String(limit) })}`,
     );
-  } else if (group === 'share' && action === 'create')
+  } else if (group === 'share' && action === 'create') {
+    if (values['include-files'] && values['no-files'])
+      throw new Error('Choose either --include-files or --no-files');
     result = await client.post('share-links', {
       jobIds: (values['job-ids'] ?? '').split(',').filter(Boolean),
       candidateIds: (values['candidate-ids'] ?? '').split(',').filter(Boolean),
+      includeFiles: !values['no-files'],
     });
-  else if (group === 'share' && action === 'revoke')
+  } else if (group === 'share' && action === 'revoke')
     result = await client.post(
       `share-links/${encodeURIComponent(required('id'))}/revoke`,
       {},

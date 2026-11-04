@@ -57,7 +57,7 @@ export const COMMANDS = {
     edit: '--id ID --data-file draft.json；保存 title/body',
   },
   share: {
-    create: '[--job-ids ID,ID] [--candidate-ids ID,ID]；至少一类非空',
+    create: '[--job-ids ID,ID] [--candidate-ids ID,ID] [--include-files|--no-files]；默认附带原件，至少一类非空',
     list: '[--query 关键词] [--offset N] [--limit N]；查询分享资料',
     revoke: '--id 短链接末尾标识；立即失效',
   },

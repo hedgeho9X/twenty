@@ -578,6 +578,7 @@ export class RecruitingMatchingService {
     const selected = visible.slice(offset, offset + limit);
     const records = await this.currentPairs(context, selected);
     return {
+      runId: id,
       records,
       count: visible.length,
       hasNextPage: offset + limit < visible.length,
