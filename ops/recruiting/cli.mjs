@@ -103,7 +103,9 @@ export const createRecruitingClient = ({ baseUrl, token, fetcher = fetch }) => {
     const destination = resolve(output);
     let temporary;
     try {
-      temporary = await mkdtemp(join(dirname(destination), '.fanhan-download-'));
+      temporary = await mkdtemp(
+        join(dirname(destination), '.fanhan-download-'),
+      );
       const partial = join(temporary, 'file');
       await pipeline(
         Readable.fromWeb(response.body),
@@ -273,6 +275,8 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       base: { type: 'string' },
       json: { type: 'boolean' },
       limit: { type: 'string' },
+      direction: { type: 'string', default: 'CANDIDATE_TO_JOBS' },
+      read: { type: 'string' },
       cursor: { type: 'string' },
       'key-stdin': { type: 'boolean' },
       'match-run-id': { type: 'string' },
@@ -421,6 +425,59 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     result = await client.request(
       `/recruiting/${resource}/${encodeURIComponent(required('id'))}`,
     );
+  } else if (group === 'candidates' && action === 'reparse') {
+    result = await client.post(
+      `candidates/${encodeURIComponent(required('id'))}/reparse`,
+      { batchKey: required('batch-id') },
+    );
+    taskKind = 'intake';
+    taskId = result.intakeId;
+  } else if (group === 'match' && action === 'results') {
+    if (!['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES'].includes(values.direction))
+      throw new Error('Invalid --direction');
+    if (values.read && !['read', 'unread'].includes(values.read))
+      throw new Error('Invalid --read');
+    if (
+      values.status &&
+      !['TODO', 'TO_CONTACT', 'CONTACTED', 'DISMISSED'].includes(values.status)
+    )
+      throw new Error('Invalid --status');
+    const offset = Number(values.offset),
+      limit = Number(values.limit ?? 50);
+    if (
+      !Number.isSafeInteger(offset) ||
+      offset < 0 ||
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > 100
+    )
+      throw new Error('Use nonnegative --offset and --limit 1..100');
+    const parameters = new URLSearchParams({
+      direction: values.direction,
+      offset: String(offset),
+      limit: String(limit),
+      search: values.query ?? '',
+      read: values.read ?? '',
+      followUp: values.status ?? '',
+    });
+    result = await client.request(`/recruiting/match-results?${parameters}`);
+  } else if (
+    group === 'match' &&
+    ['get', 'reviewed', 'workflow'].includes(action)
+  ) {
+    const path = `match-runs/${encodeURIComponent(required('id'))}`;
+    if (
+      action === 'workflow' &&
+      !['TODO', 'TO_CONTACT', 'CONTACTED', 'DISMISSED'].includes(values.status)
+    )
+      throw new Error('Invalid --status');
+    result =
+      action === 'get'
+        ? await client.request(`/recruiting/${path}`)
+        : await client.post(
+            `${path}/${action}`,
+            action === 'workflow' ? { status: values.status } : {},
+          );
   } else if (group === 'candidates' && action === 'files') {
     result = await client.request(
       `/recruiting/candidates/${encodeURIComponent(required('id'))}/files`,
@@ -438,9 +495,21 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       baseUrl: auth.baseUrl,
       source: auth.source,
     };
-  } else if (group === 'share' && action === 'list')
-    result = await client.request('/recruiting/share-links');
-  else if (group === 'share' && action === 'create')
+  } else if (group === 'share' && action === 'list') {
+    const offset = Number(values.offset),
+      limit = Number(values.limit ?? 50);
+    if (
+      !Number.isSafeInteger(offset) ||
+      offset < 0 ||
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > 100
+    )
+      throw new Error('Use nonnegative --offset and --limit 1..100');
+    result = await client.request(
+      `/recruiting/share-results?${new URLSearchParams({ search: values.query ?? '', offset: String(offset), limit: String(limit) })}`,
+    );
+  } else if (group === 'share' && action === 'create')
     result = await client.post('share-links', {
       jobIds: (values['job-ids'] ?? '').split(',').filter(Boolean),
       candidateIds: (values['candidate-ids'] ?? '').split(',').filter(Boolean),

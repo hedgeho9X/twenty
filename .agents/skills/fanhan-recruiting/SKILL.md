@@ -9,11 +9,16 @@ description: 通过 fanhan CLI 完成泛函招聘运营：公司/JD录入、简�
 
 本机可用 `fanhan auth login --base URL` 隐藏输入并保存 Keychain；Agent 用 `--key-stdin` 从标准输入提供Key。`auth logout` 只删除本机凭据。服务器使用 `FANHAN_API_KEY` 和 `FANHAN_BASE_URL` 注入；环境变量优先于已保存登录，Keychain凭据按服务地址隔离。先执行 `fanhan auth status --json`，确认目标连接；不能把 Key 写进命令参数或输出。未安装命令时可在本仓库运行 `node ops/recruiting/fanhan.mjs`。Node >=22。
 
+CLI 版本要求：0.5.0。升级后先验证 `fanhan --version` 和 `fanhan auth status --json`，保留现有 Keychain 登录。
+
 ## 按任务加载
 
 - 用 `fanhan <组名> --help --json` 只读取当前需要的命令；`fanhan schema --json` 是完整的小型业务目录。
 - 入库：查公司、必要时创建 → `jobs import --company-id ID --employment-type full_time --text-file JD.txt --key KEY --wait`；简历用 `candidates upload --employment-type full_time --file 简历 --note-file 说明 --key KEY --wait`。
-- 匹配：`match candidate --id ID --wait` 或 `match job --id ID --wait`；`--targets ID,ID`限定池。指定组合用 `match pair`。最多十项，默认选前五；用户明确选择优先。
+- 历史重解析：`candidates reparse --id ID --batch-id 稳定批次标识 --wait` 复用候选人已有原件与身份，保留现有雇佣类型；不需要为同一人重复上传。失败用任务 ID 重试。新解析资料包含 `phone` 和可空链接数组 `urls`；无原件无法重解析，不虚构材料。
+- 结果工作流：`match results --query 关键词 --offset 0 --limit 50` 按候选人或岗位汇总，不把底层 PAIR 当作多个人。`--direction JOB_TO_CANDIDATES` 查岗位；返回 count 和 hasNextPage。可用 `--read read|unread`、`--status TODO|TO_CONTACT|CONTACTED|DISMISSED` 筛选。`match get --id ID` 看详情；用户要求标已读用 `match reviewed --id ID`。
+- 跟进状态：`match workflow --id ID --status ...` 只更新结果工作流，不发送消息；仅凭阅读不能标记已联系，必须有实际联系事实或用户明确指示。
+- 匹配：`match candidate --id ID --wait` 或 `match job --id ID --wait`；`--targets ID,ID`限定池。指定组合用 `match pair`。详情可查看全部已评分结果；每次文案或分享最多选十项，默认选前五。外层列表不按分数排序；用户明确选择优先。
 - 查找：`search candidates|companies|jobs 关键词 [--limit N] [--cursor C] [--company-id ID] [--json]` 模糊查人、公司、JD（按权限，最多 50 条，返回 id 和少量字段；用 nextCursor 翻页）。先查到 id 再做匹配、原件下载或文案。
 - 原件：`candidates files --id ID --json` 查询有权读取的 `fileId/label`；`candidates download --id ID --file-id FILE_ID --out 本地路径` 下载，不覆盖已有文件。引用可能对应已缺失原件，下载错误不能声称成功；不返回公开链接。
 - 文案：`draft generate --match-run-id ID --top 5 --key KEY --wait`；明确选择用`--selected-ids`。结果中的 `jobPageUrl` 已可分享，不重复创建同一分享。编辑用 `draft edit --id ID --data-file draft.json`，文件含 title/body。
@@ -30,6 +35,8 @@ description: 通过 fanhan CLI 完成泛函招聘运营：公司/JD录入、简�
 
 若需要给一个通用 Agent 配置完整角色，使用 [招聘助理角色](references/agent-role.md)。该角色只依赖终端执行和本 Skill，不需要几十个 MCP 工具。
 
-同一候选人最多6份文件，重复传 `--file` 合并为一次处理；不同候选人分别提交。简历与每条JD都必须通过 `--employment-type full_time|internship` 指定正式或实习，不能靠模型猜测替代提交者选择。
+首次入库及新上传仍须明确正式或实习；仅历史重解析沿用已有设置，不补猜缺失的雇佣类型。
+
+同一候选人最多6份文件，重复传 `--file` 合并为一次处理；不同候选人分别提交。首次上传简历与每条JD都必须通过 `--employment-type full_time|internship` 指定正式或实习，不能靠模型猜测替代提交者选择。
 
 服务地址来自 `FANHAN_BASE_URL` 或 `auth login --base`，生产入口使用 HTTPS，无需额外设置。默认只接受 HTTPS 或本机地址；仅在明确连接 HTTP 测试或自建实例时设置 `FANHAN_ALLOW_HTTP=1`。

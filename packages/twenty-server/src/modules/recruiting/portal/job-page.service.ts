@@ -161,6 +161,33 @@ export class RecruitingJobPageService {
     const workspace = this.owner(context);
     return owner === workspace || owner.startsWith(`${workspace}:`);
   }
+  /** Searches the complete authorized share list before pagination. */
+  async listPage(
+    context: WorkspaceAuthContext,
+    search: string,
+    offset: number,
+    limit: number,
+  ) {
+    const query = search.trim().toLocaleLowerCase();
+    const rows = (await this.list(context))
+      .filter(
+        (row) =>
+          !query ||
+          JSON.stringify([row.subjectLabel, row.jobs, row.candidates])
+            .toLocaleLowerCase()
+            .includes(query),
+      )
+      .sort(
+        (a, b) =>
+          b.createdAt.localeCompare(a.createdAt) || a.key.localeCompare(b.key),
+      );
+    return {
+      records: rows.slice(offset, offset + limit),
+      count: rows.length,
+      hasNextPage: offset + limit < rows.length,
+    };
+  }
+
   async list(context: WorkspaceAuthContext) {
     const indexKey = `recruiting-share-index:${this.owner(context)}`;
     const keys = await this.links.setMembers(indexKey);

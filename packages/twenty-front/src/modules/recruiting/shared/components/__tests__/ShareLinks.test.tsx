@@ -34,18 +34,21 @@ it('shows the matching subject and serializable icon actions instead of a wall o
     value: { writeText },
   });
   jest.mocked(useRecruitingQuery).mockReturnValue({
-    data: [
-      {
-        key: 'short',
-        url: 'https://example.test/r/short',
-        subjectLabel: '测试候选人',
-        matchRunId: 'match',
-        jobIds: ['job'],
-        candidateIds: [],
-        jobs: [{ name: '长岗位描述', status: 'RECRUITING' }],
-        createdAt: new Date().toISOString(),
-      },
-    ],
+    data: {
+      records: [
+        {
+          key: 'short',
+          url: 'https://example.test/r/short',
+          subjectLabel: '测试候选人',
+          matchRunId: 'match',
+          jobIds: ['job'],
+          candidateIds: [],
+          jobs: [{ name: '长岗位描述', status: 'RECRUITING' }],
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      count: 1,
+    },
     loading: false,
     error: '',
     reload,

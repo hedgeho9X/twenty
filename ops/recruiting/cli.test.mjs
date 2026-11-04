@@ -40,7 +40,8 @@ test('candidate files/download commands preserve original bytes and explicit out
       : new Response(bytes, {
           headers: {
             'content-type': 'application/octet-stream',
-            'content-disposition': 'attachment; filename="../../remote-name.pdf"',
+            'content-disposition':
+              'attachment; filename="../../remote-name.pdf"',
           },
         });
   };
@@ -73,9 +74,19 @@ test('candidate files/download commands preserve original bytes and explicit out
         'http://127.0.0.1:23001/recruiting/candidates/candidate/files/resume',
       ],
     );
-    for (const missing of [['--file-id', 'resume'], ['--out', output]]) {
+    for (const missing of [
+      ['--file-id', 'resume'],
+      ['--out', output],
+    ]) {
       await assert.rejects(
-        main(['candidates', 'download', ...base, '--id', 'candidate', ...missing]),
+        main([
+          'candidates',
+          'download',
+          ...base,
+          '--id',
+          'candidate',
+          ...missing,
+        ]),
         /is required/,
       );
     }
@@ -697,4 +708,84 @@ test('fanhan public entrypoint advertises search help without authentication or 
     help.commands.search.candidates,
     /<q>.*--limit.*--cursor.*--json/,
   );
+});
+
+test('workflow CLI uses paginated result APIs and explicit reparse receipts', async () => {
+  const { main } = await import('./cli.mjs');
+  const previous = {
+    fetch: globalThis.fetch,
+    key: process.env.FANHAN_API_KEY,
+    log: console.log,
+  };
+  const calls = [];
+  process.env.FANHAN_API_KEY = 'test-key';
+  console.log = () => {};
+  globalThis.fetch = async (url, options) => {
+    calls.push({
+      url,
+      body: options.body ? JSON.parse(options.body) : undefined,
+    });
+    return Response.json({
+      intakeId: 'task',
+      records: [],
+      count: 0,
+      hasNextPage: false,
+    });
+  };
+  const base = ['--base', 'http://127.0.0.1:23001'];
+  try {
+    await main([
+      'match',
+      'results',
+      ...base,
+      '--query',
+      'A & B',
+      '--limit',
+      '20',
+      '--offset',
+      '40',
+      '--read',
+      'unread',
+    ]);
+    const url = new URL(calls[0].url);
+    assert.equal(url.pathname, '/recruiting/match-results');
+    assert.equal(url.searchParams.get('search'), 'A & B');
+    assert.equal(url.searchParams.get('limit'), '20');
+    await main([
+      'candidates',
+      'reparse',
+      ...base,
+      '--id',
+      'candidate',
+      '--batch-id',
+      'batch',
+    ]);
+    assert.equal(
+      calls[1].url,
+      'http://127.0.0.1:23001/recruiting/candidates/candidate/reparse',
+    );
+    assert.deepEqual(calls[1].body, { batchKey: 'batch' });
+    await main([
+      'match',
+      'workflow',
+      ...base,
+      '--id',
+      'run',
+      '--status',
+      'TO_CONTACT',
+    ]);
+    assert.deepEqual(calls[2].body, { status: 'TO_CONTACT' });
+    await main(['share', 'list', ...base, '--query', 'portfolio']);
+    assert.equal(new URL(calls[3].url).pathname, '/recruiting/share-results');
+    await assert.rejects(
+      main(['match', 'results', ...base, '--limit', '0']),
+      /limit/,
+    );
+    assert.equal(calls.length, 4);
+  } finally {
+    globalThis.fetch = previous.fetch;
+    console.log = previous.log;
+    if (previous.key === undefined) delete process.env.FANHAN_API_KEY;
+    else process.env.FANHAN_API_KEY = previous.key;
+  }
 });

@@ -90,6 +90,20 @@ export class RecruitingController {
   @Post('brief-test') testBrief(@Body() input: unknown) {
     return this.drafts.testTemplate(input);
   }
+  @Get('share-results')
+  shareResults(
+    @Req() request: Request,
+    @Query('search') search = '',
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '50',
+  ) {
+    return this.shareLinks.listPage(
+      buildWorkspaceAuthContextFromRequest(request),
+      search.slice(0, 100),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 50)),
+    );
+  }
   @Get('share-links') listShares(@Req() request: Request) {
     return this.shareLinks.list(buildWorkspaceAuthContextFromRequest(request));
   }
