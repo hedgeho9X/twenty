@@ -9,13 +9,17 @@ const help = `Usage: node ops/recruiting/match-month.mjs --workspace-id UUID [op
 Required environment: FANHAN_BASE_URL (API origin), FANHAN_API_KEY
   --from YYYY-MM-DD --to YYYY-MM-DD  Shanghai dates, inclusive/exclusive
                                    Default: current month in Asia/Shanghai
+  --scope both-new|either-side      Default: both-new
   --dry-run                        Default; read and print only, no matching POSTs
   --apply                          Explicitly submit paid matching work
   --limit N                        Maximum missing pairs, after skipping existing
   --concurrency N                  Outstanding pair runs (default 2, maximum 20)
   --timeout-ms N                   Wait per run (default 600000)
   --help                           No credentials or network needed
-Scope: jobs created in the interval x CANDIDATE contacts created in the interval.
+Scope both-new: interval jobs x interval CANDIDATE contacts.
+Scope either-side: interval jobs x all CANDIDATE contacts, plus all jobs x
+interval CANDIDATE contacts, deduped. Pairs run oldest first by the earlier
+createdAt of their two sides, with IDs breaking ties.
 Inactive jobs are included; the shared evaluator excludes them without billing.
 JSON lines contain IDs and counts, never resumes, model output or credentials.
 Do not overlap this command with another bulk run. Ctrl-C leaves submitted work
@@ -60,6 +64,7 @@ export const parseOptions = (args, now = new Date()) => {
       'workspace-id': { type: 'string' },
       from: { type: 'string' },
       to: { type: 'string' },
+      scope: { type: 'string', default: 'both-new' },
       'dry-run': { type: 'boolean' },
       apply: { type: 'boolean' },
       limit: { type: 'string' },
@@ -73,6 +78,8 @@ export const parseOptions = (args, now = new Date()) => {
     throw new Error('--workspace-id must be a UUID');
   if (values.apply && values['dry-run'])
     throw new Error('--apply and --dry-run are mutually exclusive');
+  if (!['both-new', 'either-side'].includes(values.scope))
+    throw new Error('--scope must be both-new or either-side');
   if (Boolean(values.from) !== Boolean(values.to))
     throw new Error('Supply both --from and --to');
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -95,6 +102,7 @@ export const parseOptions = (args, now = new Date()) => {
     to,
     fromUtc,
     toUtc,
+    scope: values.scope,
     apply: Boolean(values.apply),
     limit:
       values.limit === undefined ? Infinity : integer(values.limit, '--limit', 0),
@@ -137,8 +145,8 @@ export const runMonthlyMatches = async (
   if (current.currentWorkspace?.id?.toLowerCase() !== options.workspaceId)
     throw new Error('Workspace identity mismatch; no matching submitted');
 
-  const select = async (plural, type, extraFilter = {}) => {
-    const ids = new Set();
+  const select = async (plural, type, extraFilter = {}, inWindow = true) => {
+    const records = new Map();
     const cursors = new Set();
     let after;
     do {
@@ -152,7 +160,9 @@ export const runMonthlyMatches = async (
         {
           filter: {
             and: [
-              { createdAt: { gte: options.fromUtc, lt: options.toUtc } },
+              ...(inWindow
+                ? [{ createdAt: { gte: options.fromUtc, lt: options.toUtc } }]
+                : []),
               ...(Object.keys(extraFilter).length ? [extraFilter] : []),
             ],
           },
@@ -170,30 +180,47 @@ export const runMonthlyMatches = async (
         if (
           !uuid.test(node.id) ||
           !Number.isFinite(created) ||
-          created < Date.parse(options.fromUtc) ||
-          created >= Date.parse(options.toUtc)
+          (inWindow &&
+            (created < Date.parse(options.fromUtc) ||
+              created >= Date.parse(options.toUtc)))
         )
           throw new Error('Record outside requested interval or missing readable createdAt');
-        ids.add(node.id);
+        records.set(node.id, created);
       }
       if (!page.pageInfo.hasNextPage) break;
       after = page.pageInfo.endCursor;
       if (!after || cursors.has(after)) throw new Error('Invalid record cursor');
       cursors.add(after);
     } while (true);
-    return [...ids].sort();
+    return records;
   };
   // Sequential reads keep planning light on small deployments.
-  const jobs = await select('recruitmentJobs', 'RecruitmentJob');
-  const candidates = await select('people', 'Person', {
+  const monthJobs = await select('recruitmentJobs', 'RecruitmentJob');
+  const candidateFilter = {
     contactRoles: { containsAny: ['CANDIDATE'] },
-  });
-  const jobSet = new Set(jobs);
-  const candidateSet = new Set(candidates);
+  };
+  const monthCandidates = await select('people', 'Person', candidateFilter);
+  const eitherSide = options.scope === 'either-side';
+  const jobs = eitherSide
+    ? new Map([
+        ...(await select('recruitmentJobs', 'RecruitmentJob', {}, false)),
+        ...monthJobs,
+      ])
+    : monthJobs;
+  const candidates = eitherSide
+    ? new Map([
+        ...(await select('people', 'Person', candidateFilter, false)),
+        ...monthCandidates,
+      ])
+    : monthCandidates;
+  const isInScope = (candidateId, jobId) =>
+    candidates.has(candidateId) &&
+    jobs.has(jobId) &&
+    (!eitherSide || monthJobs.has(jobId) || monthCandidates.has(candidateId));
   const existing = new Set();
   let staleResults = 0;
   let inaccessibleResults = 0;
-  if (jobs.length && candidates.length) {
+  if (jobs.size && candidates.size) {
     // Use validated task details, not raw unsigned CRM JSON or the expiring 24-hour model cache.
     for (let offset = 0; ; offset += 50) {
       const page = await client.request(`/recruiting/match-runs?offset=${offset}`);
@@ -205,7 +232,7 @@ export const runMonthlyMatches = async (
         throw new Error('Invalid or untrusted match history; planning stopped');
       for (const run of page.records) {
         const subjects =
-          run.direction === 'JOB_TO_CANDIDATES' ? jobSet : candidateSet;
+          run.direction === 'JOB_TO_CANDIDATES' ? jobs : candidates;
         if (!subjects.has(run.subjectId)) continue;
         const detail = await client.request(
           `/recruiting/match-runs/${encodeURIComponent(run.runId)}`,
@@ -216,8 +243,7 @@ export const runMonthlyMatches = async (
         inaccessibleResults += detail.inaccessible ?? 0;
         for (const pair of detail.results) {
           if (
-            candidateSet.has(pair.candidateId) &&
-            jobSet.has(pair.jobId) &&
+            isInScope(pair.candidateId, pair.jobId) &&
             ['SCORED', 'EXCLUDED', 'NEEDS_REVIEW'].includes(pair.status)
           )
             existing.add(pairKey(pair.candidateId, pair.jobId));
@@ -226,7 +252,10 @@ export const runMonthlyMatches = async (
       if (!page.hasNextPage) break;
     }
   }
-  const total = jobs.length * candidates.length;
+  const total = eitherSide
+    ? monthJobs.size * candidates.size +
+      (jobs.size - monthJobs.size) * monthCandidates.size
+    : jobs.size * candidates.size;
   if (!Number.isSafeInteger(total))
     throw new Error('Pair count exceeds safe integer range');
   const planned = Math.min(options.limit, total - existing.size);
@@ -239,8 +268,8 @@ export const runMonthlyMatches = async (
     toExclusive: options.to,
     fromUtc: options.fromUtc,
     toUtc: options.toUtc,
-    jobs: jobs.length,
-    candidates: candidates.length,
+    jobs: jobs.size,
+    candidates: candidates.size,
     totalPairs: total,
     skippedExisting: existing.size,
     staleResults,
@@ -248,17 +277,32 @@ export const runMonthlyMatches = async (
     planned,
     deferredByLimit: total - existing.size - planned,
     concurrency: options.concurrency,
-    scope: 'new-jobs-x-new-candidates',
+    scope: eitherSide ? 'either-side-created' : 'new-jobs-x-new-candidates',
   });
+  const missingPairs = [];
+  for (const [candidateId, candidateCreatedAt] of candidates) {
+    const eligibleJobs = eitherSide && !monthCandidates.has(candidateId)
+      ? monthJobs
+      : jobs;
+    for (const [jobId, jobCreatedAt] of eligibleJobs) {
+      if (existing.has(pairKey(candidateId, jobId))) continue;
+      missingPairs.push({
+        candidateId,
+        jobId,
+        createdAt: Math.min(candidateCreatedAt, jobCreatedAt),
+      });
+    }
+  }
+  missingPairs.sort((left, right) =>
+    left.createdAt - right.createdAt ||
+    left.candidateId.localeCompare(right.candidateId) ||
+    left.jobId.localeCompare(right.jobId),
+  );
   function* pairs() {
-    let count = 0;
-    for (const candidateId of candidates)
-      for (const jobId of jobs) {
-        if (count >= planned) return;
-        if (existing.has(pairKey(candidateId, jobId))) continue;
-        count++;
-        yield { candidateId, jobId };
-      }
+    for (let index = 0; index < planned; index++) {
+      const { candidateId, jobId } = missingPairs[index];
+      yield { candidateId, jobId };
+    }
   }
   if (!options.apply) {
     for (const pair of pairs()) log({ event: 'planned-pair', ...pair });

@@ -56,6 +56,41 @@ const fixture = ({ jobs = [jobA, jobB], candidates = [candidateA, candidateB], h
   return { client, requests, writes, log, dependencies: { client, log: (row) => log.push(row), pause: async () => {} } };
 };
 
+const eitherSideFixture = ({ monthJobs, monthCandidates, history, details } = {}) => {
+  const f = fixture({ history, details });
+  const original = f.client.request;
+  const record = (id, createdAt) => ({ id, createdAt });
+  const pools = {
+    recruitmentJobs: {
+      month: monthJobs ?? [record(jobA, '2026-11-20T00:00:00Z')],
+      all: [record(jobA, '2026-11-20T00:00:00Z'), record(jobB, '2026-10-01T00:00:00Z')],
+    },
+    people: {
+      month: monthCandidates ?? [record(candidateA, '2026-11-10T00:00:00Z')],
+      all: [record(candidateA, '2026-11-10T00:00:00Z'), record(candidateB, '2026-09-01T00:00:00Z')],
+    },
+  };
+  f.client.request = async (path, init) => {
+    if (path !== '/graphql') return original(path, init);
+    f.requests.push({ path, ...init });
+    const { query, variables } = JSON.parse(init.body);
+    assert.match(query, /node \{ id createdAt \}/);
+    const plural = query.includes('people(') ? 'people' : 'recruitmentJobs';
+    const inWindow = variables.filter.and.some((filter) => filter.createdAt);
+    assert.deepEqual(variables.filter.and, [
+      ...(inWindow ? [{ createdAt: { gte: '2026-10-31T16:00:00.000Z', lt: '2026-11-30T16:00:00.000Z' } }] : []),
+      ...(plural === 'people' ? [{ contactRoles: { containsAny: ['CANDIDATE'] } }] : []),
+    ]);
+    const records = pools[plural][inWindow ? 'month' : 'all'];
+    const offset = Number(variables.after ?? 0);
+    return { data: { [plural]: {
+      edges: records.slice(offset, offset + 1).map((node) => ({ node })),
+      pageInfo: { hasNextPage: offset + 1 < records.length, endCursor: String(offset + 1) },
+    } } };
+  };
+  return f;
+};
+
 test('month defaults use Shanghai at UTC month/year rollover, with exclusive upper bound', () => {
   const result = parseOptions(['--workspace-id', workspaceId], new Date('2026-12-31T16:00:00Z'));
   assert.equal(result.from, '2027-01-01');
@@ -65,6 +100,7 @@ test('month defaults use Shanghai at UTC month/year rollover, with exclusive upp
   assert.equal(result.apply, false);
   assert.equal(result.concurrency, 2);
   assert.equal(result.limit, Infinity);
+  assert.equal(result.scope, 'both-new');
 });
 
 test('invalid dates, partial ranges and accidental writes fail before any requests', () => {
@@ -74,7 +110,7 @@ test('invalid dates, partial ranges and accidental writes fail before any reques
     ['--from', '2026-12-01', '--to', '2026-11-01'],
     ['--apply', '--dry-run'], ['--dry-run=false'], ['--concurrency', '0'],
     ['--limit', '-1'], ['--timeout-ms', 'NaN'], ['--concurrency', '2.5'],
-    ['--unknown'],
+    ['--unknown'], ['--scope', 'all'],
   ]) assert.throws(() => parseOptions(['--workspace-id', workspaceId, ...args]));
   assert.equal(parseOptions(['--help']).help, true);
 });
@@ -92,11 +128,99 @@ test('default dry-run reads only, enumerates stable Cartesian pairs and applies 
   ]);
   assert.equal(f.log[0].skippedExisting, 1);
   assert.equal(f.log[0].deferredByLimit, 1);
+  assert.equal(f.log[0].scope, 'new-jobs-x-new-candidates');
   assert.equal(f.writes.length, 0);
   for (const request of f.requests) {
     if (request.method === 'POST') assert.match(JSON.parse(request.body).query, /^(query|\{)/);
     else assert.match(request.path, /^\/recruiting\/match-runs/);
   }
+});
+
+test('either-side paginates unfiltered pools, dedupes overlap and orders by the earlier creation time', async () => {
+  const f = eitherSideFixture();
+  const result = await runMonthlyMatches(options(['--scope', 'either-side']), f.dependencies);
+  assert.equal(result.planned, 3);
+  assert.deepEqual(f.log.filter((row) => row.event === 'planned-pair').map(({ candidateId, jobId }) => [candidateId, jobId]), [
+    [candidateB, jobA], [candidateA, jobB], [candidateA, jobA],
+  ]);
+  assert.equal(f.log[0].scope, 'either-side-created');
+  assert.equal(f.log[0].mode, 'dry-run');
+  assert.equal(f.log[0].totalPairs, 3);
+  assert.equal(f.log[0].jobs, 2);
+  assert.equal(f.log[0].candidates, 2);
+  assert.equal(f.requests.filter((request) => request.path === '/graphql').length, 6);
+  assert.equal(f.writes.length, 0);
+});
+
+test('either-side skips existing pairs from old subjects, ignoring old-old results before applying limit', async () => {
+  const f = eitherSideFixture({
+    history: [
+      { runId: runA, subjectId: candidateB, direction: 'PAIR' },
+      { runId: runB, subjectId: jobB, direction: 'JOB_TO_CANDIDATES' },
+    ],
+    details: {
+      [runA]: { results: [
+        { candidateId: candidateB, jobId: jobA, status: 'SCORED' },
+        { candidateId: candidateB, jobId: jobB, status: 'SCORED' },
+      ] },
+      [runB]: { results: [
+        { candidateId: candidateB, jobId: jobA, status: 'SCORED' },
+        { candidateId: candidateA, jobId: jobB, status: 'NEEDS_REVIEW' },
+      ] },
+    },
+  });
+  const result = await runMonthlyMatches(options(['--scope', 'either-side', '--limit', '1']), f.dependencies);
+  assert.equal(result.planned, 1);
+  assert.equal(f.log[0].skippedExisting, 2);
+  assert.equal(f.log[0].deferredByLimit, 0);
+  assert.deepEqual(f.log.filter((row) => row.event === 'planned-pair'), [
+    { event: 'planned-pair', candidateId: candidateA, jobId: jobA },
+  ]);
+  assert.equal(f.writes.length, 0);
+});
+
+test('either-side keeps pairs when only one monthly pool is populated', async () => {
+  for (const [emptyPool, expected] of [
+    ['monthJobs', [[candidateA, jobB], [candidateA, jobA]]],
+    ['monthCandidates', [[candidateB, jobA], [candidateA, jobA]]],
+  ]) {
+    const f = eitherSideFixture({ [emptyPool]: [] });
+    await runMonthlyMatches(options(['--scope', 'either-side']), f.dependencies);
+    const pairs = f.log.filter((row) => row.event === 'planned-pair').map(({ candidateId, jobId }) => [candidateId, jobId]);
+    assert.deepEqual(pairs, expected);
+    assert.equal(f.writes.length, 0);
+  }
+});
+
+test('either-side applies the limit after oldest-first sorting', async () => {
+  const f = eitherSideFixture();
+  await runMonthlyMatches(options(['--scope', 'either-side', '--limit', '1']), f.dependencies);
+  assert.deepEqual(f.log.filter((row) => row.event === 'planned-pair'), [
+    { event: 'planned-pair', candidateId: candidateB, jobId: jobA },
+  ]);
+  assert.equal(f.log[0].deferredByLimit, 2);
+  assert.equal(f.writes.length, 0);
+});
+
+test('both-new also orders by the earlier creation time before breaking ties by IDs', async () => {
+  const f = fixture();
+  const original = f.client.request;
+  f.client.request = async (path, init) => {
+    const result = await original(path, init);
+    if (path === '/graphql') {
+      const records = result.data.people ?? result.data.recruitmentJobs;
+      for (const { node } of records.edges) {
+        node.createdAt = node.id === candidateB
+          ? '2026-11-01T00:00:00Z'
+          : '2026-11-20T00:00:00Z';
+      }
+    }
+    return result;
+  };
+  await runMonthlyMatches(options(), f.dependencies);
+  assert.deepEqual(f.log.filter((row) => row.event === 'planned-pair').map(({ candidateId, jobId }) => [candidateId, jobId]), [
+    [candidateB, jobA], [candidateB, jobB], [candidateA, jobA], [candidateA, jobB],
+  ]);
 });
 
 test('mismatched workspace stops before reading data or submitting matches', async () => {
