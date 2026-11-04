@@ -133,8 +133,8 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in $(seq 1 90); do
-            if curl --fail --silent --max-time 10 http://43.136.55.30/healthz >/dev/null && \
-               curl --fail --silent --max-time 10 http://43.136.55.30/client-config | jq -e --arg version "$APP_VERSION" '.appVersion == $version' >/dev/null; then
+            if curl --fail --silent --max-time 10 https://43.136.55.30/healthz >/dev/null && \
+               curl --fail --silent --max-time 10 https://43.136.55.30/client-config | jq -e --arg version "$APP_VERSION" '.appVersion == $version and .serverUrl == "https://43.136.55.30"' >/dev/null; then
               echo "Verified deployed revision $GITHUB_SHA"
               exit 0
             fi

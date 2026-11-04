@@ -47,6 +47,11 @@ services:
       - traefik.http.routers.fanhan-ip.rule=Host(`${FANHAN_HTTP_HOST:?required}`)
       - traefik.http.routers.fanhan-ip.entrypoints=web
       - traefik.http.routers.fanhan-ip.service=fanhan
+      - traefik.http.routers.fanhan-ip-secure.rule=Host(`${FANHAN_HTTP_HOST:?required}`)
+      - traefik.http.routers.fanhan-ip-secure.entrypoints=websecure
+      - traefik.http.routers.fanhan-ip-secure.service=fanhan
+      - traefik.http.routers.fanhan-ip-secure.tls=true
+      - traefik.http.routers.fanhan-ip-secure.priority=100
       - traefik.http.services.fanhan.loadbalancer.server.port=3000
       - traefik.docker.network=dokploy-network
 
