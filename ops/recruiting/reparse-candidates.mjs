@@ -4,6 +4,7 @@ import { readFile, writeFile, rename } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { createRecruitingClient } from './cli.mjs';
+import { withRecruitingRetry } from './retry-client.mjs';
 
 /** Completed candidates are never resubmitted; uncertain requests reuse server-side idempotency. */
 export async function reparseCandidates({ client, ids, batchKey, checkpoint, concurrency = 2, pollMs = 5000, timeoutMs = 1800000, apply = false, pause = (ms) => new Promise((done) => setTimeout(done, ms)), log = console.log }) {
@@ -66,5 +67,5 @@ export async function reparseCandidates({ client, ids, batchKey, checkpoint, con
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { values } = parseArgs({ options: { plan: { type: 'string' }, checkpoint: { type: 'string' }, 'batch-key': { type: 'string' }, concurrency: { type: 'string', default: '2' }, apply: { type: 'boolean' } } });
   const plan = JSON.parse(await readFile(values.plan, 'utf8'));
-  await reparseCandidates({ client: createRecruitingClient({ baseUrl: process.env.FANHAN_BASE_URL, token: process.env.FANHAN_API_KEY }), ids: plan, batchKey: values['batch-key'], checkpoint: values.checkpoint, concurrency: Number(values.concurrency), apply: Boolean(values.apply) });
+  await reparseCandidates({ client: withRecruitingRetry(createRecruitingClient({ baseUrl: process.env.FANHAN_BASE_URL, token: process.env.FANHAN_API_KEY })), ids: plan, batchKey: values['batch-key'], checkpoint: values.checkpoint, concurrency: Number(values.concurrency), apply: Boolean(values.apply) });
 }

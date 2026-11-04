@@ -3,13 +3,14 @@
 import { readFile, writeFile, rename } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { createRecruitingClient } from './cli.mjs';
+import { withRecruitingRetry } from './retry-client.mjs';
 const { values } = parseArgs({ options: {
   input: { type: 'string' }, jobs: { type: 'string' }, output: { type: 'string' },
   'batch-key': { type: 'string' }, total: { type: 'string' }, concurrency: { type: 'string', default: '4' }, extra: { type: 'string' },
 } });
 const concurrency = Number(values.concurrency), total = Number(values.total);
 if (!values.input || !values.jobs || !values.output || !values['batch-key'] || !Number.isSafeInteger(total) || total < 1 || !Number.isInteger(concurrency) || concurrency < 1 || concurrency > 8) throw new Error('Provide input, jobs, output, batch-key, total and concurrency 1..8');
-const client = createRecruitingClient({ baseUrl: process.env.FANHAN_BASE_URL, token: process.env.FANHAN_API_KEY });
+const client = withRecruitingRetry(createRecruitingClient({ baseUrl: process.env.FANHAN_BASE_URL, token: process.env.FANHAN_API_KEY }));
 const jobIds = JSON.parse(await readFile(values.jobs, 'utf8'));
 if (!Array.isArray(jobIds) || jobIds.length > 2000 || jobIds.some((id) => !/^[0-9a-f-]{36}$/i.test(id))) throw new Error('Invalid explicit job plan');
 const extra = values.extra ? JSON.parse(await readFile(values.extra, 'utf8')) : [];
