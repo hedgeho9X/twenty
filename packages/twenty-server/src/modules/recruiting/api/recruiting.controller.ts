@@ -663,6 +663,25 @@ export class RecruitingController {
     );
   }
 
+  /** Re-extracts only originals already owned by this readable candidate. */
+  @Post('candidates/:id/reparse')
+  @HttpCode(202)
+  async reparseCandidate(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = z
+      .object({ batchKey: z.string().min(1).max(128) })
+      .strict()
+      .parse(body);
+    return this.intakes.reparse(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      parsed.batchKey,
+    );
+  }
+
   /** Submits native file references through the same boundary used by upload UI and mail. */
   @Post('resume-intakes')
   @HttpCode(202)

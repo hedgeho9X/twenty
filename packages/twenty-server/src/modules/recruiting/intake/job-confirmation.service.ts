@@ -414,7 +414,9 @@ export class RecruitingJobConfirmationService {
               context,
               'recruitmentJob',
               item.jobId,
-              envelope.input.source,
+              envelope.input.source === 'reparse'
+                ? 'system'
+                : envelope.input.source,
             )
           ).runId;
           item.matchingError = undefined;
