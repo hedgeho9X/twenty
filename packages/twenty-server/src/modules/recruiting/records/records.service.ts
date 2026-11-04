@@ -1,6 +1,7 @@
 /** Keeps recruiting data access on the official permission-aware record services. */
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -13,6 +14,7 @@ import { type ObjectRecordOrderBy } from 'src/engine/api/graphql/workspace-query
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { CreateRecordService } from 'src/engine/core-modules/record-crud/services/create-record.service';
 import { FindRecordsService } from 'src/engine/core-modules/record-crud/services/find-records.service';
+import { CommonApiContextBuilderService } from 'src/engine/core-modules/record-crud/services/common-api-context-builder.service';
 import { UpdateRecordService } from 'src/engine/core-modules/record-crud/services/update-record.service';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import {
@@ -33,7 +35,21 @@ export class RecruitingRecordsService {
     private readonly createRecordService: CreateRecordService,
     private readonly updateRecordService: UpdateRecordService,
     private readonly config: TwentyConfigService,
+    private readonly commonApiContextBuilder: CommonApiContextBuilderService,
   ) {}
+
+  /** Resolves readable native fields before search predicates can reveal their values. */
+  async readableFields(context: WorkspaceAuthContext, objectName: string) {
+    const { selectedFields, flatObjectMetadata, objectsPermissions } =
+      await this.commonApiContextBuilder.build({
+        authContext: context,
+        objectName,
+        isInternalRecordOperation: true,
+      });
+    if (!objectsPermissions[flatObjectMetadata.id]?.canReadObjectRecords)
+      throw new ForbiddenException('当前权限下无法搜索这些招聘记录');
+    return selectedFields;
+  }
 
   /** Reads one bounded page; the native service applies record and field permissions. */
   async list(
@@ -42,6 +58,8 @@ export class RecruitingRecordsService {
     options: {
       filter?: Record<string, unknown>;
       offset?: number;
+      after?: string;
+      includeCursor?: boolean;
       limit?: number;
       select?: string[];
       orderBy?: ObjectRecordOrderBy;
@@ -53,6 +71,8 @@ export class RecruitingRecordsService {
       objectName,
       filter: options.filter,
       offset: options.offset ?? 0,
+      ...(options.after !== undefined ? { after: options.after } : {}),
+      ...(options.includeCursor ? { includeCursor: true } : {}),
       limit: options.limit ?? 100,
       select: options.select,
       orderBy: options.orderBy,

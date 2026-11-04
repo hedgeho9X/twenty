@@ -372,6 +372,33 @@ export class RecruitingController {
       body,
     );
   }
+  @Get('search/candidates')
+  searchCandidates(@Req() request: Request, @Query() query: unknown) {
+    return this.directory.search(
+      buildWorkspaceAuthContextFromRequest(request),
+      'candidates',
+      query,
+    );
+  }
+
+  @Get('search/companies')
+  searchCompanies(@Req() request: Request, @Query() query: unknown) {
+    return this.directory.search(
+      buildWorkspaceAuthContextFromRequest(request),
+      'companies',
+      query,
+    );
+  }
+
+  @Get('search/jobs')
+  searchJobs(@Req() request: Request, @Query() query: unknown) {
+    return this.directory.search(
+      buildWorkspaceAuthContextFromRequest(request),
+      'jobs',
+      query,
+    );
+  }
+
   /** Returns minimal candidate choices under native record permissions. */
   @Get('candidates')
   candidates(

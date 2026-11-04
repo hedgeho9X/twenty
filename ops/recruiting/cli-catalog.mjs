@@ -1,5 +1,10 @@
 /** Presents only the recruiting operator surface; legacy aliases stay out of discovery. */
 export const COMMANDS = {
+  search: {
+    candidates: '<q> [--limit N] [--cursor C] [--json]；搜索候选人',
+    companies: '<q> [--limit N] [--cursor C] [--json]；搜索公司',
+    jobs: '<q> [--limit N] [--cursor C] [--company-id UUID] [--json]；搜索岗位',
+  },
   auth: {
     login: '[--base URL] [--key-stdin]；验证并保存到Keychain',
     logout: '[--base URL]；删除本机凭据，不撤销服务端Key',
@@ -68,7 +73,8 @@ export const commandHelp = (group, action) => {
     base: 'FANHAN_BASE_URL',
     defaultBase: 'http://localhost:23001',
     commands,
-    output: 'JSON; stderr errors; exit 1 request failure, 2 business failure',
+    output:
+      'JSON (search: table, or --json); stderr errors; exit 1 request failure, 2 business failure',
     wait: '--wait waits for intake and linked matching; timeout preserves task ID',
   };
 };

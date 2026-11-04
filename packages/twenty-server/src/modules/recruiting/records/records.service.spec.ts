@@ -18,6 +18,7 @@ it('passes the current identity and bounded ID filter to permission-aware reads'
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
   );
   const records = await service.byIds(context as never, 'company', [
     'allowed',

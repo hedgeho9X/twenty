@@ -161,7 +161,110 @@ export const waitForRecruitingTask = async (
   throw error;
 };
 
-/** Prints stable JSON only; file bytes and credentials never become command-line arguments. */
+/** Renders only the search response's public fields and removes terminal controls. */
+const searchTable = (resource, page) => {
+  const cell = (value) =>
+    String(value ?? '').replace(
+      /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g,
+      ' ',
+    );
+  const columns =
+    resource === 'candidates'
+      ? ['ID', 'Name', 'Headline']
+      : resource === 'companies'
+        ? ['ID', 'Name', 'Domain']
+        : ['ID', 'Title', 'Company ID', 'Status'];
+  const rows = page.records.map((record) =>
+    [
+      record.id,
+      typeof record.name === 'object' && record.name
+        ? [record.name.firstName, record.name.lastName]
+            .filter(Boolean)
+            .join(' ')
+        : record.name,
+      ...(resource === 'candidates'
+        ? [record.jobTitle]
+        : resource === 'companies'
+          ? [record.domainName?.primaryLinkUrl]
+          : [record.companyId, record.jobStatus]),
+    ].map(cell),
+  );
+  const widths = columns.map((header, index) =>
+    Math.max(header.length, ...rows.map((row) => row[index].length)),
+  );
+  const table = rows.length
+    ? [columns, ...rows]
+        .map((row) =>
+          row
+            .map((value, index) => value.padEnd(widths[index]))
+            .join('  ')
+            .trimEnd(),
+        )
+        .join('\n')
+    : 'No matches.';
+  return (
+    table +
+    (page.nextCursor ? `\nNext page: --cursor ${cell(page.nextCursor)}` : '')
+  );
+};
+
+/** Search accepts values only; command syntax cannot select API fields or filters. */
+const searchParameters = (positionals, values) => {
+  const resource = positionals[1];
+  const q = positionals[2]?.trim();
+  if (
+    !['candidates', 'companies', 'jobs'].includes(resource) ||
+    positionals.length !== 3 ||
+    !q ||
+    q.length > 100
+  )
+    throw new Error(
+      'Usage: fanhan search candidates|companies|jobs <q> [--limit N] [--cursor C] [--json]',
+    );
+  const parameters = new URLSearchParams({ q });
+  if (values.limit !== undefined) {
+    if (
+      !/^[1-9]\d*$/.test(values.limit) ||
+      !Number.isSafeInteger(Number(values.limit))
+    )
+      throw new Error('--limit must be a positive integer');
+    parameters.set('limit', String(Math.min(Number(values.limit), 50)));
+  }
+  const uuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (values.cursor !== undefined) {
+    let valid = false;
+    if (/^[A-Za-z0-9_-]{1,256}$/.test(values.cursor)) {
+      try {
+        const decoded = JSON.parse(
+          Buffer.from(values.cursor, 'base64url').toString(),
+        );
+        valid =
+          decoded !== null &&
+          typeof decoded === 'object' &&
+          Object.keys(decoded).length === 1 &&
+          typeof decoded.id === 'string' &&
+          uuid.test(decoded.id) &&
+          Buffer.from(JSON.stringify({ id: decoded.id })).toString(
+            'base64url',
+          ) === values.cursor;
+      } catch {
+        /* Report a bounded validation error below. */
+      }
+    }
+    if (!valid)
+      throw new Error('--cursor must be a search cursor returned by the API');
+    parameters.set('cursor', values.cursor);
+  }
+  if (values['company-id'] !== undefined) {
+    if (resource !== 'jobs' || !uuid.test(values['company-id']))
+      throw new Error('--company-id requires jobs and a UUID');
+    parameters.set('companyId', values['company-id']);
+  }
+  return parameters;
+};
+
+/** Prints stable JSON for operations; search additionally supports human tables. */
 export const main = async (arguments_ = process.argv.slice(2)) => {
   const { values, positionals } = parseArgs({
     args: arguments_,
@@ -169,6 +272,8 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     options: {
       base: { type: 'string' },
       json: { type: 'boolean' },
+      limit: { type: 'string' },
+      cursor: { type: 'string' },
       'key-stdin': { type: 'boolean' },
       'match-run-id': { type: 'string' },
       'selected-ids': { type: 'string' },
@@ -231,6 +336,19 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
               ),
             )
             .join('\n'),
+    );
+    return;
+  }
+  if (positionals[0] === 'search') {
+    const parameters = searchParameters(positionals, values);
+    const client = createRecruitingClient(await resolveAuth(values.base));
+    const result = await client.request(
+      `/recruiting/search/${positionals[1]}?${parameters}`,
+    );
+    console.log(
+      values.json
+        ? JSON.stringify(result)
+        : searchTable(positionals[1], result),
     );
     return;
   }
