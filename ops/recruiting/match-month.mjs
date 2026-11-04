@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Plans monthly pairs, or submits them through the same authenticated API as manual matching. */
 import { createHash } from 'node:crypto';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { createRecruitingClient } from './cli.mjs';
@@ -21,10 +22,35 @@ Scope either-side: interval jobs x all CANDIDATE contacts, plus all jobs x
 interval CANDIDATE contacts, deduped. Pairs run oldest first by the earlier
 createdAt of their two sides, with IDs breaking ties.
 Scope all: every job x every CANDIDATE contact, ignoring --from/--to.
+  --exclude-job-status S[,S]       Skip jobs whose jobStatus is one of these (e.g. CLOSED)
+  --candidate-ai-status S          Only candidates whose candidateAiStatus equals S (e.g. COMPLETED)
+  --history-cache FILE             Remember terminal match-run details between restarts
+  --max-errors N                   Keep scheduling after a failed pair until N errors (default 1)
 Inactive jobs are included; the shared evaluator excludes them without billing.
 JSON lines contain IDs and counts, never resumes, model output or credentials.
 Do not overlap this command with another bulk run. Ctrl-C leaves submitted work
 in the durable queue; rerun with the same workspace to recover its receipts.`;
+
+const TERMINAL_RUN_STATUSES = ['COMPLETED', 'PARTIAL', 'NO_RESULTS', 'FAILED', 'SUPERSEDED'];
+
+/** JSON file of runId -> minimal terminal pair statuses (IDs only, no model output). */
+export const fileHistoryStore = (path) =>
+  path
+    ? {
+        async load() {
+          try {
+            return JSON.parse(await readFile(path, 'utf8'));
+          } catch (error) {
+            if (error.code === 'ENOENT') return {};
+            throw error;
+          }
+        },
+        async save(value) {
+          await writeFile(`${path}.tmp`, JSON.stringify(value));
+          await rename(`${path}.tmp`, path);
+        },
+      }
+    : undefined;
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -39,6 +65,15 @@ const integer = (value, name, minimum, maximum = Number.MAX_SAFE_INTEGER) => {
   )
     throw new Error(`Invalid ${name}`);
   return number;
+};
+
+/** GraphQL enum values only: no free-form filter text reaches the API. */
+const enumList = (value, name, maximum = 20) => {
+  if (value === undefined) return [];
+  const items = value.split(',').map((item) => item.trim());
+  if (!items.length || items.length > maximum || items.some((item) => !/^[A-Z][A-Z0-9_]*$/.test(item)))
+    throw new Error(`Invalid ${name}`);
+  return items;
 };
 
 /** Calendar dates are unambiguous; Asia/Shanghai uses UTC+08 for supported modern dates. */
@@ -71,6 +106,10 @@ export const parseOptions = (args, now = new Date()) => {
       limit: { type: 'string' },
       concurrency: { type: 'string', default: '2' },
       'timeout-ms': { type: 'string', default: '600000' },
+      'exclude-job-status': { type: 'string' },
+      'candidate-ai-status': { type: 'string' },
+      'history-cache': { type: 'string' },
+      'max-errors': { type: 'string', default: '1' },
       help: { type: 'boolean' },
     },
   });
@@ -109,6 +148,13 @@ export const parseOptions = (args, now = new Date()) => {
       values.limit === undefined ? Infinity : integer(values.limit, '--limit', 0),
     concurrency: integer(values.concurrency, '--concurrency', 1, 20),
     timeoutMs: integer(values['timeout-ms'], '--timeout-ms', 1),
+    excludeJobStatuses: enumList(values['exclude-job-status'], '--exclude-job-status'),
+    candidateAiStatus:
+      values['candidate-ai-status'] === undefined
+        ? undefined
+        : enumList(values['candidate-ai-status'], '--candidate-ai-status', 1)[0],
+    historyCache: values['history-cache'],
+    maxErrors: integer(values['max-errors'], '--max-errors', 1),
   };
 };
 
@@ -131,6 +177,7 @@ export const runMonthlyMatches = async (
     log = (row) => console.log(JSON.stringify(row)),
     pause = sleep,
     now = Date.now,
+    historyStore = fileHistoryStore(options.historyCache),
   } = {},
 ) => {
   const graphql = async (path, query, variables = {}) => {
@@ -200,15 +247,23 @@ export const runMonthlyMatches = async (
   };
   // Sequential reads keep planning light on small deployments.
   const allScope = options.scope === 'all';
-  const monthJobs = await select('recruitmentJobs', 'RecruitmentJob', {}, !allScope);
-  const candidateFilter = {
-    contactRoles: { containsAny: ['CANDIDATE'] },
-  };
+  const jobFilter = options.excludeJobStatuses?.length
+    ? { and: options.excludeJobStatuses.map((status) => ({ jobStatus: { neq: status } })) }
+    : {};
+  const monthJobs = await select('recruitmentJobs', 'RecruitmentJob', jobFilter, !allScope);
+  const candidateFilter = options.candidateAiStatus
+    ? {
+        and: [
+          { contactRoles: { containsAny: ['CANDIDATE'] } },
+          { candidateAiStatus: { eq: options.candidateAiStatus } },
+        ],
+      }
+    : { contactRoles: { containsAny: ['CANDIDATE'] } };
   const monthCandidates = await select('people', 'Person', candidateFilter, !allScope);
   const eitherSide = options.scope === 'either-side';
   const jobs = eitherSide
     ? new Map([
-        ...(await select('recruitmentJobs', 'RecruitmentJob', {}, false)),
+        ...(await select('recruitmentJobs', 'RecruitmentJob', jobFilter, false)),
         ...monthJobs,
       ])
     : monthJobs;
@@ -225,6 +280,10 @@ export const runMonthlyMatches = async (
   const existing = new Set();
   let staleResults = 0;
   let inaccessibleResults = 0;
+  const cache = (await historyStore?.load()) ?? {};
+  let cacheChanged = false;
+  let detailRequests = 0;
+  const seenRuns = new Set();
   if (jobs.size && candidates.size) {
     // Use validated task details, not raw unsigned CRM JSON or the expiring 24-hour model cache.
     for (let offset = 0; ; offset += 50) {
@@ -238,12 +297,28 @@ export const runMonthlyMatches = async (
       for (const run of page.records) {
         const subjects =
           run.direction === 'JOB_TO_CANDIDATES' ? jobs : candidates;
-        if (!subjects.has(run.subjectId)) continue;
-        const detail = await client.request(
-          `/recruiting/match-runs/${encodeURIComponent(run.runId)}`,
-        );
-        if (!Array.isArray(detail.results))
-          throw new Error('Match detail is missing results');
+        if (!subjects.has(run.subjectId) || seenRuns.has(run.runId)) continue;
+        seenRuns.add(run.runId);
+        // Only terminal runs are cached; their results no longer change, so restarts skip the detail call.
+        let detail = cache[run.runId];
+        if (!detail) {
+          detail = await client.request(
+            `/recruiting/match-runs/${encodeURIComponent(run.runId)}`,
+          );
+          detailRequests++;
+          if (!Array.isArray(detail.results))
+            throw new Error('Match detail is missing results');
+          detail = {
+            status: detail.status,
+            stale: detail.stale ?? 0,
+            inaccessible: detail.inaccessible ?? 0,
+            results: detail.results.map(({ candidateId, jobId, status }) => ({ candidateId, jobId, status })),
+          };
+          if (TERMINAL_RUN_STATUSES.includes(detail.status) && !detail.stale && !detail.inaccessible) {
+            cache[run.runId] = detail;
+            cacheChanged = true;
+          }
+        }
         staleResults += detail.stale ?? 0;
         inaccessibleResults += detail.inaccessible ?? 0;
         for (const pair of detail.results) {
@@ -257,6 +332,7 @@ export const runMonthlyMatches = async (
       if (!page.hasNextPage) break;
     }
   }
+  if (cacheChanged) await historyStore?.save(cache);
   const total = eitherSide
     ? monthJobs.size * candidates.size +
       (jobs.size - monthJobs.size) * monthCandidates.size
@@ -282,6 +358,10 @@ export const runMonthlyMatches = async (
     planned,
     deferredByLimit: total - existing.size - planned,
     concurrency: options.concurrency,
+    historyRuns: seenRuns.size,
+    detailRequests,
+    excludeJobStatuses: options.excludeJobStatuses ?? [],
+    candidateAiStatus: options.candidateAiStatus ?? null,
     scope: allScope ? 'all' : eitherSide ? 'either-side-created' : 'new-jobs-x-new-candidates',
   });
   const missingPairs = [];
@@ -388,14 +468,16 @@ export const runMonthlyMatches = async (
         }
       } catch (error) {
         summary.errors++;
-        stop = true;
+        if (summary.errors >= (options.maxErrors ?? 1)) stop = true;
         // Do not echo response bodies: upstream errors may contain private material.
         log({
           event: 'pair-error',
           ...pair,
           runId,
           httpStatus: error.status,
-          message: 'Pair did not complete. Scheduling stopped; inspect this run/permissions and rerun.',
+          message: stop
+            ? 'Pair did not complete. Scheduling stopped; inspect this run/permissions and rerun.'
+            : 'Pair did not complete; continuing within --max-errors.',
           code: error.status
             ? 'API_ERROR'
             : ['INCOMPLETE_PAIR', 'RUN_TIMEOUT'].includes(error.code)

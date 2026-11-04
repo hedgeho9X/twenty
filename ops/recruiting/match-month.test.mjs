@@ -394,3 +394,67 @@ test('rate-limit wrapper retries 429 then succeeds, rethrows other errors', asyn
   assert.equal(calls, 3);
   await assert.rejects(c.post('a', {}), { status: 500 });
 });
+
+test('status filters reach GraphQL as enum filters and invalid values fail before requests', async () => {
+  assert.throws(() => options(['--exclude-job-status', 'closed']), /exclude-job-status/);
+  assert.throws(() => options(['--candidate-ai-status', 'A,B']), /candidate-ai-status/);
+  const seen = {};
+  const f = fixture();
+  const original = f.client.request;
+  f.client.request = async (path, init) => {
+    if (path !== '/graphql') return original(path, init);
+    const { query, variables } = JSON.parse(init.body);
+    const plural = query.includes('people(') ? 'people' : 'recruitmentJobs';
+    seen[plural] = variables.filter.and;
+    return { data: { [plural]: page(plural === 'people' ? [candidateA] : [jobA]) } };
+  };
+  const parsed = parseOptions(['--workspace-id', workspaceId, '--scope', 'all', '--exclude-job-status', 'CLOSED,PAUSED', '--candidate-ai-status', 'COMPLETED']);
+  const result = await runMonthlyMatches(parsed, f.dependencies);
+  assert.equal(result.planned, 1);
+  assert.deepEqual(seen.recruitmentJobs, [{ and: [{ jobStatus: { neq: 'CLOSED' } }, { jobStatus: { neq: 'PAUSED' } }] }]);
+  assert.deepEqual(seen.people, [{ and: [{ contactRoles: { containsAny: ['CANDIDATE'] } }, { candidateAiStatus: { eq: 'COMPLETED' } }] }]);
+  assert.deepEqual(f.log[0].excludeJobStatuses, ['CLOSED', 'PAUSED']);
+  assert.equal(f.log[0].candidateAiStatus, 'COMPLETED');
+});
+
+test('history cache skips terminal run details on restart but refetches active runs', async () => {
+  const history = [
+    { subjectId: candidateA, direction: 'PAIR', runId: runA },
+    { subjectId: candidateB, direction: 'PAIR', runId: runB },
+  ];
+  const details = {
+    [runA]: { status: 'COMPLETED', results: [{ candidateId: candidateA, jobId: jobA, status: 'SCORED', score: 9 }] },
+    [runB]: { status: 'PROCESSING', results: [] },
+  };
+  let stored = {};
+  const historyStore = { load: async () => stored, save: async (value) => { stored = JSON.parse(JSON.stringify(value)); } };
+  const first = fixture({ history, details });
+  await runMonthlyMatches(options(), { ...first.dependencies, historyStore });
+  assert.deepEqual(Object.keys(stored), [runA]);
+  assert.deepEqual(stored[runA].results, [{ candidateId: candidateA, jobId: jobA, status: 'SCORED' }]);
+  const second = fixture({ history, details });
+  const result = await runMonthlyMatches(options(), { ...second.dependencies, historyStore });
+  const detailPaths = second.requests.filter((row) => /match-runs\/[0-9a-f-]+$/.test(row.path)).map((row) => row.path);
+  assert.deepEqual(detailPaths, [`/recruiting/match-runs/${runB}`]);
+  assert.equal(second.log[0].detailRequests, 1);
+  assert.equal(second.log[0].skippedExisting, 1);
+  assert.equal(result.planned, 3);
+});
+
+test('--max-errors keeps scheduling after a failed pair and stops at the threshold', async () => {
+  const run = async (maxErrors) => {
+    const f = fixture();
+    f.client.post = async (path, input) => {
+      f.writes.push({ path, input });
+      throw Object.assign(new Error('boom'), { status: 500 });
+    };
+    const result = await runMonthlyMatches(options(['--apply', '--concurrency', '1', '--max-errors', String(maxErrors)]), f.dependencies);
+    return { result, f };
+  };
+  const strict = await run(1);
+  assert.equal(strict.f.writes.length, 1);
+  const lenient = await run(3);
+  assert.equal(lenient.f.writes.length, 3);
+  assert.equal(lenient.result.errors, 3);
+  assert.equal(lenient.f.log.filter((row) => row.event === 'pair-error').at(-1).message.includes('stopped'), true);
+});
