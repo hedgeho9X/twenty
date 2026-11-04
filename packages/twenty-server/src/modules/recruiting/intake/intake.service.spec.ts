@@ -394,3 +394,49 @@ it.each([null, undefined, []])(
     expect((await service.one({} as never, 'text-jd')).files).toEqual([]);
   },
 );
+
+it('reparses candidate-owned files without attaching them to a different native field', async () => {
+  const candidateId = '11111111-1111-4111-8111-111111111111';
+  const fileId = '22222222-2222-4222-8222-222222222222';
+  const context = { workspace: { id: 'workspace' } } as WorkspaceAuthContext;
+  const records = {
+    one: jest.fn(async (_ctx, object) => {
+      if (object === 'person')
+        return { id: candidateId, contactRoles: ['CANDIDATE'] };
+      throw new NotFoundException();
+    }),
+    create: jest.fn(async (_ctx, _object, data) => data),
+  };
+  const uploads = {
+    authorize: jest.fn(),
+    fromCandidate: jest.fn(async () => [{ fileId, label: 'resume.pdf' }]),
+  };
+  const queue = { add: jest.fn() };
+  const service = new RecruitingIntakeService(
+    records as never,
+    { capture: () => ({ workspaceId: 'workspace' }) } as never,
+    { file: jest.fn() } as never,
+    {} as never,
+    {} as never,
+    uploads as never,
+    {} as never,
+    {} as never,
+    queue as never,
+  );
+  await service.reparse(context, candidateId, 'batch');
+  expect(records.create).toHaveBeenCalledWith(
+    context,
+    'recruitingIntake',
+    expect.objectContaining({
+      files: [],
+      result: expect.objectContaining({
+        input: expect.objectContaining({
+          source: 'reparse',
+          candidateId,
+          files: [{ fileId, label: 'resume.pdf', role: 'primary' }],
+        }),
+      }),
+    }),
+  );
+  expect(queue.add).toHaveBeenCalledTimes(1);
+});

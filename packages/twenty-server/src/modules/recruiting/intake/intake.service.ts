@@ -288,10 +288,14 @@ export class RecruitingIntakeService {
           name: `[recruiting-v2] ${input.files[0]?.label ?? '岗位文字'}`,
           kind: input.kind,
           rawText: input.note ?? '',
-          files: input.files.map((file) => ({
-            fileId: file.fileId,
-            label: file.label,
-          })),
+          // Originals remain owned by the candidate's native file field during re-extraction.
+          files:
+            input.source === 'reparse'
+              ? []
+              : input.files.map((file) => ({
+                  fileId: file.fileId,
+                  label: file.label,
+                })),
           state: 'READY',
           result: envelope,
         });
@@ -465,6 +469,15 @@ export class RecruitingIntakeService {
     );
     let envelope = this.envelope(record);
     if (record.state === 'COMPLETED') return;
+    if (envelope.input.source === 'reparse' && envelope.input.candidateId) {
+      const currentFiles = await this.uploads.fromCandidate(
+        context,
+        envelope.input.candidateId,
+      );
+      const allowed = new Set(currentFiles.map((file) => file.fileId));
+      if (envelope.input.files.some((file) => !allowed.has(file.fileId)))
+        throw new BadRequestException('候选人原始材料已变更，请重新提交解析');
+    }
     const update = async (
       stage: string,
       patch: Partial<IntakeEnvelope> = {},
