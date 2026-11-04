@@ -28,11 +28,12 @@ const fixture = ({ jobs = [jobA, jobB], candidates = [candidateA, candidateB], h
       if (path === '/metadata') return { data: { currentWorkspace: { id: workspaceId } } };
       if (path === '/graphql') {
         const { query, variables } = JSON.parse(init.body);
-        assert.deepEqual(variables.filter.and[0], {
-          createdAt: { gte: '2026-10-31T16:00:00.000Z', lt: '2026-11-30T16:00:00.000Z' },
-        });
+        assert.deepEqual(variables.filter.and.slice(0, 2), [
+          { createdAt: { gte: '2026-10-31T16:00:00.000Z' } },
+          { createdAt: { lt: '2026-11-30T16:00:00.000Z' } },
+        ]);
         if (query.includes('people(')) {
-          assert.deepEqual(variables.filter.and[1], { contactRoles: { containsAny: ['CANDIDATE'] } });
+          assert.deepEqual(variables.filter.and[2], { contactRoles: { containsAny: ['CANDIDATE'] } });
           return { data: { people: page(candidates) } };
         }
         return { data: { recruitmentJobs: page(jobs) } };
@@ -78,7 +79,7 @@ const eitherSideFixture = ({ monthJobs, monthCandidates, history, details } = {}
     const plural = query.includes('people(') ? 'people' : 'recruitmentJobs';
     const inWindow = variables.filter.and.some((filter) => filter.createdAt);
     assert.deepEqual(variables.filter.and, [
-      ...(inWindow ? [{ createdAt: { gte: '2026-10-31T16:00:00.000Z', lt: '2026-11-30T16:00:00.000Z' } }] : []),
+      ...(inWindow ? [{ createdAt: { gte: '2026-10-31T16:00:00.000Z' } }, { createdAt: { lt: '2026-11-30T16:00:00.000Z' } }] : []),
       ...(plural === 'people' ? [{ contactRoles: { containsAny: ['CANDIDATE'] } }] : []),
     ]);
     const records = pools[plural][inWindow ? 'month' : 'all'];
@@ -110,7 +111,7 @@ test('invalid dates, partial ranges and accidental writes fail before any reques
     ['--from', '2026-12-01', '--to', '2026-11-01'],
     ['--apply', '--dry-run'], ['--dry-run=false'], ['--concurrency', '0'],
     ['--limit', '-1'], ['--timeout-ms', 'NaN'], ['--concurrency', '2.5'],
-    ['--unknown'], ['--scope', 'all'],
+    ['--unknown'], ['--scope', 'everything'],
   ]) assert.throws(() => parseOptions(['--workspace-id', workspaceId, ...args]));
   assert.equal(parseOptions(['--help']).help, true);
 });
@@ -380,4 +381,16 @@ test('excluded outcomes persist as NO_RESULTS and count as completed without inv
   assert.equal(result.completed, 1);
   assert.equal(result.errors, 0);
   assert.equal(f.log.find((row) => row.event === 'completed').status, 'EXCLUDED');
+});
+
+test('rate-limit wrapper retries 429 then succeeds, rethrows other errors', async () => {
+  const { withRateLimitRetry } = await import('./match-month.mjs');
+  let calls = 0;
+  const c = withRateLimitRetry({
+    async request() { if (++calls < 3) throw Object.assign(new Error('x'), { status: 429 }); return 'ok'; },
+    async post() { throw Object.assign(new Error('y'), { status: 500 }); },
+  }, { pause: async () => {} });
+  assert.equal(await c.request('/a'), 'ok');
+  assert.equal(calls, 3);
+  await assert.rejects(c.post('a', {}), { status: 500 });
 });

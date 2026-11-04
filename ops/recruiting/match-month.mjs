@@ -9,7 +9,7 @@ const help = `Usage: node ops/recruiting/match-month.mjs --workspace-id UUID [op
 Required environment: FANHAN_BASE_URL (API origin), FANHAN_API_KEY
   --from YYYY-MM-DD --to YYYY-MM-DD  Shanghai dates, inclusive/exclusive
                                    Default: current month in Asia/Shanghai
-  --scope both-new|either-side      Default: both-new
+  --scope both-new|either-side|all  Default: both-new
   --dry-run                        Default; read and print only, no matching POSTs
   --apply                          Explicitly submit paid matching work
   --limit N                        Maximum missing pairs, after skipping existing
@@ -20,6 +20,7 @@ Scope both-new: interval jobs x interval CANDIDATE contacts.
 Scope either-side: interval jobs x all CANDIDATE contacts, plus all jobs x
 interval CANDIDATE contacts, deduped. Pairs run oldest first by the earlier
 createdAt of their two sides, with IDs breaking ties.
+Scope all: every job x every CANDIDATE contact, ignoring --from/--to.
 Inactive jobs are included; the shared evaluator excludes them without billing.
 JSON lines contain IDs and counts, never resumes, model output or credentials.
 Do not overlap this command with another bulk run. Ctrl-C leaves submitted work
@@ -78,8 +79,8 @@ export const parseOptions = (args, now = new Date()) => {
     throw new Error('--workspace-id must be a UUID');
   if (values.apply && values['dry-run'])
     throw new Error('--apply and --dry-run are mutually exclusive');
-  if (!['both-new', 'either-side'].includes(values.scope))
-    throw new Error('--scope must be both-new or either-side');
+  if (!['both-new', 'either-side', 'all'].includes(values.scope))
+    throw new Error('--scope must be both-new, either-side or all');
   if (Boolean(values.from) !== Boolean(values.to))
     throw new Error('Supply both --from and --to');
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -161,7 +162,10 @@ export const runMonthlyMatches = async (
           filter: {
             and: [
               ...(inWindow
-                ? [{ createdAt: { gte: options.fromUtc, lt: options.toUtc } }]
+                ? [
+                    { createdAt: { gte: options.fromUtc } },
+                    { createdAt: { lt: options.toUtc } },
+                  ]
                 : []),
               ...(Object.keys(extraFilter).length ? [extraFilter] : []),
             ],
@@ -195,11 +199,12 @@ export const runMonthlyMatches = async (
     return records;
   };
   // Sequential reads keep planning light on small deployments.
-  const monthJobs = await select('recruitmentJobs', 'RecruitmentJob');
+  const allScope = options.scope === 'all';
+  const monthJobs = await select('recruitmentJobs', 'RecruitmentJob', {}, !allScope);
   const candidateFilter = {
     contactRoles: { containsAny: ['CANDIDATE'] },
   };
-  const monthCandidates = await select('people', 'Person', candidateFilter);
+  const monthCandidates = await select('people', 'Person', candidateFilter, !allScope);
   const eitherSide = options.scope === 'either-side';
   const jobs = eitherSide
     ? new Map([
@@ -277,7 +282,7 @@ export const runMonthlyMatches = async (
     planned,
     deferredByLimit: total - existing.size - planned,
     concurrency: options.concurrency,
-    scope: eitherSide ? 'either-side-created' : 'new-jobs-x-new-candidates',
+    scope: allScope ? 'all' : eitherSide ? 'either-side-created' : 'new-jobs-x-new-candidates',
   });
   const missingPairs = [];
   for (const [candidateId, candidateCreatedAt] of candidates) {
@@ -407,6 +412,21 @@ export const runMonthlyMatches = async (
   return summary;
 };
 
+/** Twenty throttles API keys; back off on HTTP 429 instead of aborting a long bulk run. */
+export const withRateLimitRetry = (client, { pause = sleep, retries = 20 } = {}) => {
+  const wrap = (fn) => async (...args) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn(...args);
+      } catch (error) {
+        if (error?.status !== 429 || attempt >= retries) throw error;
+        await pause(Math.min(120000, 15000 * (attempt + 1)));
+      }
+    }
+  };
+  return { ...client, request: wrap(client.request.bind(client)), post: wrap(client.post.bind(client)) };
+};
+
 export const main = async (args = process.argv.slice(2)) => {
   const options = parseOptions(args);
   if (options.help) return console.log(help);
@@ -417,7 +437,9 @@ export const main = async (args = process.argv.slice(2)) => {
     baseUrl: process.env.FANHAN_BASE_URL,
     token: process.env.FANHAN_API_KEY,
   });
-  const summary = await runMonthlyMatches(options, { client });
+  const summary = await runMonthlyMatches(options, {
+    client: withRateLimitRetry(client),
+  });
   if (summary.errors) process.exitCode = 1;
 };
 
