@@ -4,7 +4,7 @@ import { buildFanhanAgentPrompt, copyFanhanAgentPrompt } from './agentSetup';
 it('includes public release artifacts and only the caller-provided credential', () => {
   const prompt = buildFanhanAgentPrompt('https://43.136.55.30', 'test-key');
   expect(prompt).toContain('https://43.136.55.30');
-  expect(prompt).toContain('fanhan-cli.tgz');
+  expect(prompt).toContain('fanhan-cli-v0.5.0/fanhan-cli.tgz');
   expect(prompt).toContain('fanhan-recruiting-skill.zip');
   expect(prompt).toContain('API Key：test-key');
   expect(buildFanhanAgentPrompt('http://localhost')).toContain('请向我索取');
