@@ -154,6 +154,66 @@ export class RecruitingPairEvaluatorService {
     };
   }
 
+  /** Reuses a complete authorized snapshot with batch cache reads and no model calls. */
+  async reusePool(
+    context: WorkspaceAuthContext,
+    candidates: MatchSource[],
+    jobRecord: MatchSource,
+    companyRecord?: MatchSource,
+  ) {
+    const prepared = candidates.map((candidate) =>
+      this.prepare(context, candidate, jobRecord, companyRecord),
+    );
+    const cached = await this.records.byIds(
+      context,
+      'recruitingPairEvaluation',
+      prepared.map((pair) => pair.cacheId),
+    );
+    const results = new Map<string, RecruitingPairResult>();
+    for (const pair of prepared) {
+      const { candidate, job, cacheId, cacheKey, modelId } = pair;
+      const eligibility = evaluateRecruitingEligibility(
+        candidate.eligibility,
+        job.eligibility,
+      );
+      if (eligibility.status === 'excluded') {
+        results.set(candidate.id, {
+          candidateId: candidate.id,
+          jobId: job.id,
+          candidateLabel: candidate.label,
+          jobLabel: job.label,
+          companyId: job.companyId,
+          status: 'EXCLUDED',
+          eligibility,
+          cacheId,
+          cacheKey,
+          modelId,
+          cached: false,
+          evaluatedAt: new Date().toISOString(),
+          duplicateKey: job.duplicateKey,
+          protocolVersion: RECRUITING_MATCH_PROTOCOL.version,
+        });
+        continue;
+      }
+      if (candidate.issue || job.issue) continue;
+      const payload = cached.get(cacheId)?.payload as
+        | RecruitingPairResult
+        | undefined;
+      if (
+        payload?.status === 'SCORED' &&
+        payload.cacheKey === cacheKey &&
+        Date.now() - Date.parse(payload.evaluatedAt) < 24 * 60 * 60_000
+      )
+        results.set(candidate.id, {
+          ...payload,
+          candidateLabel: candidate.label,
+          jobLabel: job.label,
+          cached: true,
+        });
+    }
+    return results;
+  }
+
   /** Filters explicit conflicts before billing, preserves unknowns and uses the native model registry. */
   async run(
     context: WorkspaceAuthContext,

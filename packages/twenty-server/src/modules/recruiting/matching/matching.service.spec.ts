@@ -101,6 +101,7 @@ const setup = (count = 7, orm?: unknown) => {
   let active = 0;
   let maximum = 0;
   const evaluator = {
+    reusePool: jest.fn(async () => new Map<string, RecruitingPairResult>()),
     prepare: jest.fn((_context, candidate, job) => ({
       cacheKey: job.id,
       cacheId: job.id,
@@ -699,4 +700,27 @@ it('permits a fresh scored selection from a partial run, but rejects stale selec
   await expect(service.selection(context, 'run', ['job-0'])).rejects.toThrow(
     '已变化',
   );
+});
+
+it('builds a reverse shortlist from a fully authorized cache snapshot without per-pair evaluation', async () => {
+  const { service, rows, evaluator, records } = setup();
+  const run = rows.get('run') as any;
+  run.payload.input = {
+    direction: 'JOB_TO_CANDIDATES',
+    subjectId: 'job-0',
+    targetIds: ['person'],
+  };
+  const cached = await evaluator.run(
+    context,
+    rows.get('person'),
+    rows.get('job-0'),
+  );
+  evaluator.run.mockClear();
+  evaluator.reusePool.mockResolvedValueOnce(
+    new Map([['person', { ...cached, cached: true }]]),
+  );
+  await service.process({ runId: 'run', actor });
+  expect(rows.get('run')?.status).toBe('COMPLETED');
+  expect(evaluator.run).not.toHaveBeenCalled();
+  expect(records.update).toHaveBeenCalledTimes(1);
 });

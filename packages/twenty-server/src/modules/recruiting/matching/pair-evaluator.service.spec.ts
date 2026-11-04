@@ -40,6 +40,12 @@ const setup = () => {
       if (!rows.has(id)) throw new NotFoundException();
       return rows.get(id)!;
     }),
+    byIds: jest.fn(
+      async (_context, _object, ids: string[]) =>
+        new Map(
+          ids.filter((id) => rows.has(id)).map((id) => [id, rows.get(id)!]),
+        ),
+    ),
     create: jest.fn(
       async (
         _context,
@@ -237,4 +243,24 @@ it('retries wrapped context rejections with the identical full input and labels 
   expect(second.state).toEqual(first.state);
   expect(second.questions).toEqual(first.questions);
   expect(JSON.stringify([...rows.values()])).not.toContain('private body');
+});
+
+it('batch-reuses only current unexpired scores without another paid evaluation', async () => {
+  const { evaluator, records, rows } = setup();
+  const first = await evaluator.run(context, candidate, job, company);
+  records.one.mockClear();
+  const reused = await evaluator.reusePool(context, [candidate], job, company);
+  expect(reused.get(candidate.id)).toMatchObject({
+    score: first.score,
+    cached: true,
+  });
+  expect(records.byIds).toHaveBeenCalledTimes(1);
+  expect(records.one).not.toHaveBeenCalled();
+  expect(evaluate).toHaveBeenCalledTimes(1);
+  const stored = [...rows.values()][0];
+  (stored.payload as RecruitingPairResult).evaluatedAt = '2000-01-01T00:00:00Z';
+  expect(
+    (await evaluator.reusePool(context, [candidate], job, company)).size,
+  ).toBe(0);
+  expect(evaluate).toHaveBeenCalledTimes(1);
 });

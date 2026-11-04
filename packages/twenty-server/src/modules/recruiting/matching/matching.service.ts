@@ -944,6 +944,50 @@ export class RecruitingMatchingService {
             ),
           )
         : buildCandidateMatchContext(subject).version;
+      if (jobFirst && this.evaluator.reusePool) {
+        const reusable = await this.evaluator.reusePool(
+          context,
+          pool.filter((candidate) => this.isCandidate(candidate)),
+          subject,
+          companies.get(String(subject.companyId)),
+        );
+        if (selected.length && selected.every((id) => reusable.has(id))) {
+          context = await this.actors.resolve(data.actor);
+          const current = await this.records.one(
+            context,
+            'recruitmentJob',
+            input.subjectId,
+          );
+          const company =
+            typeof current.companyId === 'string'
+              ? await this.records.one(context, 'company', current.companyId)
+              : undefined;
+          if (
+            contentVersion(buildJobMatchContext(current, company)) !==
+            sourceVersion
+          ) {
+            await save('SUPERSEDED', {
+              error: '来源资料已更新，请重新匹配',
+              completedAt: new Date().toISOString(),
+            });
+            return;
+          }
+          const results = selected.map((id) => reusable.get(id)!);
+          // Full source versions are also checked when a result page is opened or shared.
+          await save(
+            results.some((row) => row.status === 'SCORED')
+              ? 'COMPLETED'
+              : 'NO_RESULTS',
+            {
+              targetIds: selected,
+              results,
+              completedAt: new Date().toISOString(),
+              error: undefined,
+            },
+          );
+          return;
+        }
+      }
       const results: RecruitingPairResult[] = [];
       let providerAuthorizationFailed = false;
       await save('PROCESSING', {
