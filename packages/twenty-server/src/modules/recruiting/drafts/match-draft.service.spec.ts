@@ -51,7 +51,7 @@ const setup = () => {
   };
   const queue = { add: jest.fn() };
   const matching = {
-    selection: jest.fn(async (_context, _id, ids) => {
+    selection: jest.fn(async (_context, _id, ids: string[]) => {
       if (ids.some((id) => id !== jobId))
         throw new BadRequestException('请选择当前匹配结果');
       return {
