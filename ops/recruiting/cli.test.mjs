@@ -470,3 +470,231 @@ test('candidate upload requires employment and sends six documents in one reques
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+const searchCursor = Buffer.from(
+  JSON.stringify({
+    id: '00000000-0000-4000-8000-000000000001',
+  }),
+).toString('base64url');
+
+const searchHarness = (
+  t,
+  response = { records: [], hasNextPage: false, nextCursor: null },
+) => {
+  const originalKey = process.env.FANHAN_API_KEY;
+  process.env.FANHAN_API_KEY = 'search-test-key';
+  t.after(() => {
+    if (originalKey === undefined) delete process.env.FANHAN_API_KEY;
+    else process.env.FANHAN_API_KEY = originalKey;
+  });
+  const requests = [];
+  const output = [];
+  t.mock.method(console, 'log', (value) => output.push(value));
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    requests.push({ url, options });
+    return Response.json(response);
+  });
+  return { requests, output };
+};
+
+test('search resources encode scalar values, preserve auth, and emit the exact JSON envelope', async (t) => {
+  const { main } = await import('./cli.mjs');
+  const page = {
+    records: [{ id: 'visible', name: 'Acme' }],
+    hasNextPage: true,
+    nextCursor: searchCursor,
+  };
+  const { requests, output } = searchHarness(t, page);
+  const companyId = '00000000-0000-4000-8000-000000000002';
+  for (const resource of ['candidates', 'companies', 'jobs']) {
+    await main([
+      'search',
+      resource,
+      '  中文 &%_\\?=/ ',
+      '--base',
+      'https://example.test',
+      '--limit',
+      '99',
+      '--cursor',
+      searchCursor,
+      '--json',
+      ...(resource === 'jobs' ? ['--company-id', companyId] : []),
+    ]);
+    const { url, options } = requests.at(-1);
+    const parsed = new URL(url);
+    assert.equal(parsed.origin, 'https://example.test');
+    assert.equal(parsed.pathname, `/recruiting/search/${resource}`);
+    assert.equal(parsed.searchParams.get('q'), '中文 &%_\\?=/');
+    assert.equal(parsed.searchParams.get('limit'), '50');
+    assert.equal(parsed.searchParams.get('cursor'), searchCursor);
+    assert.equal(
+      parsed.searchParams.get('companyId'),
+      resource === 'jobs' ? companyId : null,
+    );
+    assert.equal(options.headers.authorization, 'Bearer search-test-key');
+    assert.equal(options.redirect, 'error');
+    assert.ok(options.signal instanceof AbortSignal);
+    assert.equal(output.at(-1), JSON.stringify(page));
+  }
+});
+
+test('search validates positional syntax and bounded values before any network request', async (t) => {
+  const { main } = await import('./cli.mjs');
+  const { requests } = searchHarness(t);
+  for (const arguments_ of [
+    ['search'],
+    ['search', 'records', 'x'],
+    ['search', '../companies', 'x'],
+    ['search', 'jobs'],
+    ['search', 'jobs', ' '],
+    ['search', 'jobs', 'x'.repeat(101)],
+    ['search', 'jobs', 'x', 'extra'],
+    ...['0', '-1', '2.5', '2junk', '9007199254740992'].map((value) => [
+      'search',
+      'jobs',
+      'x',
+      '--limit',
+      value,
+    ]),
+    ...[
+      '',
+      'bad',
+      Buffer.from(JSON.stringify({ id: 'bad' })).toString('base64url'),
+      Buffer.from(
+        JSON.stringify({
+          id: '00000000-0000-4000-8000-000000000001',
+          sort: 'name',
+        }),
+      ).toString('base64url'),
+    ].map((value) => ['search', 'jobs', 'x', '--cursor', value]),
+    ['search', 'jobs', 'x', '--company-id', 'bad'],
+    [
+      'search',
+      'candidates',
+      'x',
+      '--company-id',
+      '00000000-0000-4000-8000-000000000002',
+    ],
+  ])
+    await assert.rejects(main(arguments_));
+  assert.equal(requests.length, 0);
+});
+
+test('search tables show only public fields, neutralize terminal controls and advertise the next page', async (t) => {
+  const { main } = await import('./cli.mjs');
+  const page = {
+    records: [
+      {
+        id: 'candidate-1',
+        name: { firstName: 'Ada\x1b[31m', lastName: 'Lovelace\nInjected' },
+        jobTitle: 'Engineer\tJS',
+        emails: 'hidden-email',
+        phones: 'hidden-phone',
+        files: 'hidden-file',
+        jobDescription: 'hidden-resume',
+      },
+    ],
+    hasNextPage: true,
+    nextCursor: searchCursor,
+  };
+  const { output } = searchHarness(t, page);
+  await main(['search', 'candidates', 'Ada', '--base', 'https://example.test']);
+  assert.match(output[0], /ID\s+Name\s+Headline/);
+  assert.match(output[0], /candidate-1/);
+  assert.match(output[0], /Ada/);
+  assert.match(output[0], new RegExp(`Next page: --cursor ${searchCursor}`));
+  assert.doesNotMatch(output[0], /hidden-|\x1b|\t/);
+  assert.equal(output[0].split('\n').length, 3);
+});
+
+test('search handles company/job tables, missing readable labels, empty pages and server defaults', async (t) => {
+  const { main } = await import('./cli.mjs');
+  const { output, requests } = searchHarness(t);
+  const pages = [
+    {
+      records: [
+        {
+          id: 'company-1',
+          name: 'Acme',
+          domainName: { primaryLinkUrl: 'https://acme.test' },
+        },
+      ],
+      hasNextPage: false,
+      nextCursor: null,
+    },
+    {
+      records: [
+        {
+          id: 'job-1',
+          name: 'Engineer',
+          companyId: 'company-1',
+          jobStatus: 'CLOSED',
+        },
+      ],
+      hasNextPage: false,
+      nextCursor: null,
+    },
+    { records: [{ id: 'company-2' }], hasNextPage: false, nextCursor: null },
+    { records: [], hasNextPage: false, nextCursor: null },
+  ];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return Response.json(pages.shift());
+  };
+  for (const resource of ['companies', 'jobs', 'companies', 'candidates'])
+    await main(['search', resource, 'x', '--base', 'https://example.test']);
+  assert.match(output[0], /Domain/);
+  assert.match(output[0], /https:\/\/acme.test/);
+  assert.match(output[1], /Company ID\s+Status/);
+  assert.match(output[1], /CLOSED/);
+  assert.match(output[2], /company-2/);
+  assert.doesNotMatch(output[2], /undefined|null|Next page/);
+  assert.equal(output[3], 'No matches.');
+  assert.deepEqual([...new URL(requests[0].url).searchParams.keys()], ['q']);
+});
+
+test('search preserves permission/redirect errors without output or credential disclosure', async (t) => {
+  const { main } = await import('./cli.mjs');
+  const { output } = searchHarness(t);
+  for (const status of [401, 403, 302]) {
+    globalThis.fetch = async (_url, options) => {
+      assert.equal(options.redirect, 'error');
+      return Response.json({ message: 'denied search-test-key' }, { status });
+    };
+    await assert.rejects(
+      main(['search', 'jobs', 'x', '--base', 'https://example.test', '--json']),
+      (error) => {
+        assert.equal(error.status, status);
+        assert.doesNotMatch(error.message, /search-test-key/);
+        return true;
+      },
+    );
+  }
+  assert.deepEqual(output, []);
+});
+
+test('fanhan public entrypoint advertises search help without authentication or network access', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const result = spawnSync(
+    process.execPath,
+    [
+      new URL('./fanhan.mjs', import.meta.url).pathname,
+      'search',
+      '--help',
+      '--json',
+    ],
+    { encoding: 'utf8' },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const help = JSON.parse(result.stdout);
+  assert.deepEqual(Object.keys(help.commands.search), [
+    'candidates',
+    'companies',
+    'jobs',
+  ]);
+  assert.match(help.commands.search.jobs, /--company-id/);
+  assert.match(
+    help.commands.search.candidates,
+    /<q>.*--limit.*--cursor.*--json/,
+  );
+});

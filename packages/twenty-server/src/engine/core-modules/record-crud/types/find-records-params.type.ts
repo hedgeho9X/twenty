@@ -15,6 +15,9 @@ export type FindRecordsParams = FindRecordsInput &
       | Partial<ObjectRecordFilter>[];
     orderBy?: Partial<ObjectRecordOrderBy>;
     offset?: number;
+    after?: string;
+    /** Opt in to cursor output without changing existing offset callers. */
+    includeCursor?: boolean;
     select?: string[];
     shouldBuildEffectiveSelectFields: boolean;
   };

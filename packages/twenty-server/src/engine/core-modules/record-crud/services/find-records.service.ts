@@ -106,6 +106,7 @@ export class FindRecordsService {
           orderBy: orderByWithIdCondition,
           first: limit ? Math.min(limit, QUERY_MAX_RECORDS) : QUERY_MAX_RECORDS,
           offset,
+          ...(params.after !== undefined ? { after: params.after } : {}),
           selectedFields: { ...effectiveSelectedFields, totalCount: true },
         },
         queryRunnerContext,
@@ -130,6 +131,9 @@ export class FindRecordsService {
           records,
           count: totalCount ?? 0,
           hasNextPage: pageInfo.hasNextPage,
+          ...(params.includeCursor
+            ? { endCursor: pageInfo.endCursor ?? null }
+            : {}),
         },
         ...(isNonEmptyArray(warnings) ? { warnings: warnings } : {}),
         recordReferences,

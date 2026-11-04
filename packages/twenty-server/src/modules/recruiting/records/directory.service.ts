@@ -1,12 +1,20 @@
 /** Shares permission-aware company and subject selection across operators, HTTP and native MCP tools. */
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { z } from 'zod';
 
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
+import { type CommonSelectedFields } from 'src/engine/api/common/types/common-selected-fields-result.type';
+import {
+  parseRecruitingSearch,
+  recruitingLikePattern,
+  recruitingSearchPolicies,
+  type RecruitingSearchResource,
+} from './domain/search';
 import { RecruitingRecordsService } from './records.service';
 
 /** Company identity remains explicit; similar names never authorize an automatic merge. */
@@ -23,6 +31,106 @@ export const recruitingCompanyInputSchema = z
 /** Reuses native CRUD, field permissions, record filters and audit events. */
 export class RecruitingDirectoryService {
   constructor(private readonly records: RecruitingRecordsService) {}
+
+  /** Extends picker reads with a fixed, permission-pruned search contract. */
+  async search(
+    context: WorkspaceAuthContext,
+    resource: RecruitingSearchResource,
+    query: unknown,
+  ) {
+    const { q, limit, cursor, companyId } = parseRecruitingSearch(
+      resource,
+      query,
+    );
+    const policy = recruitingSearchPolicies[resource];
+    const readable = await this.records.readableFields(
+      context,
+      policy.objectName,
+    );
+    const canRead = (path: string) => {
+      const [field, subfield] = path.split('.');
+      const selection = readable[field];
+      return subfield
+        ? typeof selection === 'object' && selection[subfield] === true
+        : selection === true;
+    };
+    if (
+      !canRead('id') ||
+      (resource === 'candidates' && !canRead('contactRoles')) ||
+      (companyId && !canRead('companyId'))
+    )
+      throw new ForbiddenException('当前权限下无法搜索这些招聘记录');
+
+    const pattern = recruitingLikePattern(q);
+    const predicates = policy.paths.filter(canRead).map((path) => {
+      const [field, subfield] = path.split('.');
+      return {
+        [field]: subfield
+          ? { [subfield]: { ilike: pattern } }
+          : { ilike: pattern },
+      };
+    });
+    if (!predicates.length)
+      return { records: [], hasNextPage: false, nextCursor: null };
+    const constraints: Record<string, unknown>[] = [{ or: predicates }];
+    if (resource === 'candidates')
+      constraints.push({ contactRoles: { containsAny: ['CANDIDATE'] } });
+    if (companyId) constraints.push({ companyId: { eq: companyId } });
+    const select = policy.output.filter((field) => Boolean(readable[field]));
+    const page = await this.records.list(context, policy.objectName, {
+      filter: { and: constraints },
+      select,
+      limit,
+      after: cursor,
+      includeCursor: true,
+      // The native runner applies its fixed ID ASC tie-breaker and keyset filter.
+    });
+    return {
+      records: page.records.map((record) =>
+        this.searchProjection(
+          record as Record<string, unknown>,
+          select,
+          readable,
+        ),
+      ),
+      hasNextPage: page.hasNextPage,
+      nextCursor: page.hasNextPage ? (page.endCursor ?? null) : null,
+    };
+  }
+
+  /** Native effective selection includes filter fields; never expose them implicitly. */
+  private searchProjection(
+    record: Record<string, unknown>,
+    select: readonly string[],
+    readable: CommonSelectedFields,
+  ) {
+    const result: Record<string, unknown> = {};
+    for (const field of select) {
+      const value = record[field];
+      if (value === undefined) continue;
+      if (field === 'name' && typeof readable[field] === 'object') {
+        if (value && typeof value === 'object')
+          result[field] = Object.fromEntries(
+            ['firstName', 'lastName']
+              .filter(
+                (key) =>
+                  (readable[field] as CommonSelectedFields)[key] === true,
+              )
+              .map((key) => [key, (value as Record<string, unknown>)[key]]),
+          );
+      } else if (field === 'domainName') {
+        if (
+          value &&
+          typeof value === 'object' &&
+          (readable[field] as CommonSelectedFields).primaryLinkUrl === true
+        )
+          result[field] = {
+            primaryLinkUrl: (value as Record<string, unknown>).primaryLinkUrl,
+          };
+      } else if (readable[field] === true) result[field] = value;
+    }
+    return result;
+  }
 
   /** Resolves a linked candidate into a minimal selection label under current permissions. */
   async candidate(context: WorkspaceAuthContext, id: string) {
@@ -74,8 +182,12 @@ export class RecruitingDirectoryService {
       filter: query
         ? {
             or: [
-              { name: { ilike: `%${query}%` } },
-              { domainName: { primaryLinkUrl: { ilike: `%${query}%` } } },
+              { name: { ilike: recruitingLikePattern(query) } },
+              {
+                domainName: {
+                  primaryLinkUrl: { ilike: recruitingLikePattern(query) },
+                },
+              },
             ],
           }
         : undefined,
@@ -162,9 +274,17 @@ export class RecruitingDirectoryService {
             ? [
                 {
                   or: [
-                    { name: { firstName: { ilike: `%${query}%` } } },
-                    { name: { lastName: { ilike: `%${query}%` } } },
-                    { jobTitle: { ilike: `%${query}%` } },
+                    {
+                      name: {
+                        firstName: { ilike: recruitingLikePattern(query) },
+                      },
+                    },
+                    {
+                      name: {
+                        lastName: { ilike: recruitingLikePattern(query) },
+                      },
+                    },
+                    { jobTitle: { ilike: recruitingLikePattern(query) } },
                   ],
                 },
               ]
@@ -199,7 +319,15 @@ export class RecruitingDirectoryService {
         ? [{ jobStatus: { eq: 'RECRUITING' } }]
         : []),
       ...(options.search?.trim()
-        ? [{ name: { ilike: `%${options.search.trim().slice(0, 200)}%` } }]
+        ? [
+            {
+              name: {
+                ilike: recruitingLikePattern(
+                  options.search.trim().slice(0, 200),
+                ),
+              },
+            },
+          ]
         : []),
     ];
     return this.records.list(context, 'recruitmentJob', {
