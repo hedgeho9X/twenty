@@ -497,13 +497,23 @@ export class RecruitingMatchingService {
       const pool =
         input.direction === 'PAIR'
           ? [await this.records.one(context, 'recruitmentJob', input.jobId!)]
-          : await this.records.all(
-              context,
-              jobFirst ? 'person' : 'recruitmentJob',
-              jobFirst
-                ? { contactRoles: { containsAny: ['CANDIDATE'] } }
-                : { jobStatus: { eq: 'RECRUITING' } },
-            );
+          : input.targetIds
+            ? [
+                ...(
+                  await this.records.byIds(
+                    context,
+                    jobFirst ? 'person' : 'recruitmentJob',
+                    input.targetIds,
+                  )
+                ).values(),
+              ]
+            : await this.records.all(
+                context,
+                jobFirst ? 'person' : 'recruitmentJob',
+                jobFirst
+                  ? { contactRoles: { containsAny: ['CANDIDATE'] } }
+                  : { jobStatus: { eq: 'RECRUITING' } },
+              );
       const ids =
         payload.targetIds ?? input.targetIds ?? pool.map((entry) => entry.id);
       const selected = [...new Set(ids)];

@@ -517,3 +517,25 @@ describe.each(['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES'])(
     });
   },
 );
+
+it('resolves explicit job targets independently of the default recruiting-only pool', async () => {
+  const { service, rows, records, evaluator } = setup(1);
+  const run = rows.get('run')!;
+  const payload = run.payload as { input: { targetIds?: string[] } };
+  payload.input.targetIds = ['paused-job'];
+  rows.set('paused-job', {
+    id: 'paused-job',
+    companyId: 'company',
+    jobStatus: 'PENDING',
+  });
+  await service.process({ runId: 'run', actor });
+  expect(records.byIds).toHaveBeenCalledWith(context, 'recruitmentJob', [
+    'paused-job',
+  ]);
+  expect(evaluator.run).toHaveBeenCalledWith(
+    context,
+    expect.anything(),
+    expect.objectContaining({ id: 'paused-job' }),
+    expect.anything(),
+  );
+});
