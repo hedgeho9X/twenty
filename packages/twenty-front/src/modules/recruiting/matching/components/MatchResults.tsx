@@ -2,7 +2,7 @@ import { ResultPagination } from '@/recruiting/shared/components/ResultPaginatio
 import { recruitingRequest } from '@/recruiting/shared/api/request';
 import { MatchSelection } from './MatchSelection';
 /** Shows matching history and a focused subject detail with current ranked results. */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { Button } from 'twenty-ui/primitives/input';
 import { IconArrowLeft, IconRefresh } from 'twenty-ui/icon';
@@ -34,6 +34,8 @@ export const RecruitingMatchResults = ({
   active?: boolean;
 }) => {
   const [finished, setFinished] = useState(false);
+  const tableScroll = useRef<HTMLDivElement>(null);
+  const scrollPosition = useRef(0);
   const [runId, setRunId] = useState(initialRunId);
   const [offset, setOffset] = useState(0);
   const [pageSize, setPageSize] = useState(50);
@@ -59,6 +61,23 @@ export const RecruitingMatchResults = ({
     if (detail.data && !['QUEUED', 'PROCESSING'].includes(detail.data.status))
       setFinished(true);
   }, [detail.data]);
+  useEffect(() => {
+    if (!runId && tableScroll.current)
+      tableScroll.current.scrollTop = scrollPosition.current;
+  }, [list.data, runId]);
+  const openResult = async (id: string) => {
+    try {
+      await recruitingRequest(`match-runs/${id}/reviewed`, { method: 'POST' });
+    } catch {
+      setWorkflowError(t`阅读状态未保存`);
+    }
+    setRunId(id);
+  };
+  const navigationRows = list.data?.records ?? [];
+  const currentIndex = navigationRows.findIndex((row) => row.runId === runId);
+  const nextUnread = navigationRows.find(
+    (row, index) => index > currentIndex && !row.reviewedAt,
+  );
   const run = detail.error ? undefined : detail.data;
   const notice = run ? matchResultNotice(run) : undefined;
   if (runId)
@@ -70,6 +89,24 @@ export const RecruitingMatchResults = ({
             startIcon={<IconArrowLeft size={16} />}
             onClick={() => (onBack ? onBack() : setRunId(undefined))}
           >{t`返回匹配列表`}</Button>
+          <Button
+            disabled={currentIndex <= 0}
+            onClick={() =>
+              void openResult(navigationRows[currentIndex - 1].runId)
+            }
+          >{t`上一条`}</Button>
+          <Button
+            disabled={
+              currentIndex < 0 || currentIndex >= navigationRows.length - 1
+            }
+            onClick={() =>
+              void openResult(navigationRows[currentIndex + 1].runId)
+            }
+          >{t`下一条`}</Button>
+          <Button
+            disabled={!nextUnread}
+            onClick={() => nextUnread && void openResult(nextUnread.runId)}
+          >{t`下一条未读`}</Button>
         </StyledRecruitingRow>
         {detail.error && (
           <StyledRecruitingError role="alert">
@@ -246,6 +283,10 @@ export const RecruitingMatchResults = ({
         </StyledRecruitingError>
       )}
       <div
+        ref={tableScroll}
+        onScroll={(event) => {
+          scrollPosition.current = event.currentTarget.scrollTop;
+        }}
         style={{
           overflow: 'auto',
           maxHeight: 'calc(100vh - 340px)',
@@ -305,7 +346,16 @@ export const RecruitingMatchResults = ({
                         } as Record<string, string>
                       )[row.followUpStatus ?? 'TODO'],
                       borderRadius: 6,
-                      padding: 4,
+                      border: 'none',
+                      background: (
+                        {
+                          TODO: '#f1f1f1',
+                          TO_CONTACT: '#fff1d6',
+                          CONTACTED: '#e0f3e7',
+                          DISMISSED: '#ededed',
+                        } as Record<string, string>
+                      )[row.followUpStatus ?? 'TODO'],
+                      padding: '4px 8px',
                     }}
                     onChange={async (event) => {
                       try {
@@ -361,17 +411,7 @@ export const RecruitingMatchResults = ({
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={async () => {
-                      try {
-                        await recruitingRequest(
-                          `match-runs/${row.runId}/reviewed`,
-                          { method: 'POST' },
-                        );
-                      } catch {
-                        setWorkflowError(t`阅读状态未保存`);
-                      }
-                      setRunId(row.runId);
-                    }}
+                    onClick={() => void openResult(row.runId)}
                   >{t`查看结果`}</Button>
                 </td>
               </tr>
