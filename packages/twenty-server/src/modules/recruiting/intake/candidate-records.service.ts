@@ -34,6 +34,7 @@ export class RecruitingCandidateRecordsService {
             'contactRoles',
             'candidateResumes',
             'jobTitle',
+            'phones',
             'candidateEmploymentType',
           ])
           .where({ id })

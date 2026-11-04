@@ -1,4 +1,6 @@
 /** Projects explicit parsed facts onto native candidate columns without overwriting manual values. */
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
+
 export const candidateFields = (
   profile: Record<string, unknown>,
   current: Record<string, unknown> = {},
@@ -25,5 +27,31 @@ export const candidateFields = (
     employment.length
   )
     fields.candidateEmploymentType = employment;
+  const phones =
+    current.phones && typeof current.phones === 'object'
+      ? (current.phones as Record<string, unknown>)
+      : {};
+  // Missing country context must not silently turn a foreign local number into a Chinese number.
+  if (!phones.primaryPhoneNumber && typeof profile.phone === 'string') {
+    const raw = profile.phone.trim();
+    const parsed = parsePhoneNumberFromString(raw);
+    if (parsed?.isValid()) {
+      fields.phones = {
+        ...phones,
+        primaryPhoneNumber: parsed.nationalNumber,
+        primaryPhoneCallingCode: `+${parsed.countryCallingCode}`,
+        primaryPhoneCountryCode: parsed.country ?? '',
+        additionalPhones: phones.additionalPhones ?? [],
+      };
+    } else if (raw && /^[+\d][\d\s().-]*$/.test(raw)) {
+      fields.phones = {
+        ...phones,
+        primaryPhoneNumber: raw,
+        primaryPhoneCallingCode: '',
+        primaryPhoneCountryCode: '',
+        additionalPhones: phones.additionalPhones ?? [],
+      };
+    }
+  }
   return fields;
 };

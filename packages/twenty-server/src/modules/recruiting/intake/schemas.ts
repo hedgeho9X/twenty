@@ -25,6 +25,15 @@ export const candidateProfileSchema = z.object({
   summary: z.string(),
   email: z.string().nullable(),
   phone: z.string().nullable(),
+  urls: z
+    .array(
+      z
+        .string()
+        .url()
+        .refine((value) => /^https?:\/\//i.test(value)),
+    )
+    .nullable()
+    .optional(),
   skills: z.array(z.string()),
   experience: z.array(z.string()),
   education: z.array(z.string()),
