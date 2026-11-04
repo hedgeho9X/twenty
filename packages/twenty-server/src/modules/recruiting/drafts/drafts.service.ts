@@ -446,10 +446,12 @@ export class RecruitingDraftsService {
     if (!run.complete)
       throw new ConflictException('匹配结果已变化，请重新匹配后生成');
     const wanted = new Set(input.selectedIds);
-    const selected = run.top.filter((pair) =>
-      wanted.has(
-        run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateId : pair.jobId,
-      ),
+    const selected = (run.results ?? run.top).filter(
+      (pair) =>
+        pair.status === 'SCORED' &&
+        wanted.has(
+          run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateId : pair.jobId,
+        ),
     );
     if (!selected.length || selected.length !== wanted.size)
       throw new BadRequestException('请选择当前匹配结果中的记录');

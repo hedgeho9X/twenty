@@ -188,3 +188,29 @@ it('restores saved selection without copying an existing draft on page load', as
   ).toHaveLength(2);
   expect(writeText).not.toHaveBeenCalled();
 });
+
+it('shows and searches scored matches beyond the former top ten', () => {
+  jest
+    .mocked(useRecruitingQuery)
+    .mockReturnValue({
+      data: undefined,
+      loading: false,
+      error: '',
+      reload: jest.fn(),
+    });
+  const results = Array.from({ length: 15 }, (_, index) => ({
+    ...run.top![0],
+    jobId: `job-${index}`,
+    jobLabel: `岗位${index}`,
+    companyLabel: `公司${index}`,
+    status: 'SCORED',
+  }));
+  render(<MatchSelection run={{ ...run, results }} />);
+  fireEvent.click(screen.getByRole('button', { name: '加载更多' }));
+  expect(screen.getAllByRole('checkbox')).toHaveLength(15);
+  fireEvent.change(screen.getByRole('textbox', { name: '搜索匹配项' }), {
+    target: { value: '公司14' },
+  });
+  expect(screen.getByText('岗位14')).toBeInTheDocument();
+  expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+});

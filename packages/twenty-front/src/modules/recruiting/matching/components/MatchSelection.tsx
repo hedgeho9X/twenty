@@ -80,7 +80,17 @@ export const MatchSelection = ({
   run: RecruitingMatchRun;
   active?: boolean;
 }) => {
-  const pairs = (run.top ?? []).slice(0, 10);
+  const pairs = (
+    run.results
+      ? run.results.filter((pair) => pair.status === 'SCORED')
+      : (run.top ?? [])
+  ).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const [search, setSearch] = useState('');
+  const filtered = pairs.filter((pair) =>
+    `${pair.candidateLabel} ${pair.jobLabel} ${pair.companyLabel ?? ''}`
+      .toLocaleLowerCase()
+      .includes(search.toLocaleLowerCase()),
+  );
   const identifier = (pair: (typeof pairs)[number]) =>
     run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateId : pair.jobId;
   const [visibleCount, setVisibleCount] = useState(5);
@@ -156,76 +166,95 @@ export const MatchSelection = ({
     }
   };
   const select = (next: Set<string>) => {
+    if (next.size > 10) {
+      setMessage(t`一次最多选择十项`);
+      return;
+    }
     setSelectionTouched(true);
     setSelected(next);
     setKey(crypto.randomUUID());
   };
   return (
     <StyledRecruitingStack>
-      <StyledRecruitingTable>
-        <thead>
-          <tr>
-            <th>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  const visible = pairs.slice(0, visibleCount).map(identifier);
-                  const all =
-                    visible.length > 0 &&
-                    visible.every((id) => selected.has(id));
-                  select(all ? new Set() : new Set(visible));
-                }}
-              >
-                {pairs
-                  .slice(0, visibleCount)
-                  .every((pair) => selected.has(identifier(pair)))
-                  ? t`取消全选`
-                  : t`全选当前结果`}
-              </Button>
-              <span>{t`已选 ${selected.size} 项`}</span>
-            </th>
-            <th>{run.direction === 'JOB_TO_CANDIDATES' ? t`姓名` : t`岗位`}</th>
-            <th>{t`公司`}</th>
-            <th>{t`匹配值`}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pairs.slice(0, visibleCount).map((pair) => (
-            <tr key={identifier(pair)}>
-              <td>
-                <Checkbox
-                  aria-label={`${t`选择`} ${run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateLabel : pair.jobLabel}`}
-                  checked={selected.has(identifier(pair))}
-                  onCheckedChange={(checked) => {
-                    const next = new Set(selected);
-                    if (checked) next.add(identifier(pair));
-                    else next.delete(identifier(pair));
-                    select(next);
+      <input
+        aria-label={t`搜索匹配项`}
+        placeholder={t`搜索岗位、公司或候选人`}
+        value={search}
+        onChange={(event) => {
+          setSearch(event.target.value);
+          setVisibleCount(20);
+        }}
+      />
+      <div style={{ maxHeight: '55vh', overflow: 'auto' }}>
+        <StyledRecruitingTable>
+          <thead>
+            <tr>
+              <th>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    const visible = filtered
+                      .slice(0, Math.min(visibleCount, 10))
+                      .map(identifier);
+                    const all =
+                      visible.length > 0 &&
+                      visible.every((id) => selected.has(id));
+                    select(all ? new Set() : new Set(visible));
                   }}
-                />
-              </td>
-              <td>
-                {run.direction === 'JOB_TO_CANDIDATES' ? (
-                  <a href={pair.candidateUrl}>{pair.candidateLabel}</a>
-                ) : (
-                  <RecruitingJobFacts id={pair.jobId} label={pair.jobLabel} />
-                )}
-              </td>
-              <td>
-                <RecruitingCompanyName
-                  id={pair.companyId}
-                  label={pair.companyLabel}
-                />
-              </td>
-              <td>{pair.score?.toFixed(2)} / 4</td>
+                >
+                  {filtered
+                    .slice(0, Math.min(visibleCount, 10))
+                    .every((pair) => selected.has(identifier(pair)))
+                    ? t`取消全选`
+                    : t`全选当前结果`}
+                </Button>
+                <span>{t`已选 ${selected.size} 项`}</span>
+              </th>
+              <th>
+                {run.direction === 'JOB_TO_CANDIDATES' ? t`姓名` : t`岗位`}
+              </th>
+              <th>{t`公司`}</th>
+              <th>{t`匹配值`}</th>
             </tr>
-          ))}
-        </tbody>
-      </StyledRecruitingTable>
-      {pairs.length > visibleCount && (
+          </thead>
+          <tbody>
+            {filtered.slice(0, visibleCount).map((pair) => (
+              <tr key={identifier(pair)}>
+                <td>
+                  <Checkbox
+                    aria-label={`${t`选择`} ${run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateLabel : pair.jobLabel}`}
+                    checked={selected.has(identifier(pair))}
+                    onCheckedChange={(checked) => {
+                      const next = new Set(selected);
+                      if (checked) next.add(identifier(pair));
+                      else next.delete(identifier(pair));
+                      select(next);
+                    }}
+                  />
+                </td>
+                <td>
+                  {run.direction === 'JOB_TO_CANDIDATES' ? (
+                    <a href={pair.candidateUrl}>{pair.candidateLabel}</a>
+                  ) : (
+                    <RecruitingJobFacts id={pair.jobId} label={pair.jobLabel} />
+                  )}
+                </td>
+                <td>
+                  <RecruitingCompanyName
+                    id={pair.companyId}
+                    label={pair.companyLabel}
+                  />
+                </td>
+                <td>{pair.score?.toFixed(2)} / 4</td>
+              </tr>
+            ))}
+          </tbody>
+        </StyledRecruitingTable>
+      </div>
+      {filtered.length > visibleCount && (
         <Button
           variant="ghost"
-          onClick={() => setVisibleCount(10)}
+          onClick={() => setVisibleCount((count) => count + 20)}
         >{t`加载更多`}</Button>
       )}
       <Button
