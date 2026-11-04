@@ -42,11 +42,14 @@
   --destructive: #dc2626; --border: #e4e4e7; --input: #e4e4e7;
   --ring: #a1a1aa; --radius: .625rem;
   --success: #15803d; --warning: #b45309; --info: #2563eb;
-  color: var(--foreground); font-size: 14px; line-height: 1.5;
+  color: var(--foreground); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 14px; line-height: 1.5;
 }
 @layer base {
   .recruiting-shadcn *, .recruiting-shadcn *::before, .recruiting-shadcn *::after { box-sizing: border-box; border: 0 solid var(--border); }
-  .recruiting-shadcn button, .recruiting-shadcn input, .recruiting-shadcn textarea { font: inherit; color: inherit; }
+  .recruiting-shadcn button, .recruiting-shadcn input, .recruiting-shadcn textarea, .recruiting-shadcn select { font: inherit; color: inherit; appearance: none; -webkit-appearance: none; background-image: none; }
+  .recruiting-shadcn ul, .recruiting-shadcn ol { list-style: none; margin: 0; padding: 0; }
+  .recruiting-shadcn table { text-indent: 0; border-collapse: collapse; border-color: inherit; }
+  .recruiting-shadcn th { text-align: inherit; }
   .recruiting-shadcn button { cursor: pointer; background-color: transparent; }
   .recruiting-shadcn button:disabled { cursor: not-allowed; }
   .recruiting-shadcn h1, .recruiting-shadcn h2, .recruiting-shadcn h3, .recruiting-shadcn p { margin: 0; }
