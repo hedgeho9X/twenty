@@ -5,6 +5,7 @@ export type RecruitingPair = {
   candidateLabel: string;
   jobLabel: string;
   companyId?: string;
+  companyLabel?: string;
   candidateUrl: string;
   jobUrl: string;
   status: string;

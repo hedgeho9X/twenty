@@ -38,7 +38,7 @@ export const RecruitingRecordPicker = <T extends { id: string }>({
   }, [search]);
   const query = useRecruitingQuery<RecruitingPage<T>>(
     !selected && !disabled
-      ? `${path}${path.includes('?') ? '&' : '?'}search=${encodeURIComponent(debounced)}`
+      ? `${path}${path.includes('?') ? '&' : '?'}search=${encodeURIComponent(debounced)}&limit=8`
       : null,
   );
   return (

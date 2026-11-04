@@ -212,7 +212,10 @@ export const MatchSelection = ({
                 )}
               </td>
               <td>
-                <RecruitingCompanyName id={pair.companyId} />
+                <RecruitingCompanyName
+                  id={pair.companyId}
+                  label={pair.companyLabel}
+                />
               </td>
               <td>{pair.score?.toFixed(2)} / 4</td>
             </tr>

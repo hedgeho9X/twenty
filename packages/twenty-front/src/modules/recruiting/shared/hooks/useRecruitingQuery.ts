@@ -40,6 +40,7 @@ export const useRecruitingQuery = <T>(
           failure instanceof Error ? failure.message : t`暂时无法刷新数据`,
         );
     } finally {
+      if (controller.current === current) controller.current = null;
       if (!current.signal.aborted) setLoading(false);
     }
   }, [path, enabled]);
@@ -56,7 +57,7 @@ export const useRecruitingQuery = <T>(
     void reload();
     const timer = interval
       ? window.setInterval(() => {
-          void reload();
+          if (!controller.current) void reload();
         }, interval)
       : undefined;
     return () => {

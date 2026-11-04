@@ -119,12 +119,19 @@ export const RecruitingJobFacts = ({
 };
 
 /** Shows a company name in its own column, using native record permissions for lookup. */
-export const RecruitingCompanyName = ({ id }: { id?: string }) => {
+export const RecruitingCompanyName = ({
+  id,
+  label,
+}: {
+  id?: string;
+  label?: string;
+}) => {
   const query = useRecruitingQuery<RecruitingCompany>(
-    id ? `companies/${id}` : null,
+    id && label === undefined ? `companies/${id}` : null,
   );
-  return id && query.data && !query.error ? (
-    <a href={`/object/company/${id}`}>{query.data.name}</a>
+  const name = label ?? (!query.error ? query.data?.name : undefined);
+  return id && name ? (
+    <a href={`/object/company/${id}`}>{name}</a>
   ) : (
     <span>—</span>
   );
