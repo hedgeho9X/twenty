@@ -34,7 +34,10 @@ export class RecruitingCandidateRecordsService {
             'contactRoles',
             'candidateResumes',
             'jobTitle',
-            'phones',
+            'phonesPrimaryPhoneNumber',
+            'phonesPrimaryPhoneCallingCode',
+            'phonesPrimaryPhoneCountryCode',
+            'phonesAdditionalPhones',
             'candidateEmploymentType',
           ])
           .where({ id })

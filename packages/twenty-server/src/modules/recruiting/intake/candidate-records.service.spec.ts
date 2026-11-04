@@ -11,7 +11,7 @@ const context = {
 /** Gives the native-like fluent mock an explicit recursive return type. */
 type CandidateQuery = {
   version: string;
-  select: () => CandidateQuery;
+  select: (fields: string[]) => CandidateQuery;
   where: () => CandidateQuery;
   andWhere: (
     sql: string,
@@ -47,7 +47,11 @@ const setup = (concurrent = false) => {
     createQueryBuilder: () => {
       const query: CandidateQuery = {
         version: '',
-        select: jest.fn(() => query),
+        select: jest.fn((fields: string[]) => {
+          if (fields.includes('phones'))
+            throw new Error('Composite field is not a physical column');
+          return query;
+        }),
         where: jest.fn(() => query),
         andWhere: jest.fn((_sql, params) => {
           query.version = params.expectedVersion;
