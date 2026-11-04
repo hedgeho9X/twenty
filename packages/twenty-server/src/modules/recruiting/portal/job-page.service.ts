@@ -211,12 +211,24 @@ export class RecruitingJobPageService {
     const expiredKeys = keys.filter((_key, index) => !rows[index]);
     if (expiredKeys.length) await this.links.setRemove(indexKey, expiredKeys);
     const result = [];
+    const companyNames = new Map<string, Promise<unknown>>();
     for (const row of rows) {
       if (!row || !this.belongsToWorkspace(row.owner, context)) continue;
       const jobs = await Promise.all(
         row.jobIds.map(async (id) => {
           const job = await this.records.one(context, 'recruitmentJob', id);
-          return { name: job.name, status: job.jobStatus };
+          let companyLabel: unknown;
+          if (typeof job.companyId === 'string') {
+            if (!companyNames.has(job.companyId))
+              companyNames.set(
+                job.companyId,
+                this.records
+                  .one(context, 'company', job.companyId)
+                  .then((company) => company.name),
+              );
+            companyLabel = await companyNames.get(job.companyId);
+          }
+          return { name: job.name, status: job.jobStatus, companyLabel };
         }),
       );
       const candidates = await Promise.all(

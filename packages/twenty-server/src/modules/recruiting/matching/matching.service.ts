@@ -34,6 +34,7 @@ import {
   buildJobMatchContext,
   contentVersion,
 } from './domain/match-context';
+import { recruitingLikePattern } from '../records/domain/search';
 import { RECRUITING_MATCH_PROTOCOL } from './domain/match-protocol';
 
 /** Explicit target IDs narrow a run; their absence selects the complete permitted current pool. */
@@ -204,6 +205,10 @@ export class RecruitingMatchingService {
         .addSelect('run.createdAt', 'createdAt')
         .addSelect(`"run"."payload" -> 'reviewedBy'`, 'reviewedBy')
         .addSelect(`"run"."payload" ->> 'followUpStatus'`, 'followUpStatus')
+        .addSelect(
+          `jsonb_path_query_array("run"."payload", '$.results[*].jobId')`,
+          'jobIds',
+        )
         .where('"run"."direction" = :direction', { direction })
         .andWhere('"run"."status" IN (:...states)', {
           states: [
@@ -224,6 +229,7 @@ export class RecruitingMatchingService {
           createdAt: string;
           reviewedBy?: Record<string, string>;
           followUpStatus?: string;
+          jobIds?: string[];
         }>();
     }, context);
     const subjectIds = descriptors.map((row) => row.subjectId);
@@ -243,6 +249,32 @@ export class RecruitingMatchingService {
         subjects.set(record.id, record);
     }
     const query = search.trim().toLocaleLowerCase();
+    const matchingJobIds = new Set<string>();
+    if (query) {
+      const pattern = recruitingLikePattern(search.trim());
+      const companies = await this.records.all(context, 'company', {
+        name: { ilike: pattern },
+      });
+      const jobFilter = {
+        or: [
+          { name: { ilike: pattern } },
+          ...(companies.length
+            ? [{ companyId: { in: companies.map((row) => row.id) } }]
+            : []),
+        ],
+      };
+      for (let offset = 0; ; offset += 100) {
+        const page = await this.records.list(context, 'recruitmentJob', {
+          filter: jobFilter,
+          select: ['id'],
+          offset,
+          limit: 100,
+        });
+        for (const row of page.records as RecruitingRecord[])
+          matchingJobIds.add(row.id);
+        if (!page.hasNextPage) break;
+      }
+    }
     const viewer = contentVersion(this.actors.capture(context));
     const visible = descriptors
       .filter((row) => {
@@ -263,7 +295,8 @@ export class RecruitingMatchingService {
           (!query ||
             JSON.stringify([subject.name, subject.jobTitle])
               .toLocaleLowerCase()
-              .includes(query))
+              .includes(query) ||
+            row.jobIds?.some((id) => matchingJobIds.has(id)))
         );
       })
       .sort(
