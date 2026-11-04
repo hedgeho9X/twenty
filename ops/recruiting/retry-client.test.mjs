@@ -20,3 +20,10 @@ test('does not repeat unsafe POSTs or real missing-record errors', async () => {
   const notFound = withRecruitingRetry({ request: async () => { throw Object.assign(new Error('gone'), { status: 404 }); } });
   await assert.rejects(notFound.request('/missing'), /gone/);
 });
+test('brief startup500 errors can be retried on reads without hiding a persistent server fault', async () => {
+  let calls = 0;
+  const error = Object.assign(new Error('Internal server error'), { status: 500 });
+  const client = withRecruitingRetry({ request: async () => { calls++; throw error; } }, { pause: async () => {} });
+  await assert.rejects(client.request('/recruiting/match-runs/run/summary'), /Internal server error/);
+  assert.equal(calls, 3);
+});

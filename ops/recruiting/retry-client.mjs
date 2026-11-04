@@ -4,7 +4,7 @@ export const withRecruitingRetry = (client, { attempts = 12, pause = (ms) => new
     for (let attempt = 0; ; attempt++) {
       try { return await run(); }
       catch (error) {
-        const transient = [429, 502, 503, 504].includes(error.status) ||
+        const transient = (error.status === 500 && attempt < 2) || [429, 502, 503, 504].includes(error.status) ||
           (error.status === 404 && error.code === 'INVALID_JSON') ||
           error instanceof TypeError || error.name === 'TimeoutError';
         if (!safe || !transient || attempt >= attempts) throw error;
