@@ -30,4 +30,4 @@ description: 通过 fanhan CLI 完成泛函招聘运营：公司/JD录入、简�
 
 同一候选人最多6份文件，重复传 `--file` 合并为一次处理；不同候选人分别提交。简历与每条JD都必须通过 `--employment-type full_time|internship` 指定正式或实习，不能靠模型猜测替代提交者选择。
 
-临时 HTTP IP 服务需显式设置 `FANHAN_ALLOW_HTTP=1`；默认仍只接受 HTTPS 或本机地址。服务地址使用 `FANHAN_BASE_URL` 或 `auth login --base` 指定。
+服务地址来自 `FANHAN_BASE_URL` 或 `auth login --base`，生产入口使用 HTTPS，无需额外设置。默认只接受 HTTPS 或本机地址；仅在明确连接 HTTP 测试或自建实例时设置 `FANHAN_ALLOW_HTTP=1`。
