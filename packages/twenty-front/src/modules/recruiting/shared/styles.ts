@@ -77,6 +77,10 @@ export const StyledRecruitingTable = styled.table`
   text-align: left;
   width: 100%;
   th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: ${theme.background.primary};
     white-space: nowrap;
     color: ${theme.font.color.tertiary};
     font-weight: ${theme.font.weight.medium};
