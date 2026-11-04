@@ -169,13 +169,20 @@ export class RecruitingDraftsService {
     const record = await this.records.one(context, 'recruitingDraft', id);
     const payload = this.payload(record);
     const source = await this.source(context, payload.input);
+    const savedUrl = payload.jobPageUrl;
+    const jobPageUrl = savedUrl
+      ? await this.jobPages?.activeDraftUrl(context, savedUrl)
+      : undefined;
     return {
       ...this.receipt(record),
       title: record.title,
-      body: record.body,
+      body:
+        savedUrl && jobPageUrl && typeof record.body === 'string'
+          ? record.body.split(savedUrl).join(jobPageUrl)
+          : record.body,
       note: payload.input.note,
       selectedIds: payload.input.selectedIds,
-      jobPageUrl: payload.jobPageUrl,
+      jobPageUrl,
       stale: payload.sourceVersion !== source.version,
       generation: payload.generation,
       approvedAt: payload.approvedAt,
@@ -319,23 +326,40 @@ export class RecruitingDraftsService {
           const source = await this.source(context, payload.input);
           if (source.version !== payload.sourceVersion)
             throw new ConflictException();
-          if (payload.input.matchRunId && !payload.jobPageUrl) {
+          const savedUrl = payload.jobPageUrl;
+          if (payload.input.matchRunId) {
             if (!this.jobPages)
               throw new BadRequestException('岗位介绍服务未就绪');
-            const ids = 'jobIds' in source ? source.jobIds : [];
-            payload = {
-              ...payload,
-              jobPageUrl: await this.jobPages.create(
+            const activeUrl = savedUrl
+              ? await this.jobPages.activeDraftUrl(context, savedUrl)
+              : undefined;
+            const jobPageUrl =
+              activeUrl ??
+              (await this.jobPages.create(
                 context,
-                ids,
+                'jobIds' in source ? source.jobIds : [],
                 'candidateIds' in source &&
                   source.context.direction === 'JOB_TO_CANDIDATES'
                   ? source.candidateIds
                   : [],
                 payload.input.matchRunId,
-              ),
-            };
-            await update({ payload });
+              ));
+            if (jobPageUrl !== savedUrl) {
+              const generation = payload.generation;
+              payload = { ...payload, jobPageUrl };
+              if (savedUrl && generation) {
+                payload.generation = {
+                  ...generation,
+                  profile: {
+                    ...generation.profile,
+                    body: generation.profile.body
+                      .split(savedUrl)
+                      .join(jobPageUrl),
+                  },
+                };
+              }
+              await update({ payload });
+            }
           }
           if (!payload.generation) {
             const generation = await this.extractor.draft(

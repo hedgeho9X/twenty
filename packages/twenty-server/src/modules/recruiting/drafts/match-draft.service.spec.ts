@@ -58,6 +58,7 @@ const setup = () => {
       top: [{ candidateId, jobId, score: 3 }],
     })),
   };
+  const jobPages = { activeDraftUrl: jest.fn() };
   const service = new RecruitingDraftsService(
     records as never,
     actors as never,
@@ -65,8 +66,9 @@ const setup = () => {
     {} as never,
     queue as never,
     matching as never,
+    jobPages as never,
   );
-  return { service, records, rows, queue };
+  return { service, records, rows, queue, jobPages };
 };
 it('binds a selected current result to a saved draft and reloads it', async () => {
   const { service, rows } = setup();
@@ -82,6 +84,30 @@ it('binds a selected current result to a saved draft and reloads it', async () =
   expect(rows.get(runId).payload.matchDraftId).toBe(receipt.draftId);
   const saved = await service.latestForMatch({} as never, runId);
   expect(saved?.draftId).toBe(receipt.draftId);
+});
+it('returns the current link in a migrated draft and its copyable text', async () => {
+  const { service, rows, jobPages } = setup();
+  const context = { workspace: { id: 'workspace' } } as never;
+  const draft = await service.submit(context, {
+    kind: 'GREETING',
+    matchRunId: runId,
+    selectedIds: [jobId],
+    idempotencyKey: 'migrated-draft',
+  });
+  const oldUrl = 'https://old.example/r/abcdefghij';
+  const activeUrl = 'https://new.example/r/abcdefghij';
+  const record = rows.get(draft.draftId);
+  record.payload.jobPageUrl = oldUrl;
+  record.body = `岗位介绍：${oldUrl}`;
+  jobPages.activeDraftUrl.mockResolvedValueOnce(activeUrl);
+  await expect(service.one(context, draft.draftId)).resolves.toMatchObject({
+    jobPageUrl: activeUrl,
+    body: `岗位介绍：${activeUrl}`,
+  });
+  expect(record.body).toBe(`岗位介绍：${oldUrl}`);
+  await expect(service.one(context, draft.draftId)).resolves.toMatchObject({
+    jobPageUrl: undefined,
+  });
 });
 it('rejects a record not present in the current ranked results before creation', async () => {
   const { service, records, queue } = setup();

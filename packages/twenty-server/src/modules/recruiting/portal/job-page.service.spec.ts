@@ -94,6 +94,23 @@ it('deletes the public capability immediately on revocation', async () => {
   await expect(service.view(token)).rejects.toThrow('已失效');
 });
 
+it('rebases active draft links without reviving revoked or foreign shares', async () => {
+  const { service, actors } = setup();
+  const context = {} as never;
+  const url = await service.create(context, [jobId]);
+  const savedUrl = url.replace('http://localhost:23000', 'https://old.example');
+
+  expect(await service.activeDraftUrl(context, savedUrl)).toBe(url);
+  actors.capture.mockReturnValueOnce({
+    ...actor,
+    workspaceId: '66666666-6666-4666-8666-666666666666',
+  });
+  expect(await service.activeDraftUrl(context, savedUrl)).toBeUndefined();
+
+  await service.revoke(context, new URL(url).pathname.split('/').pop()!);
+  expect(await service.activeDraftUrl(context, savedUrl)).toBeUndefined();
+});
+
 const candidateId = '44444444-4444-4444-8444-444444444444';
 const runId = '55555555-5555-4555-8555-555555555555';
 it('links the authenticated list to the matching subject without sharing that candidate publicly', async () => {

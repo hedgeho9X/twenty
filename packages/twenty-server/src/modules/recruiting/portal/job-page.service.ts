@@ -109,6 +109,38 @@ export class RecruitingJobPageService {
     await this.links.setAdd(`recruiting-share-index:${this.owner(context)}`, [
       key,
     ]);
+    return this.urlForKey(key);
+  }
+
+  /** Resolves a saved draft's active share against the current public origin. */
+  async activeDraftUrl(context: WorkspaceAuthContext, savedUrl: string) {
+    let url: URL;
+    try {
+      url = new URL(savedUrl);
+    } catch {
+      return undefined;
+    }
+    const key = /^\/r\/([A-Za-z0-9_-]{10,24})$/.exec(url.pathname)?.[1];
+    if (
+      !key ||
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.search ||
+      url.hash ||
+      url.username ||
+      url.password
+    )
+      return undefined;
+    const meta = await this.links.get<{ owner: string }>(
+      `recruiting-share-meta:${key}`,
+    );
+    if (!meta || !this.belongsToWorkspace(meta.owner, context))
+      return undefined;
+    if (!(await this.links.get<string>(`recruiting-job-page:${key}`)))
+      return undefined;
+    return this.urlForKey(key);
+  }
+
+  private urlForKey(key: string) {
     return `${this.config.get('FRONTEND_URL').replace(/\/$/, '')}/r/${key}`;
   }
   /** Shares business links within one workspace while retaining the publishing actor for public access checks. */
@@ -167,7 +199,7 @@ export class RecruitingJobPageService {
           : this.recordLabel(candidates[0]?.name ?? jobs[0]?.name) ||
             '分享资料',
         matchRunId: subject ? row.source?.matchRunId : undefined,
-        url: `${this.config.get('FRONTEND_URL').replace(/\/$/, '')}/r/${row.key}`,
+        url: this.urlForKey(row.key),
       });
     }
     return result;
