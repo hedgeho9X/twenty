@@ -645,6 +645,45 @@ export class RecruitingController {
     );
   }
 
+  @Get('match-results')
+  groupedMatches(
+    @Req() request: Request,
+    @Query('direction') direction = 'CANDIDATE_TO_JOBS',
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '50',
+    @Query('search') search = '',
+    @Query('read') read?: string,
+    @Query('followUp') followUp?: string,
+  ) {
+    return this.matching.listGrouped(
+      buildWorkspaceAuthContextFromRequest(request),
+      direction,
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 50)),
+      search.slice(0, 100),
+      { read, followUp },
+    );
+  }
+
+  @Post('match-runs/:id/workflow')
+  matchWorkflow(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const input = z
+      .object({
+        status: z.enum(['TODO', 'TO_CONTACT', 'CONTACTED', 'DISMISSED']),
+      })
+      .strict()
+      .parse(body);
+    return this.matching.workflow(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      input.status,
+    );
+  }
+
   @Post('match-runs/:id/retry')
   @HttpCode(202)
   retryMatch(@Req() request: Request, @Param('id') id: string) {

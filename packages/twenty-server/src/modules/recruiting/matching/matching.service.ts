@@ -4,8 +4,10 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 
+import { WorkspaceOrmManager } from 'src/engine/twenty-orm/workspace-orm.manager';
 import { v4, v5 } from 'uuid';
 import { z } from 'zod';
 import { OrderByDirection } from 'twenty-shared/types';
@@ -62,6 +64,8 @@ type MatchRunPayload = {
   startedAt?: string;
   completedAt?: string;
   reviewedAt?: string;
+  reviewedBy?: Record<string, string>;
+  followUpStatus?: string;
 };
 
 /** Queue data refers to native records and a revalidated actor, never access tokens. */
@@ -76,6 +80,7 @@ export class RecruitingMatchingService {
     private readonly evaluator: RecruitingPairEvaluatorService,
     @InjectMessageQueue(MessageQueue.recruitingMatchQueue)
     private readonly queue: MessageQueueService,
+    @Optional() private readonly orm?: WorkspaceOrmManager,
   ) {}
 
   /** Gives intake and native record events one content-based automatic-run identity. */
@@ -177,6 +182,123 @@ export class RecruitingMatchingService {
     return this.receipt(run);
   }
 
+  /** Pages full-subject results instead of exposing the batch engine's individual pair receipts. */
+  async listGrouped(
+    context: WorkspaceAuthContext,
+    direction: string,
+    offset: number,
+    limit: number,
+    search = '',
+    filters: { read?: string; followUp?: string } = {},
+  ) {
+    if (
+      !['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES'].includes(direction) ||
+      !this.orm
+    )
+      throw new BadRequestException('匹配方向无效');
+    const descriptors = await this.orm.executeInWorkspaceContext(async () => {
+      return this.orm!.getRepositoryWithContextPermissions('recruitingMatchRun')
+        .createQueryBuilder('run')
+        .select('run.id', 'id')
+        .addSelect('run.subjectId', 'subjectId')
+        .addSelect('run.createdAt', 'createdAt')
+        .addSelect(`"run"."payload" -> 'reviewedBy'`, 'reviewedBy')
+        .addSelect(`"run"."payload" ->> 'followUpStatus'`, 'followUpStatus')
+        .where('"run"."direction" = :direction', { direction })
+        .andWhere('"run"."status" IN (:...states)', {
+          states: [
+            'COMPLETED',
+            'PARTIAL',
+            'NO_RESULTS',
+            'FAILED',
+            'SUPERSEDED',
+          ],
+        })
+        .distinctOn(['run.subjectId'])
+        .orderBy('run.subjectId', 'ASC')
+        .addOrderBy('run.createdAt', 'DESC')
+        .addOrderBy('run.id', 'DESC')
+        .getRawMany<{
+          id: string;
+          subjectId: string;
+          createdAt: string;
+          reviewedBy?: Record<string, string>;
+          followUpStatus?: string;
+        }>();
+    }, context);
+    const subjectIds = descriptors.map((row) => row.subjectId);
+    if (!subjectIds.length)
+      return { records: [], count: 0, hasNextPage: false };
+    const subjects = new Map<string, RecruitingRecord>();
+    const object =
+      direction === 'JOB_TO_CANDIDATES' ? 'recruitmentJob' : 'person';
+    for (let start = 0; start < subjectIds.length; start += 100) {
+      const page = await this.records.list(context, object, {
+        filter: { id: { in: subjectIds.slice(start, start + 100) } },
+        select:
+          object === 'person' ? ['id', 'name', 'jobTitle'] : ['id', 'name'],
+        limit: 100,
+      });
+      for (const record of page.records as RecruitingRecord[])
+        subjects.set(record.id, record);
+    }
+    const query = search.trim().toLocaleLowerCase();
+    const viewer = contentVersion(this.actors.capture(context));
+    const visible = descriptors
+      .filter((row) => {
+        const subject = subjects.get(row.subjectId);
+        const read = Boolean(row.reviewedBy?.[viewer]);
+        if (
+          (filters.read === 'unread' && read) ||
+          (filters.read === 'read' && !read)
+        )
+          return false;
+        if (
+          filters.followUp &&
+          (row.followUpStatus ?? 'TODO') !== filters.followUp
+        )
+          return false;
+        return (
+          subject &&
+          (!query ||
+            JSON.stringify([subject.name, subject.jobTitle])
+              .toLocaleLowerCase()
+              .includes(query))
+        );
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() ||
+          a.id.localeCompare(b.id),
+      );
+    const selected = visible.slice(offset, offset + limit);
+    if (!selected.length)
+      return { records: [], count: visible.length, hasNextPage: false };
+    const result = await this.list(context, 0, direction, false, true, {
+      ids: selected.map((row) => row.id),
+      limit,
+    });
+    return {
+      ...result,
+      count: visible.length,
+      hasNextPage: offset + limit < visible.length,
+    };
+  }
+
+  /** Updates explicit operator workflow state without sending messages or changing scores. */
+  async workflow(context: WorkspaceAuthContext, id: string, status: string) {
+    if (!['TODO', 'TO_CONTACT', 'CONTACTED', 'DISMISSED'].includes(status))
+      throw new BadRequestException('跟进状态无效');
+    await this.one(context, id);
+    const run = await this.records.one(context, 'recruitingMatchRun', id);
+    return this.receipt(
+      await this.records.update(context, 'recruitingMatchRun', id, {
+        payload: { ...this.payload(run), followUpStatus: status },
+      }),
+      context,
+    );
+  }
+
   /** Returns small queue rows; a detail request revalidates the underlying record permissions. */
   async list(
     context: WorkspaceAuthContext,
@@ -184,6 +306,7 @@ export class RecruitingMatchingService {
     direction?: string,
     completedOnly = false,
     terminalHistory = false,
+    options?: { ids: string[]; limit: number },
   ) {
     if (
       direction &&
@@ -202,6 +325,7 @@ export class RecruitingMatchingService {
             }
           : { direction: { eq: direction } },
       );
+    if (options) filters.push({ id: { in: options.ids } });
     if (completedOnly) filters.push({ status: { eq: 'COMPLETED' } });
     else if (terminalHistory)
       filters.push({
@@ -214,7 +338,7 @@ export class RecruitingMatchingService {
         ? { filter: filters.length === 1 ? filters[0] : { and: filters } }
         : {}),
       offset,
-      limit: 50,
+      limit: options?.limit ?? 50,
       orderBy: [{ createdAt: OrderByDirection.DescNullsLast }],
     });
     const runs = (page.records as RecruitingRecord[]).map((record) => ({
@@ -249,7 +373,7 @@ export class RecruitingMatchingService {
       ).get(payload.input.subjectId);
       if (subject) {
         visible.push({
-          ...this.receipt(record),
+          ...this.receipt(record, context),
           expectedRoles:
             payload.input.direction === 'JOB_TO_CANDIDATES'
               ? []
@@ -390,7 +514,7 @@ export class RecruitingMatchingService {
       currentPool.count !== payload.targetIds.length,
     );
     return {
-      ...this.receipt(run),
+      ...this.receipt(run, context),
       subjectLabel:
         payload.input.direction === 'JOB_TO_CANDIDATES'
           ? buildJobMatchContext(subject).label
@@ -459,7 +583,15 @@ export class RecruitingMatchingService {
     const run = await this.records.one(context, 'recruitingMatchRun', id);
     return this.receipt(
       await this.records.update(context, 'recruitingMatchRun', id, {
-        payload: { ...this.payload(run), reviewedAt: new Date().toISOString() },
+        payload: {
+          ...this.payload(run),
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: {
+            ...this.payload(run).reviewedBy,
+            [contentVersion(this.actors.capture(context))]:
+              new Date().toISOString(),
+          },
+        },
       }),
     );
   }
@@ -680,7 +812,7 @@ export class RecruitingMatchingService {
   }
 
   /** Presents coverage separately from rank and contact status. */
-  private receipt(run: RecruitingRecord) {
+  private receipt(run: RecruitingRecord, context?: WorkspaceAuthContext) {
     const payload = this.payload(run);
     const counts = {
       total: payload.targetIds?.length ?? 0,
@@ -721,7 +853,10 @@ export class RecruitingMatchingService {
       createdAt: run.createdAt,
       startedAt: payload.startedAt,
       completedAt: payload.completedAt,
-      reviewedAt: payload.reviewedAt,
+      reviewedAt: context
+        ? payload.reviewedBy?.[contentVersion(this.actors.capture(context))]
+        : payload.reviewedAt,
+      followUpStatus: payload.followUpStatus ?? 'TODO',
     };
   }
 

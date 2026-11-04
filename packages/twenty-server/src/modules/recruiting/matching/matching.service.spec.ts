@@ -20,7 +20,7 @@ const context = {
 } as WorkspaceAuthContext;
 
 /** Uses isolated native-like records; no production data or model endpoint participates. */
-const setup = (count = 7) => {
+const setup = (count = 7, orm?: unknown) => {
   const person = { id: 'person', contactRoles: ['CANDIDATE'] };
   const jobs = Array.from({ length: count }, (_, index) => ({
     id: `job-${index}`,
@@ -137,6 +137,7 @@ const setup = (count = 7) => {
       actors as unknown as RecruitingActorService,
       evaluator as unknown as RecruitingPairEvaluatorService,
       queue as unknown as MessageQueueService,
+      orm as never,
     );
   return {
     service: reloadService(),
@@ -538,4 +539,59 @@ it('resolves explicit job targets independently of the default recruiting-only p
     expect.objectContaining({ id: 'paused-job' }),
     expect.anything(),
   );
+});
+
+it('paginates canonical subject results after native grouping, never mixing pair receipts', async () => {
+  const descriptors = [
+    { id: 'run', subjectId: 'person', createdAt: '2026-11-05T00:00:00Z' },
+  ];
+  const builder: Record<string, jest.Mock> = {};
+  for (const method of [
+    'select',
+    'addSelect',
+    'where',
+    'andWhere',
+    'distinctOn',
+    'orderBy',
+    'addOrderBy',
+  ])
+    builder[method] = jest.fn(() => builder);
+  builder.getRawMany = jest.fn(async () => descriptors);
+  const orm = {
+    executeInWorkspaceContext: async (fn: () => unknown) => fn(),
+    getRepositoryWithContextPermissions: () => ({
+      createQueryBuilder: () => builder,
+    }),
+  };
+  const { service, records, rows } = setup(1, orm);
+  records.list.mockImplementation(async (_context, object) => ({
+    records:
+      object === 'person'
+        ? [
+            {
+              id: 'person',
+              name: { firstName: 'A', lastName: '' },
+              contactRoles: ['CANDIDATE'],
+            },
+          ]
+        : [rows.get('run')!],
+    count: 1,
+    hasNextPage: false,
+  }));
+  const result = await service.listGrouped(
+    context,
+    'CANDIDATE_TO_JOBS',
+    0,
+    50,
+    'A',
+  );
+  expect(builder.distinctOn).toHaveBeenCalledWith(['run.subjectId']);
+  expect(builder.where).toHaveBeenCalledWith('"run"."direction" = :direction', {
+    direction: 'CANDIDATE_TO_JOBS',
+  });
+  expect(result.count).toBe(1);
+  expect(result.records).toHaveLength(1);
+  expect(
+    (await service.listGrouped(context, 'CANDIDATE_TO_JOBS', 50, 50)).records,
+  ).toEqual([]);
 });
