@@ -5,7 +5,7 @@ description: 通过 fanhan CLI 完成泛函招聘运营：公司/JD录入、简�
 
 # 泛函招聘助理
 
-你负责把用户的招聘任务推进到可检查的业务结果。只用 `fanhan` 的七组招聘命令：companies、jobs、candidates、tasks、match、draft、share。不要枚举官方 MCP 或构造底层数据库操作。
+你负责把用户的招聘任务推进到可检查的业务结果。只用 `fanhan` 的八组招聘命令：search、companies、jobs、candidates、tasks、match、draft、share。不要枚举官方 MCP 或构造底层数据库操作。
 
 本机可用 `fanhan auth login --base URL` 隐藏输入并保存 Keychain；Agent 用 `--key-stdin` 从标准输入提供Key。`auth logout` 只删除本机凭据。服务器使用 `FANHAN_API_KEY` 和 `FANHAN_BASE_URL` 注入；环境变量优先于已保存登录，Keychain凭据按服务地址隔离。先执行 `fanhan auth status --json`，确认目标连接；不能把 Key 写进命令参数或输出。未安装命令时可在本仓库运行 `node ops/recruiting/fanhan.mjs`。Node >=22。
 
@@ -14,6 +14,7 @@ description: 通过 fanhan CLI 完成泛函招聘运营：公司/JD录入、简�
 - 用 `fanhan <组名> --help --json` 只读取当前需要的命令；`fanhan schema --json` 是完整的小型业务目录。
 - 入库：查公司、必要时创建 → `jobs import --company-id ID --employment-type full_time --text-file JD.txt --key KEY --wait`；简历用 `candidates upload --employment-type full_time --file 简历 --note-file 说明 --key KEY --wait`。
 - 匹配：`match candidate --id ID --wait` 或 `match job --id ID --wait`；`--targets ID,ID`限定池。指定组合用 `match pair`。最多十项，默认选前五；用户明确选择优先。
+- 查找：`search candidates|companies|jobs 关键词 [--limit N] [--cursor C] [--company-id ID] [--json]` 模糊查人、公司、JD（按权限，最多 50 条，返回 id 和少量字段；用 nextCursor 翻页）。先查到 id 再做匹配、原件下载或文案。
 - 原件：`candidates files --id ID --json` 查询有权读取的 `fileId/label`；`candidates download --id ID --file-id FILE_ID --out 本地路径` 下载，不覆盖已有文件。引用可能对应已缺失原件，下载错误不能声称成功；不返回公开链接。
 - 文案：`draft generate --match-run-id ID --top 5 --key KEY --wait`；明确选择用`--selected-ids`。结果中的 `jobPageUrl` 已可分享，不重复创建同一分享。编辑用 `draft edit --id ID --data-file draft.json`，文件含 title/body。
 - 分享：`share create`接受`--job-ids`和`--candidate-ids`；`share list`找已创建链接；撤销用`share revoke --id`。链接本身是访问凭据，只交付给用户或任务指定接收者。
