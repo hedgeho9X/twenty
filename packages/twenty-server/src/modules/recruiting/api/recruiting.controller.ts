@@ -104,8 +104,19 @@ export class RecruitingController {
       Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 50)),
     );
   }
-  @Get('share-links') listShares(@Req() request: Request) {
-    return this.shareLinks.list(buildWorkspaceAuthContextFromRequest(request));
+  @Get('share-links')
+  listShares(
+    @Req() request: Request,
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '50',
+    @Query('search') search = '',
+  ) {
+    return this.shareLinks.listPage(
+      buildWorkspaceAuthContextFromRequest(request),
+      search.slice(0, 100),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 50)),
+    );
   }
   @Post('share-links/:key/revoke') revokeShare(
     @Req() request: Request,

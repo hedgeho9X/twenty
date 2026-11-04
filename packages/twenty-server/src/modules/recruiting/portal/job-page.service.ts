@@ -15,7 +15,10 @@ import { z } from 'zod';
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 import { RecruitingActorService } from '../auth/actor.service';
-import { RecruitingRecordsService } from '../records/records.service';
+import {
+  RecruitingRecordsService,
+  type RecruitingRecord,
+} from '../records/records.service';
 import {
   recruitingText,
   buildCandidateMatchContext,
@@ -176,15 +179,138 @@ export class RecruitingJobPageService {
     const workspace = this.owner(context);
     return owner === workspace || owner.startsWith(`${workspace}:`);
   }
-  /** Searches the complete authorized share list before pagination. */
+  /** Reads only authorized identity fields, never resumes or full job descriptions. */
+  private async identities(
+    context: WorkspaceAuthContext,
+    object: string,
+    ids: string[],
+    select: string[],
+  ) {
+    const result = new Map<string, RecruitingRecord>();
+    const unique = [...new Set(ids)];
+    for (let offset = 0; offset < unique.length; offset += 100) {
+      const page = await this.records.list(context, object, {
+        filter: { id: { in: unique.slice(offset, offset + 100) } },
+        select,
+        limit: 100,
+      });
+      for (const record of page.records as RecruitingRecord[])
+        result.set(record.id, record);
+    }
+    return result;
+  }
+
+  /** Searches lightweight share identities in batches and returns a bounded authorized page. */
   async listPage(
     context: WorkspaceAuthContext,
     search: string,
     offset: number,
     limit: number,
   ) {
+    offset = Math.max(0, Math.floor(offset));
+    limit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const indexKey = `recruiting-share-index:${this.owner(context)}`;
+    const keys = await this.links.setMembers(indexKey);
+    type Meta = {
+      key: string;
+      owner: string;
+      jobIds: string[];
+      candidateIds?: string[];
+      createdAt: string;
+      source?: { matchRunId: string; subjectId: string; subjectKind: string };
+    };
+    const metadata: Meta[] = [];
+    const expired: string[] = [];
+    for (let index = 0; index < keys.length; index += 100) {
+      const chunk = keys.slice(index, index + 100);
+      const rows = await Promise.all(
+        chunk.map((key) =>
+          this.links.get<Meta>(`recruiting-share-meta:${key}`),
+        ),
+      );
+      rows.forEach((row, i) => {
+        if (!row) expired.push(chunk[i]);
+        else if (this.belongsToWorkspace(row.owner, context))
+          metadata.push(row);
+      });
+    }
+    if (expired.length) await this.links.setRemove(indexKey, expired);
+    const [jobs, candidates] = await Promise.all([
+      this.identities(
+        context,
+        'recruitmentJob',
+        metadata.flatMap((row) => [
+          ...row.jobIds,
+          ...(row.source?.subjectKind === 'recruitmentJob'
+            ? [row.source.subjectId]
+            : []),
+        ]),
+        ['id', 'name', 'companyId', 'jobStatus'],
+      ),
+      this.identities(
+        context,
+        'person',
+        metadata.flatMap((row) => [
+          ...(row.candidateIds ?? []),
+          ...(row.source?.subjectKind === 'person'
+            ? [row.source.subjectId]
+            : []),
+        ]),
+        ['id', 'name'],
+      ),
+    ]);
+    const companies = await this.identities(
+      context,
+      'company',
+      [...jobs.values()].flatMap((row) =>
+        typeof row.companyId === 'string' ? [row.companyId] : [],
+      ),
+      ['id', 'name'],
+    );
     const query = search.trim().toLocaleLowerCase();
-    const rows = (await this.list(context))
+    const rows = metadata
+      .filter(
+        (row) =>
+          row.jobIds.every(
+            (id) =>
+              jobs.has(id) &&
+              (!jobs.get(id)!.companyId ||
+                companies.has(String(jobs.get(id)!.companyId))),
+          ) && (row.candidateIds ?? []).every((id) => candidates.has(id)),
+      )
+      .map((row) => {
+        const selectedJobs = row.jobIds.map((id) => {
+          const job = jobs.get(id)!;
+          return {
+            name: job.name,
+            status: job.jobStatus,
+            companyLabel: companies.get(String(job.companyId))?.name,
+          };
+        });
+        const selectedCandidates = (row.candidateIds ?? []).map((id) => ({
+          name: candidates.get(id)!.name,
+        }));
+        const subject =
+          row.source?.subjectKind === 'person'
+            ? candidates.get(row.source.subjectId)
+            : row.source?.subjectKind === 'recruitmentJob'
+              ? jobs.get(row.source.subjectId)
+              : undefined;
+        return {
+          ...row,
+          candidateIds: row.candidateIds ?? [],
+          jobs: selectedJobs,
+          candidates: selectedCandidates,
+          subjectLabel:
+            this.recordLabel(
+              subject?.name ??
+                selectedCandidates[0]?.name ??
+                selectedJobs[0]?.name,
+            ) || '分享资料',
+          matchRunId: subject ? row.source?.matchRunId : undefined,
+          url: this.urlForKey(row.key),
+        };
+      })
       .filter(
         (row) =>
           !query ||
@@ -203,88 +329,9 @@ export class RecruitingJobPageService {
     };
   }
 
-  async list(context: WorkspaceAuthContext) {
-    const indexKey = `recruiting-share-index:${this.owner(context)}`;
-    const keys = await this.links.setMembers(indexKey);
-    const rows = await Promise.all(
-      keys.map((key) =>
-        this.links.get<{
-          key: string;
-          owner: string;
-          jobIds: string[];
-          candidateIds: string[];
-          createdAt: string;
-          source?: {
-            matchRunId: string;
-            subjectId: string;
-            subjectKind: string;
-          };
-        }>(`recruiting-share-meta:${key}`),
-      ),
-    );
-    // New links refresh the index TTL, so also prune expired members of active indexes.
-    const expiredKeys = keys.filter((_key, index) => !rows[index]);
-    if (expiredKeys.length) await this.links.setRemove(indexKey, expiredKeys);
-    const result = [];
-    const companyNames = new Map<string, Promise<unknown>>();
-    for (const row of rows) {
-      if (!row || !this.belongsToWorkspace(row.owner, context)) continue;
-      const jobs = await Promise.all(
-        row.jobIds.map(async (id) => {
-          const job = await this.records.one(context, 'recruitmentJob', id);
-          let companyLabel: unknown;
-          if (typeof job.companyId === 'string') {
-            if (!companyNames.has(job.companyId))
-              companyNames.set(
-                job.companyId,
-                this.records
-                  .one(context, 'company', job.companyId)
-                  .then((company) => company.name),
-              );
-            companyLabel = await companyNames.get(job.companyId);
-          }
-          return { name: job.name, status: job.jobStatus, companyLabel };
-        }),
-      );
-      const candidates = await Promise.all(
-        row.candidateIds.map(async (id) => {
-          const person = await this.records.one(context, 'person', id);
-          return { name: person.name };
-        }),
-      );
-      const subject = row.source
-        ? await this.subject(context, row.source)
-        : undefined;
-      result.push({
-        ...row,
-        jobs,
-        candidates,
-        subjectLabel: subject
-          ? this.recordLabel(subject.name)
-          : this.recordLabel(candidates[0]?.name ?? jobs[0]?.name) ||
-            '分享资料',
-        matchRunId: subject ? row.source?.matchRunId : undefined,
-        url: this.urlForKey(row.key),
-      });
-    }
-    return result;
-  }
-
-  /** A removed source leaves an older share listable; other access failures still surface. */
-  private async subject(
-    context: WorkspaceAuthContext,
-    source: { subjectKind: string; subjectId: string },
-  ) {
-    try {
-      return await this.records.one(
-        context,
-        source.subjectKind,
-        source.subjectId,
-      );
-    } catch (error) {
-      if (error instanceof NotFoundException) return undefined;
-      throw error;
-    }
+  /** Retains the internal array contract with the same bounded default as the public API. */
+  async list(context: WorkspaceAuthContext, offset = 0, limit = 50) {
+    return (await this.listPage(context, '', offset, limit)).records;
   }
 
   /** Accepts provenance only from a readable run containing the selected records. */

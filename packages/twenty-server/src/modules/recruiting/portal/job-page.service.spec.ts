@@ -23,9 +23,29 @@ const setup = () => {
     capture: jest.fn(() => actor),
     resolve: jest.fn(async () => ({})),
   };
+  const readOne = jest.fn(async (_c, kind, _id?: string) =>
+    kind === 'company' ? { name: '公司', secret: 'private' } : job,
+  );
   const records = {
-    one: jest.fn(async (_c, kind) =>
-      kind === 'company' ? { name: '公司', secret: 'private' } : job,
+    one: readOne,
+    list: jest.fn(
+      async (
+        context,
+        kind,
+        options: { filter: { id: { in: string[] } }; select: string[] },
+      ) => ({
+        records: await Promise.all(
+          options.filter.id.in.map(async (id) => {
+            const source = {
+              ...(await readOne(context, kind, id)),
+              id,
+            } as Record<string, unknown>;
+            return Object.fromEntries(
+              options.select.map((key) => [key, source[key]]),
+            );
+          }),
+        ),
+      }),
     ),
   };
   const tokens = new Map<string, string>();
@@ -51,7 +71,9 @@ const setup = () => {
     setRemove: jest.fn(async () => 1),
   };
   const files = {
-    list: jest.fn(async () => ({ files: [{ fileId: 'resume', label: 'resume.pdf' }] })),
+    list: jest.fn(async () => ({
+      files: [{ fileId: 'resume', label: 'resume.pdf' }],
+    })),
     download: jest.fn(async () => ({ label: 'resume.pdf', stream: {} })),
   };
   const matching = { selection: jest.fn(async () => ({})) };
@@ -258,19 +280,104 @@ it('checks share membership and revocation before downloading candidate attachme
 
 it('omits and refuses PDFs when sharing is disabled', async () => {
   const { service, records, files } = setup();
-  records.one.mockImplementation(async (_context, kind) => kind === 'person' ? { id: candidateId, name: 'Candidate', contactRoles: ['CANDIDATE'] } as never : { id: jobId, name: 'Job' } as never);
-  const url = await service.create({} as never, [], [candidateId], undefined, false);
+  records.one.mockImplementation(async (_context, kind) =>
+    kind === 'person'
+      ? ({
+          id: candidateId,
+          name: 'Candidate',
+          contactRoles: ['CANDIDATE'],
+        } as never)
+      : ({ id: jobId, name: 'Job' } as never),
+  );
+  const url = await service.create(
+    {} as never,
+    [],
+    [candidateId],
+    undefined,
+    false,
+  );
   const token = new URL(url).pathname.split('/').pop()!;
   expect((await service.view(token)).candidates[0].files).toEqual([]);
-  await expect(service.download(token, candidateId, 'resume')).rejects.toThrow();
+  await expect(
+    service.download(token, candidateId, 'resume'),
+  ).rejects.toThrow();
   expect(files.download).not.toHaveBeenCalled();
 });
 it('freezes the file scope when the share is created', async () => {
   const { service, records, files } = setup();
-  records.one.mockImplementation(async (_context, kind) => kind === 'person' ? { id: candidateId, name: 'Candidate', contactRoles: ['CANDIDATE'] } as never : { id: jobId, name: 'Job' } as never);
+  records.one.mockImplementation(async (_context, kind) =>
+    kind === 'person'
+      ? ({
+          id: candidateId,
+          name: 'Candidate',
+          contactRoles: ['CANDIDATE'],
+        } as never)
+      : ({ id: jobId, name: 'Job' } as never),
+  );
   const url = await service.create({} as never, [], [candidateId]);
   const token = new URL(url).pathname.split('/').pop()!;
-  files.list.mockResolvedValue({ files: [{ fileId:'resume',label:'resume.pdf' }, {fileId:'private-new',label:'new.pdf'}] });
+  files.list.mockResolvedValue({
+    files: [
+      { fileId: 'resume', label: 'resume.pdf' },
+      { fileId: 'private-new', label: 'new.pdf' },
+    ],
+  });
   expect((await service.view(token)).candidates[0].files).toHaveLength(1);
-  await expect(service.download(token,candidateId,'private-new')).rejects.toThrow();
+  await expect(
+    service.download(token, candidateId, 'private-new'),
+  ).rejects.toThrow();
+});
+
+it('paginates a large share index using bounded identity queries without loading resume bodies', async () => {
+  const { service, records, tokens, files } = setup();
+  for (let i = 0; i < 500; i++)
+    tokens.set(`recruiting-share-meta:share-${i}`, {
+      key: `share-${i}`,
+      owner: actor.workspaceId,
+      jobIds: [`job-${i}`],
+      candidateIds: [],
+      createdAt: new Date(1_700_000_000_000 + i).toISOString(),
+    } as never);
+  records.list.mockImplementation(async (_context, kind, options) => ({
+    records: options.filter.id.in.map((id) => ({
+      id,
+      name: kind === 'company' ? '检索公司' : id,
+      ...(kind === 'recruitmentJob'
+        ? { companyId: 'company', jobStatus: 'RECRUITING' }
+        : {}),
+    })),
+  }));
+  const page = await service.listPage({} as never, '', 200, 20);
+  expect(page).toMatchObject({ count: 500, hasNextPage: true });
+  expect(page.records).toHaveLength(20);
+  expect(page.records[0].key).toBe('share-299');
+  expect(records.one).not.toHaveBeenCalled();
+  expect(files.list).not.toHaveBeenCalled();
+  expect(records.list).toHaveBeenCalledTimes(6);
+  for (const [, , options] of records.list.mock.calls) {
+    expect(options.filter.id.in.length).toBeLessThanOrEqual(100);
+    expect(options.select).not.toContain('recruitingProfile');
+    expect(options.select).not.toContain('jobDescription');
+  }
+  expect((await service.list({} as never)).length).toBe(50);
+  expect(
+    (await service.listPage({} as never, '检索公司', 495, 100)).records,
+  ).toHaveLength(5);
+});
+
+it('excludes shares whose subject records are no longer readable', async () => {
+  const { service, records, tokens } = setup();
+  tokens.set('recruiting-share-meta:restricted', {
+    key: 'restricted',
+    owner: actor.workspaceId,
+    jobIds: ['inaccessible'],
+    candidateIds: [],
+    createdAt: new Date().toISOString(),
+  } as never);
+  records.list.mockResolvedValue({ records: [] });
+  expect(await service.listPage({} as never, '', 0, 20)).toEqual({
+    records: [],
+    count: 0,
+    hasNextPage: false,
+  });
 });
