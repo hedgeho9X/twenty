@@ -75,27 +75,25 @@ beforeEach(() => {
   };
   page10 = { ...page5, records: pairs };
   list = { records: [summary], count: 1, hasNextPage: false };
-  jest
-    .mocked(useRecruitingQuery)
-    .mockImplementation(
-      (path) =>
-        ({
-          data: path?.endsWith('/summary')
-            ? summary
-            : path?.includes('/results?')
-              ? path.includes('limit=10')
-                ? page10
-                : page5
-              : path?.startsWith('match-results?')
-                ? loading
-                  ? undefined
-                  : list
-                : undefined,
-          error: '',
-          loading,
-          reload: jest.fn(),
-        }) as never,
-    );
+  jest.mocked(useRecruitingQuery).mockImplementation(
+    (path) =>
+      ({
+        data: path?.endsWith('/summary')
+          ? summary
+          : path?.includes('/results?')
+            ? path.includes('limit=10')
+              ? page10
+              : page5
+            : path?.startsWith('match-results?')
+              ? loading
+                ? undefined
+                : list
+              : undefined,
+        error: '',
+        loading,
+        reload: jest.fn(),
+      }) as never,
+  );
 });
 it('loads five recommendations first and requests ten only after expanding', async () => {
   render(<RecruitingMatchResults initialRunId="run" />);
@@ -141,4 +139,21 @@ it('defaults to all time and displays loading placeholders rather than an empty 
   expect(screen.getByLabelText('正在加载结果')).toBeInTheDocument();
   expect(screen.queryByText('没有符合条件的匹配结果')).not.toBeInTheDocument();
   expect(document.querySelector('input[type="date"]')).toBeNull();
+});
+
+it('restores the same view after detail navigation but starts a new page at the top', async () => {
+  list = { ...list, count: 100 };
+  const { container } = render(<RecruitingMatchResults />);
+  let viewport = container.querySelector('[data-radix-scroll-area-viewport]')!;
+  viewport.scrollTop = 180;
+  viewport.scrollLeft = 90;
+  fireEvent.scroll(viewport);
+  fireEvent.click(screen.getByRole('button', { name: '查看结果' }));
+  fireEvent.click(await screen.findByRole('button', { name: '返回列表' }));
+  viewport = container.querySelector('[data-radix-scroll-area-viewport]')!;
+  expect(viewport.scrollTop).toBe(180);
+  expect(viewport.scrollLeft).toBe(90);
+  fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+  await waitFor(() => expect(viewport.scrollTop).toBe(0));
+  expect(viewport.scrollLeft).toBe(0);
 });

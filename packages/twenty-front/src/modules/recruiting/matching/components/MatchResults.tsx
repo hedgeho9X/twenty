@@ -101,11 +101,24 @@ export const RecruitingMatchResults = ({
     const timer = setTimeout(() => setQuery(search), 250);
     return () => clearTimeout(timer);
   }, [search]);
+  const viewPath = `match-results?offset=${offset}&limit=${pageSize}&direction=${direction}&search=${encodeURIComponent(query)}&read=${readFilter}&followUp=${followFilter}&from=${dates.from}&to=${dates.to}`;
   const list = useRecruitingQuery<RecruitingPage<RecruitingMatchRun>>(
-    `match-results?offset=${offset}&limit=${pageSize}&direction=${direction}&search=${encodeURIComponent(query)}&read=${readFilter}&followUp=${followFilter}&from=${dates.from}&to=${dates.to}`,
+    viewPath,
     0,
     active,
   );
+  useEffect(() => {
+    // A different page or filter is a new view; detail navigation keeps the same view path.
+    scrollTop.current = 0;
+    scrollLeft.current = 0;
+    const viewport = scrollRoot.current?.querySelector(
+      '[data-radix-scroll-area-viewport]',
+    );
+    if (viewport) {
+      viewport.scrollTop = 0;
+      viewport.scrollLeft = 0;
+    }
+  }, [viewPath]);
   const summary = useRecruitingQuery<
     RecruitingMatchRun & { executionComplete: boolean }
   >(
@@ -246,7 +259,7 @@ export const RecruitingMatchResults = ({
             <Skeleton className="h-12 w-80" />
           )}
         </CardHeader>
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea key={runId} className="min-h-0 flex-1">
           <CardContent className="flex flex-col gap-4 p-5">
             {(error || summary.error || results.error) && (
               <Alert variant="destructive">
@@ -431,9 +444,12 @@ export const RecruitingMatchResults = ({
         ref={scrollRoot}
         className="min-h-0 flex-1"
         onScrollCapture={(event) => {
-          if (event.target instanceof HTMLElement) {
-            scrollTop.current = event.target.scrollTop;
-            scrollLeft.current = event.target.scrollLeft;
+          const viewport = scrollRoot.current?.querySelector(
+            '[data-radix-scroll-area-viewport]',
+          );
+          if (viewport && event.target === viewport && !list.loading) {
+            scrollTop.current = viewport.scrollTop;
+            scrollLeft.current = viewport.scrollLeft;
           }
         }}
       >
