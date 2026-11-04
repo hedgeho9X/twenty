@@ -198,7 +198,7 @@ export const MatchSelection = ({
         />
       )}
       <div style={{ maxHeight: '55vh', overflow: 'auto' }}>
-        <StyledRecruitingTable>
+        <StyledRecruitingTable className="recruiting-recommendations-table">
           <TableHeader>
             <TableRow>
               <TableHead>
@@ -274,17 +274,19 @@ export const MatchSelection = ({
           onClick={() => setVisibleCount((count) => count + 20)}
         >{t`加载更多`}</Button>
       )}
-      <Button
-        disabled={
-          !selected.size ||
-          busy ||
-          ['QUEUED', 'PROCESSING'].includes(draft?.status ?? '')
-        }
-        loading={busy}
-        onClick={() => {
-          void generate();
-        }}
-      >{t`生成沟通文案`}</Button>
+      <StyledRecruitingRow>
+        <Button
+          disabled={
+            !selected.size ||
+            busy ||
+            ['QUEUED', 'PROCESSING'].includes(draft?.status ?? '')
+          }
+          loading={busy}
+          onClick={() => {
+            void generate();
+          }}
+        >{t`生成沟通文案`}</Button>
+      </StyledRecruitingRow>
       <MatchShareActions
         matchRunId={run.runId}
         currentUrl={draft?.jobPageUrl}

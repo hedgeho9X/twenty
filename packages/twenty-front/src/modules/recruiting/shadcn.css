@@ -84,3 +84,10 @@
 .recruiting-results-table[data-direction="JOB_TO_CANDIDATES"] th:nth-child(4) { width: 108px; }
 .recruiting-results-table[data-direction="JOB_TO_CANDIDATES"] th:nth-child(5) { width: 160px; }
 .recruiting-results-table[data-direction="JOB_TO_CANDIDATES"] th:last-child { width: 112px; }
+
+.recruiting-recommendations-table { table-layout: fixed; min-width: 680px; }
+.recruiting-recommendations-table th:first-child { width: 190px; }
+.recruiting-recommendations-table th:nth-child(3) { width: 220px; }
+.recruiting-recommendations-table th:last-child { width: 112px; }
+.recruiting-recommendations-table td:nth-child(2), .recruiting-recommendations-table td:nth-child(3) { overflow: hidden; text-overflow: ellipsis; }
+.recruiting-recommendations-table th:last-child, .recruiting-recommendations-table td:last-child { text-align: right; }
