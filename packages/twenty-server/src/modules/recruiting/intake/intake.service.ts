@@ -1,3 +1,4 @@
+import { localTextMaterial } from './domain/local-text-material';
 import { candidateFields } from './candidate-fields';
 import { decodeMultipartFilename } from '../files/domain/multipart-filename';
 /** Archives unified submissions and coordinates resumable parsing, extraction and native record writes. */
@@ -199,6 +200,7 @@ export class RecruitingIntakeService {
     context: WorkspaceAuthContext,
     candidateId: string,
     batchKey: string,
+    text?: string,
   ) {
     if (!batchKey || batchKey.length > 128)
       throw new BadRequestException('请提供有效的重解析批次标识');
@@ -211,6 +213,7 @@ export class RecruitingIntakeService {
       candidateId,
       files,
       idempotencyKey: `reparse:${batchKey}:${candidateId}`,
+      ...(text ? { text } : {}),
     });
   }
 
@@ -491,10 +494,16 @@ export class RecruitingIntakeService {
       });
     };
     try {
-      const materials = envelope.materials ?? [];
-      await update('PARSING');
+      const textRecovery =
+        envelope.input.source === 'reparse' && envelope.input.text?.trim();
+      const materials =
+        envelope.materials ??
+        (textRecovery
+          ? [localTextMaterial(envelope.input.files[0], textRecovery)]
+          : []);
+      await update('PARSING', { materials });
       for (const file of envelope.input.files.filter(
-        (entry) => entry.role !== 'archive',
+        (entry) => entry.role !== 'archive' && !textRecovery,
       )) {
         if (materials.some((material) => material.fileId === file.fileId))
           continue;
@@ -660,6 +669,9 @@ export class RecruitingIntakeService {
         note: envelope.input.note ?? '',
         modelId: extraction.modelId,
         generatedAt: new Date().toISOString(),
+        ...(textRecovery
+          ? { sourceCoverage: '本地原件文字提取；图片内容未覆盖' }
+          : {}),
       };
       context = await this.actors.resolve(data.actor);
       const candidateId = await this.storeCandidate(context, {

@@ -26,7 +26,7 @@ export const COMMANDS = {
     list: '[--query 关键词]',
     get: '--id ID；读取解析资料',
     reparse:
-      '--id ID --batch-id 标识 [--wait]；重新解析已有原件，保留候选人身份',
+      '--id ID --batch-id 标识 [--text-file 本地原件提取.txt] [--wait]；重新解析已有原件，保留候选人身份',
     files: '--id ID；列出当前有权读取的候选人原件引用',
     download: '--id ID --file-id FILE_ID --out 路径；下载原件，不覆盖已有文件',
     upload:

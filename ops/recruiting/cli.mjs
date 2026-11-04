@@ -430,7 +430,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
   } else if (group === 'candidates' && action === 'reparse') {
     result = await client.post(
       `candidates/${encodeURIComponent(required('id'))}/reparse`,
-      { batchKey: required('batch-id') },
+      { batchKey: required('batch-id'), ...(text ? { text } : {}) },
     );
     taskKind = 'intake';
     taskId = result.intakeId;

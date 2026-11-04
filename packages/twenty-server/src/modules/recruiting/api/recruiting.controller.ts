@@ -727,13 +727,17 @@ export class RecruitingController {
     @Body() body: unknown,
   ) {
     const parsed = z
-      .object({ batchKey: z.string().min(1).max(128) })
+      .object({
+        batchKey: z.string().min(1).max(128),
+        text: z.string().min(30).max(500000).optional(),
+      })
       .strict()
       .parse(body);
     return this.intakes.reparse(
       buildWorkspaceAuthContextFromRequest(request),
       id,
       parsed.batchKey,
+      parsed.text,
     );
   }
 
