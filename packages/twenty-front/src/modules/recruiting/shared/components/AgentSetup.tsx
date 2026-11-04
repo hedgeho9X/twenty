@@ -1,4 +1,5 @@
 /** Provides a copyable setup prompt for the recruiting Agent. */
+import '@/recruiting/shadcn.css';
 import { useState } from 'react';
 import { Button } from '@/recruiting/shadcn/compat';
 import { Section } from 'twenty-ui/components/layout';
@@ -14,7 +15,7 @@ export const RecruitingAgentSetup = ({ apiKey }: { apiKey?: string }) => {
   return (
     <Section.Root>
       <Section.Header title="招聘 Agent 接入" />
-      <div>
+      <div className="recruiting-shadcn">
         <Button
           startIcon={<IconCopy />}
           onClick={() => {
