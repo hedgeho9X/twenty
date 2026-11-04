@@ -2,7 +2,7 @@
 
 `ops/recruiting/bootstrap-target.mjs` 通过官方 `/metadata` GraphQL 与 `/rest/metadata/objects` 查询和修改，不连接数据库。默认只输出计划；只有 `--apply` 才执行。旧 `bootstrap-schema.mjs` 的本地行为不变。
 
-远程调用必须同时传 `--target https://recruiting.math77.cn --workspace-id 4cb349cd-5765-4826-a2cb-73e5c5c2d564`，令牌由 `FANHAN_API_KEY` 或 `TWENTY_API_KEY` 注入，不接受命令行令牌。请求会先核验令牌实际对应的工作区 ID，禁止跳转与远程明文 HTTP。
+远程调用必须同时传 `--target https://43.136.55.30 --workspace-id 4cb349cd-5765-4826-a2cb-73e5c5c2d564`，令牌由 `FANHAN_API_KEY` 或 `TWENTY_API_KEY` 注入，不接受命令行令牌。请求会先核验令牌实际对应的工作区 ID，禁止跳转与远程明文 HTTP。
 
 计划覆盖原 bootstrap 的九类对象及字段，并补齐材料处理对象 `recruitingIntake`、原生 `FILES` 字段和邮件九槽布局。公司、联系人、岗位及原有跟进对象应由原生产恢复保留；缺少这些前置对象时明确失败，不凭空重建业务表。字段定义在 `backups/metadata-blueprint.mjs`，材料枚举定义在 `backups/intake-blueprint.json`。
 

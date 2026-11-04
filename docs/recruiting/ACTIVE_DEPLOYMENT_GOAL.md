@@ -12,10 +12,10 @@
 - 用户要求后续不再使用子 Agent，主 Agent 直接完成剩余工作。
 
 ## 部署目标
-- 使用现有腾讯云服务器 ubuntu@150.158.164.85，保留并配置好 Dokploy。
+- 当前目标为腾讯云服务器 43.136.55.30，通过 Dokploy 部署，业务入口为 https://43.136.55.30。早期目标 150.158.164.85 / recruiting.math77.cn 仅作历史记录。
 - 使用自有仓库 hedgeho9X/twenty 的 deploy/fanhan 专属分支进行自动部署，不再以 Zkkk-web/twenty 为发布源。
 - 部署 Twenty 前端、API、Worker、PostgreSQL、Redis 和持久文件存储；解析计算服务不部署在本服务器。
-- 按用户最新决定先通过服务器 IP 提供业务访问。recruiting.math77.cn 和 dokploy.math77.cn 的 DNS 保留；域名公网受腾讯云接入备案拦截，不将站内证书成功冒充公网可用。
+- 生产入口为服务器 IP 的 HTTPS 地址，由 Compose 中 FANHAN_PUBLIC_URL 注入 SERVER_URL，产品内不写死地址。早期 recruiting.math77.cn / dokploy.math77.cn 受腾讯云接入备案拦截，不再作为当前入口。
 
 ## 发布要求
 - Review 改动，修复实际问题并完成前后端类型检查、相关单元测试、构建及实际运行验证。
@@ -44,5 +44,5 @@
 
 ## 完成判据
 - 实际部署运行成功而非只生成文件或CI入队。
-- IP页面、登录/鉴权API、核心招聘页面、Worker运行以及原数据和附件可访问已验证。
+- https://43.136.55.30 页面、登录/鉴权API、核心招聘页面、Worker运行以及原数据和附件可访问已验证。
 - 完整自动发布链路真实通过；记录已部署版本、迁移证据和仍需用户完成的接入备案等外部事项，不宣称未验证的功能成功。

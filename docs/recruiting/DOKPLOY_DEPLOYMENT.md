@@ -2,7 +2,7 @@
 
 ## 目标
 
-在 150.158.164.85 的 Dokploy 部署 Twenty 前后端、Worker、PostgreSQL 和 Redis，访问域名为 recruiting.math77.cn。文件解析计算不部署在这台服务器。发布分支为 hedgeho9X/twenty 的 deploy/fanhan；保留旧环境及其数据。
+在腾讯云 43.136.55.30 的 Dokploy 部署 Twenty 前后端、Worker、PostgreSQL 和 Redis，生产入口为 https://43.136.55.30，由 Compose 的 FANHAN_PUBLIC_URL 注入 SERVER_URL/FRONTEND_URL。文件解析计算不部署在这台服务器。早期目标 150.158.164.85 / recruiting.math77.cn 仅作历史记录，下文 2026-11-03 记录发生在该主机。发布分支为 hedgeho9X/twenty 的 deploy/fanhan；保留旧环境及其数据。
 
 ## 发布链路
 
@@ -29,7 +29,7 @@ CI 不在应用启动时导入或覆盖数据库。Compose 默认禁用启动迁
 - [ ] 专属分支已推送，CI 检查及镜像构建真实通过。
 - [ ] 旧生产数据库和文件备份已验证，恢复到新环境并核对数量。
 - [ ] 应用和 Worker 健康，数据库与缓存无公网端口。
-- [ ] recruiting.math77.cn 的 HTTPS、登录及 API 验证通过。
+- [ ] https://43.136.55.30 的 HTTPS、登录及 API 验证通过。
 - [ ] 实际提交能自动更新到对应 commit，失败时不发布。
 - [ ] 外部解析尚未接入时明确显示不可用，不伪报成功。
 
