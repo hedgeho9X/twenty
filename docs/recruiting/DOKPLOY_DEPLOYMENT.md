@@ -57,7 +57,7 @@ CI 不在应用启动时导入或覆盖数据库。Compose 默认禁用启动迁
 
 本次生产证据已确认：Redis 在 256 MiB cgroup 内加载 AOF 后，自动 rewrite 的 fork/COW 导致 OOM 重启；API 鉴权读取缓存遇到 `LOADING Redis is loading the dataset in memory`，被现有 JwtAuthGuard 转为 403 `Forbidden resource`。这不是角色权限不足，不修改鉴权守卫。
 
-生产 `deploy/compose.yaml` 的 redis 和本地 `compose.yaml` 的 cache 使用相同预算：容器 `mem_limit: 1g`、Redis `--maxmemory 384mb`、`--auto-aof-rewrite-min-size 256mb`，保留 AOF 与 `noeviction`。相对已观察到的约 202 MB RSS，1 GiB 提供恢复和 fork 余量；即使按 384 MiB 的两份数据估算，仍有约 256 MiB 用于进程、缓冲和分配器开销。256 MiB 最小 AOF 大小减少小文件 rewrite；自动 rewrite 百分比保留默认 100，不禁用压缩。
+生产 `deploy/compose.yaml` 的 redis 和本地 `compose.yaml` 的 cache 使用相同预算：容器 `mem_limit: 1536m`、Redis `--maxmemory 768mb`、`--auto-aof-rewrite-min-size 256mb`，保留 AOF 与 `noeviction`。2026-11-04 恢复后实测数据约 450 MB（used_memory），384mb 上限会让 noeviction 拒绝写入（实测约 1400 次 OOM 写拒绝），因此上调到 768mb；1536m 容器限制为 AOF rewrite fork 的写时复制、缓冲和分配器开销保留约 768 MiB 余量（实测 rewrite CoW 峰值仅约 5 MB）。256 MiB 最小 AOF 大小减少小文件 rewrite；自动 rewrite 百分比保留默认 100。请监控 used_memory，接近 768mb 前需排查数据增长或再扩容。
 
 这不是 RSS 的硬保证：Redis maxmemory 不包含所有缓冲、碎片和 fork 内存。达到数据预算后 `noeviction` 会拒绝新增分配，而不是删除队列键；持续监测 used_memory、used_memory_rss、cgroup 峰值、持久化状态和主机可用内存。[Redis 7 配置](https://raw.githubusercontent.com/redis/redis/7.0/redis.conf)、[AOF rewrite/备份说明](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/)、[BullMQ noeviction 要求](https://docs.bullmq.io/guide/going-to-production)。
 
@@ -96,4 +96,4 @@ docker exec "$redis_container" redis-cli INFO persistence
 
 5. 仅在稳定、磁盘有足够新 base 文件空间、内存有余量，且 INFO persistence 的 aof_rewrite_in_progress=0、aof_rewrite_scheduled=0、rdb_bgsave_in_progress=0 时，考虑执行一次 `docker exec "$redis_container" redis-cli BGREWRITEAOF`；已经自动 rewrite 成功则无需重复。完成后检查 aof_last_bgrewrite_status=ok、aof_rewrite_in_progress=0 和稳定的 RestartCount。让 Redis 自行切换 manifest/清理旧段，不手工删这 171 个文件。
 
-回滚应用时使用原精确镜像，但保留 1 GiB 的 Redis 限制与 noeviction；不要把仍有同一数据集的 Redis 降回 256 MiB。需要恢复数据时，先停全部写入方和 redis，将完整离线备份恢复到新的独立卷，在 Dokploy 切换挂载后验证；保留故障卷供诊断，不覆盖运行中的数据。
+回滚应用时使用原精确镜像，但保留 1536m 的 Redis 限制（maxmemory 768mb）与 noeviction；不要把仍有同一数据集的 Redis 降回 256 MiB。需要恢复数据时，先停全部写入方和 redis，将完整离线备份恢复到新的独立卷，在 Dokploy 切换挂载后验证；保留故障卷供诊断，不覆盖运行中的数据。
