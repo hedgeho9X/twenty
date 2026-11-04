@@ -134,14 +134,14 @@ services:
 
   redis:
     # Leave room for an AOF rewrite child, copy-on-write pages and allocator overhead.
-    mem_limit: 1g
+    mem_limit: 1536m
     image: redis:7-alpine
     command:
       - redis-server
       - --appendonly
       - 'yes'
       - --maxmemory
-      - 384mb
+      - 768mb
       - --maxmemory-policy
       - noeviction
       - --auto-aof-rewrite-min-size
