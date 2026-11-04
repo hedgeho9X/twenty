@@ -5,6 +5,7 @@ import {
   TableHead,
   TableCell,
 } from '@/recruiting/shadcn/ui/table';
+import { Badge as ContextBadge } from '@/recruiting/shadcn/ui/badge';
 import { ResultInput } from '@/recruiting/shared/components/ResultControls';
 import { MatchShareActions } from '@/recruiting/shared/components/MatchShareActions';
 /** Selects up to ten ranked results and generates a persistent editable communication draft. */
@@ -262,7 +263,16 @@ export const MatchSelection = ({
                       label={pair.companyLabel}
                     />
                   </TableCell>
-                  <TableCell>{pair.score?.toFixed(2)} / 4</TableCell>
+                  <TableCell>
+                    {pair.score?.toFixed(2)} / 4
+                    {pair.longContext && (
+                      <div>
+                        <ContextBadge variant="warning" title="长材料评分，需人工复核">
+                          长材料
+                        </ContextBadge>
+                      </div>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
           </TableBody>

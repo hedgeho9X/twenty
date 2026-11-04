@@ -182,12 +182,10 @@ describe('recruiting pair evaluator', () => {
 
   it('reports an actual provider context rejection as review-needed without a zero score or leaked response', async () => {
     const { evaluator, rows } = setup();
-    jest
-      .mocked(evaluate)
-      .mockRejectedValue({
-        statusCode: 400,
-        responseBody: 'context_length_exceeded: private material and secret',
-      });
+    jest.mocked(evaluate).mockRejectedValue({
+      statusCode: 400,
+      responseBody: 'context_length_exceeded: private material and secret',
+    });
     const result = await evaluator.run(context, candidate, job, company);
     expect(result.status).toBe('NEEDS_REVIEW');
     expect(result.score).toBeUndefined();
@@ -212,4 +210,31 @@ describe('recruiting pair evaluator', () => {
     expect(record.score).toBeNull();
     expect(JSON.stringify(record)).not.toContain('secret');
   });
+});
+it('retries wrapped context rejections with the identical full input and labels the longer evaluation', async () => {
+  const { evaluator, rows } = setup();
+  const normal = jest.mocked(evaluate).getMockImplementation()!;
+  const successful = await normal({} as never);
+  jest
+    .mocked(evaluate)
+    .mockRejectedValueOnce({
+      statusCode: 400,
+      message: 'Gateway rejected the request',
+      cause: {
+        statusCode: 400,
+        responseBody: 'max_tokens_exceeded: private body',
+      },
+    })
+    .mockResolvedValueOnce(successful);
+  const result = await evaluator.run(context, candidate, job, company);
+  expect(result.status).toBe('SCORED');
+  expect(result.longContext).toBe(true);
+  const [first, second] = jest
+    .mocked(evaluate)
+    .mock.calls.map(([input]) => input);
+  expect(first.providerOptions).toBeUndefined();
+  expect(second.providerOptions).toEqual({ typesafe: { longContext: true } });
+  expect(second.state).toEqual(first.state);
+  expect(second.questions).toEqual(first.questions);
+  expect(JSON.stringify([...rows.values()])).not.toContain('private body');
 });

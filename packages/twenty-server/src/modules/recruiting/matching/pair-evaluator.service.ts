@@ -36,9 +36,48 @@ export class RecruitingEvaluationAuthError extends Error {
   }
 }
 
+/** Inspects wrapped provider failures in memory without persisting request bodies or credentials. */
+const evaluationFailure = (error: unknown) => {
+  const errors: { status?: number; detail: string }[] = [];
+  const seen = new Set<unknown>();
+  let current = error;
+  for (
+    let depth = 0;
+    depth < 6 && current && typeof current === 'object' && !seen.has(current);
+    depth++
+  ) {
+    seen.add(current);
+    const entry = current as {
+      statusCode?: number;
+      message?: string;
+      responseBody?: string;
+      cause?: unknown;
+      lastError?: unknown;
+    };
+    errors.push({
+      status: entry.statusCode,
+      detail: [entry.message, entry.responseBody]
+        .filter((value) => typeof value === 'string')
+        .join(' '),
+    });
+    current = entry.lastError ?? entry.cause;
+  }
+  return {
+    unauthorized: errors.some(({ status }) => status === 401 || status === 403),
+    contextLimited: errors.some(
+      ({ status, detail }) =>
+        [400, 413, 422].includes(Number(status)) &&
+        (/max_tokens_exceeded/i.test(detail) ||
+          (/context|input.{0,30}tokens/i.test(detail) &&
+            /limit|exceed|maximum|too.long|too.large/i.test(detail))),
+    ),
+  };
+};
+
 /** A failure has no score; eligibility and input problems remain explicit alongside model output. */
 export type RecruitingPairResult = {
   candidateId: string;
+  longContext?: boolean;
   jobId: string;
   candidateLabel: string;
   jobLabel: string;
@@ -249,7 +288,7 @@ export class RecruitingPairEvaluatorService {
         if (!response)
           return {
             ...base,
-            error: '完整材料超过Jev默认上下文限制，未截断；请整理材料后重试',
+            error: '完整材料超过Jev上下文限制，未截断；请整理材料后重试',
           };
         const answer = response.answers.match;
         if (
@@ -271,6 +310,7 @@ export class RecruitingPairEvaluatorService {
           typeof confidence.match === 'number'
             ? { confidence: confidence.match }
             : {}),
+          ...(response.recruitingLongContext ? { longContext: true } : {}),
           usage: response.usage,
           resolvedModelId: response.response.modelId,
           cost: response.providerMetadata?.gateway?.cost as
@@ -318,13 +358,27 @@ export class RecruitingPairEvaluatorService {
     base: RecruitingPairResult,
   ) {
     try {
-      const result = await evaluate({
-        model,
-        state: stableSerialize(state),
-        questions,
-        maxRetries: 2,
-        abortSignal: AbortSignal.timeout(30_000),
-      });
+      let longContext = false;
+      const request = () =>
+        evaluate({
+          model,
+          state: stableSerialize(state),
+          questions,
+          maxRetries: 2,
+          abortSignal: AbortSignal.timeout(longContext ? 90_000 : 30_000),
+          ...(longContext
+            ? { providerOptions: { typesafe: { longContext: true } } }
+            : {}),
+        });
+      let result;
+      try {
+        result = await request();
+      } catch (error) {
+        if (!evaluationFailure(error).contextLimited) throw error;
+        // Retry the identical complete material only after an explicit context-window rejection.
+        longContext = true;
+        result = await request();
+      }
       const answer = result.answers.match;
       if (
         answer.type !== 'score' ||
@@ -333,28 +387,9 @@ export class RecruitingPairEvaluatorService {
         answer.score > 4
       )
         throw new BadRequestException('评分模型返回的能力分无效');
-      return result;
+      return { ...result, recruitingLongContext: longContext };
     } catch (error) {
-      const status =
-        error && typeof error === 'object' && 'statusCode' in error
-          ? error.statusCode
-          : undefined;
-      const unauthorized = status === 401 || status === 403;
-      const detail =
-        error && typeof error === 'object'
-          ? [
-              'message' in error && typeof error.message === 'string'
-                ? error.message
-                : '',
-              'responseBody' in error && typeof error.responseBody === 'string'
-                ? error.responseBody
-                : '',
-            ].join(' ')
-          : '';
-      const contextLimited =
-        [400, 413, 422].includes(Number(status)) &&
-        /context|input.{0,30}tokens/i.test(detail) &&
-        /limit|exceed|maximum|too.long|too.large/i.test(detail);
+      const { unauthorized, contextLimited } = evaluationFailure(error);
       if (contextLimited) {
         await this.records.update(
           context,
@@ -365,7 +400,7 @@ export class RecruitingPairEvaluatorService {
             score: null,
             payload: {
               ...base,
-              error: '完整材料超过Jev默认上下文限制，未截断；请整理材料后重试',
+              error: '完整材料超过Jev上下文限制，未截断；请整理材料后重试',
             },
           },
         );
