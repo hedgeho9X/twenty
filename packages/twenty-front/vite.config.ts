@@ -1,3 +1,4 @@
+import tailwindcss from '@tailwindcss/vite';
 import { lingui } from '@lingui/vite-plugin';
 import { isNonEmptyString } from '@sniptt/guards';
 import react from '@vitejs/plugin-react-swc';
@@ -80,12 +81,24 @@ export default defineConfig(({ mode }) => {
 
   const apiProxyTarget = isNonEmptyString(REACT_APP_SERVER_BASE_URL)
     ? REACT_APP_SERVER_BASE_URL
-    : 'http://localhost:3000';
+    : env.VITE_API_PROXY_TARGET || 'http://localhost:3000';
 
   const apiProxy = Object.fromEntries(
     API_PROXY_PATHS.map((apiPath) => [
       buildApiProxyMatcher(apiPath),
-      { target: apiProxyTarget },
+      {
+        target: apiProxyTarget,
+        changeOrigin: true,
+        ...(mode === 'development' &&
+        apiPath === 'recruiting' &&
+        env.RECRUITING_PREVIEW_KEY
+          ? {
+              headers: {
+                authorization: `Bearer ${env.RECRUITING_PREVIEW_KEY}`,
+              },
+            }
+          : {}),
+      },
     ]),
   );
 
@@ -128,6 +141,7 @@ export default defineConfig(({ mode }) => {
     },
 
     plugins: [
+      tailwindcss(),
       react({
         plugins: [['@lingui/swc-plugin', {}]],
       }),

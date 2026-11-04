@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-/** Makes the repository-pinned Yarn available to Nx children without a global install. */
-const { resolve } = require('node:path');
-const { spawnSync } = require('node:child_process');
-
+/** Runs the repository-pinned Yarn in this ESM package without requiring a global installation. */
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 const result = spawnSync(process.execPath, [
-  resolve(__dirname, '../../../.yarn/releases/yarn-4.18.1.cjs'),
+  resolve(dirname(fileURLToPath(import.meta.url)), '../../../.yarn/releases/yarn-4.18.1.cjs'),
   ...process.argv.slice(2),
 ], { stdio: 'inherit' });
 process.exit(result.status ?? 1);
