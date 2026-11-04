@@ -50,6 +50,10 @@ const setup = () => {
     },
     setRemove: jest.fn(async () => 1),
   };
+  const files = {
+    list: jest.fn(async () => ({ files: [] })),
+    download: jest.fn(async () => ({ label: 'resume.pdf', stream: {} })),
+  };
   const service = new RecruitingJobPageService(
     {
       get: (key: string) =>
@@ -58,8 +62,9 @@ const setup = () => {
     actors as never,
     records as never,
     links as never,
+    files as never,
   );
-  return { service, job, actors, records, links, tokens };
+  return { service, job, actors, records, links, tokens, files };
 };
 it('returns only the selected job public projection without needing the reader login', async () => {
   const { service } = setup();
@@ -220,4 +225,31 @@ it('never grants another workspace access to shared links', async () => {
   await expect(
     service.revoke({} as never, new URL(url).pathname.split('/').pop()!),
   ).rejects.toThrow('无权');
+});
+
+it('checks share membership and revocation before downloading candidate attachments', async () => {
+  const { service, records, files } = setup();
+  const candidateId = '44444444-4444-4444-8444-444444444444';
+  records.one.mockImplementation(async (_context, kind) =>
+    kind === 'person'
+      ? ({
+          id: candidateId,
+          name: 'Candidate',
+          contactRoles: ['CANDIDATE'],
+        } as never)
+      : ({ id: jobId, name: 'Job' } as never),
+  );
+  const url = await service.create({} as never, [], [candidateId]);
+  const token = new URL(url).pathname.split('/').pop()!;
+  await service.download(token, candidateId, 'resume');
+  expect(files.download).toHaveBeenCalledTimes(1);
+  await expect(service.download(token, jobId, 'resume')).rejects.toThrow(
+    '不包含',
+  );
+  expect(files.download).toHaveBeenCalledTimes(1);
+  await service.revoke({} as never, token);
+  await expect(service.download(token, candidateId, 'resume')).rejects.toThrow(
+    '已失效',
+  );
+  expect(files.download).toHaveBeenCalledTimes(1);
 });

@@ -8,6 +8,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { sign, verify } from 'jsonwebtoken';
 import { z } from 'zod';
@@ -19,6 +20,8 @@ import {
   recruitingText,
   buildCandidateMatchContext,
 } from '../matching/domain/match-context';
+
+import { RecruitingCandidateFilesService } from '../files/candidate-files.service';
 
 const SHARE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -43,6 +46,8 @@ export class RecruitingJobPageService {
     private readonly records: RecruitingRecordsService,
     @InjectCacheStorage(CacheStorageNamespace.EngineAuthSession)
     private readonly links: CacheStorageService,
+    @Optional()
+    private readonly candidateFiles?: RecruitingCandidateFilesService,
   ) {}
   /** Creates a purpose-bound link after checking the publisher's current access to every selected job. */
   async create(
@@ -303,7 +308,7 @@ export class RecruitingJobPageService {
   }
 
   /** Revalidates expiry, publisher permissions and live job state on every anonymous view. */
-  async view(token: string) {
+  private async resolveScope(token: string) {
     let scope: z.infer<typeof scopeSchema>;
     try {
       if (token.length > 8192) throw new Error('oversized');
@@ -325,6 +330,22 @@ export class RecruitingJobPageService {
       throw new ForbiddenException('岗位介绍链接已失效');
     }
     const context = await this.actors.resolve(scope.actor);
+    return { scope, context };
+  }
+
+  /** Downloads only current candidate-owned materials through a revocable short share token. */
+  async download(token: string, candidateId: string, fileId: string) {
+    if (!/^[A-Za-z0-9_-]{10,24}$/.test(token))
+      throw new ForbiddenException('请使用有效的分享链接');
+    const { scope, context } = await this.resolveScope(token);
+    if (!scope.candidateIds.includes(candidateId) || !this.candidateFiles)
+      throw new ForbiddenException('此分享不包含该候选人');
+    return this.candidateFiles.download(context, candidateId, fileId);
+  }
+
+  /** Projects only materials belonging to candidates included in the resolved share. */
+  async view(token: string) {
+    const { scope, context } = await this.resolveScope(token);
     const jobs = [];
     for (const id of scope.jobIds) {
       const job = await this.records.one(context, 'recruitmentJob', id);
@@ -351,7 +372,24 @@ export class RecruitingJobPageService {
     for (const id of scope.candidateIds) {
       const person = await this.records.one(context, 'person', id);
       const profile = buildCandidateMatchContext(person).context;
+      const saved = person.recruitingProfile as { urls?: unknown } | null;
+      const urls = Array.isArray(saved?.urls)
+        ? [
+            ...new Set(
+              saved.urls.filter(
+                (url): url is string =>
+                  typeof url === 'string' && /^https?:\/\//i.test(url),
+              ),
+            ),
+          ]
+        : [];
+      const files = this.candidateFiles
+        ? (await this.candidateFiles.list(context, id)).files
+        : [];
       candidates.push({
+        id,
+        urls,
+        files,
         name: person.name,
         summary: profile.summary,
         skills: profile.skills,

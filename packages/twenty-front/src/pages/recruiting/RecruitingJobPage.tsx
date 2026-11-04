@@ -14,6 +14,9 @@ import {
 
 type JobPage = {
   candidates?: {
+    id?: string;
+    urls?: string[];
+    files?: { fileId: string; label: string }[];
     name: { firstName?: string; lastName?: string };
     summary: string;
     skills: string[];
@@ -49,6 +52,38 @@ export const RecruitingJobPage = () => {
     params.token ?? new URLSearchParams(location.hash.slice(1)).get('access');
   const [data, setData] = useState<JobPage>();
   const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState<string>();
+  const download = async (
+    candidateId: string,
+    file: { fileId: string; label: string },
+  ) => {
+    setDownloading(file.fileId);
+    try {
+      const response = await fetch(
+        `${REACT_APP_SERVER_BASE_URL.replace(/\/$/, '')}/recruiting-job-pages/files`,
+        {
+          method: 'POST',
+          credentials: 'omit',
+          redirect: 'error',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token, candidateId, fileId: file.fileId }),
+        },
+      );
+      if (!response.ok) throw new Error(t`材料无法下载，请确认分享仍然有效`);
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.label;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : t`下载失败`);
+    } finally {
+      setDownloading(undefined);
+    }
+  };
   useEffect(() => {
     const abort = new AbortController();
     setData(undefined);
@@ -114,6 +149,33 @@ export const RecruitingJobPage = () => {
                     .join(' ')}
                 </StyledRecruitingTitle>
                 <p>{person.summary}</p>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                >
+                  {person.urls
+                    ?.filter((url) => /^https?:\/\//i.test(url))
+                    .map((url) => (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {url}
+                      </a>
+                    ))}
+                  {person.files?.map((file) => (
+                    <button
+                      key={file.fileId}
+                      disabled={Boolean(downloading) || !person.id}
+                      onClick={() =>
+                        person.id && void download(person.id, file)
+                      }
+                    >
+                      {t`下载`} {file.label}
+                    </button>
+                  ))}
+                </div>
                 <p>{person.skills?.join(' · ')}</p>
                 {person.experience?.map((line, j) => (
                   <p key={j}>{line}</p>
