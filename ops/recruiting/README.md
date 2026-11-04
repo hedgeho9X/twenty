@@ -6,6 +6,8 @@
 
 命令行仅依赖 Node 内置模块。npm 包入口为 `fanhan.mjs`；`schema --json` 与分组帮助不要求凭据。生产入口使用 HTTPS，地址由 FANHAN_BASE_URL 指定；仅明确连接 HTTP 测试或自建实例时设置 FANHAN_ALLOW_HTTP=1。可通过 auth login 保存本机 Keychain，或使用环境变量注入凭据。同人最多6份文件，重复 --file；候选人和每条JD都必须指定 --employment-type full_time|internship。
 
+`fanhan candidates files --id ID --json` 返回 `{candidateId, files: [{fileId, label}]}`，仅列出当前权限可见的候选人原件引用，不返回下载链接。使用 `fanhan candidates download --id ID --file-id FILE_ID --out ./简历.pdf` 将指定原件保存到显式路径，并返回 `{path, bytes}`。下载沿用当前身份的权限；原件缺失或已不属于候选人时返回错误，不覆盖已有文件，也不会从远程文件名推断保存路径。此功能不改变分享页的文件访问能力。
+
 以下是本仓库开发与部署说明，普通 CLI 使用者无需执行。
 
 # 本地官方源码环境
