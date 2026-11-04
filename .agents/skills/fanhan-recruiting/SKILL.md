@@ -16,7 +16,7 @@ CLI 版本要求：0.5.0。升级后先验证 `fanhan --version` 和 `fanhan aut
 - 用 `fanhan <组名> --help --json` 只读取当前需要的命令；`fanhan schema --json` 是完整的小型业务目录。
 - 入库：查公司、必要时创建 → `jobs import --company-id ID --employment-type full_time --text-file JD.txt --key KEY --wait`；简历用 `candidates upload --employment-type full_time --file 简历 --note-file 说明 --key KEY --wait`。
 - 历史重解析：`candidates reparse --id ID --batch-id 稳定批次标识 --wait` 复用候选人已有原件与身份，保留现有雇佣类型；不需要为同一人重复上传。失败用任务 ID 重试。新解析资料包含 `phone` 和可空链接数组 `urls`；无原件无法重解析，不虚构材料。
-- 结果工作流：`match results --query 关键词 --offset 0 --limit 50` 按候选人或岗位汇总，不把底层 PAIR 当作多个人。`--direction JOB_TO_CANDIDATES` 查岗位；返回 count 和 hasNextPage。可用 `--read read|unread`、`--status TODO|TO_CONTACT|CONTACTED|DISMISSED` 筛选。`match get --id ID` 看详情；用户要求标已读用 `match reviewed --id ID`。
+- 结果工作流：`match results --query 关键词 --offset 0 --limit 50` 按候选人或岗位汇总，不把底层 PAIR 当作多个人。`--direction JOB_TO_CANDIDATES` 查岗位；返回 count 和 hasNextPage。可用 `--read read|unread`、`--status TODO|TO_CONTACT|CONTACTED|DISMISSED` 筛选；`--from YYYY-MM-DD --to YYYY-MM-DD` 按北京时间日期范围查询，结束日期包含当天。`match get --id ID` 看详情；用户要求标已读用 `match reviewed --id ID`。
 - 跟进状态：`match workflow --id ID --status ...` 只更新结果工作流，不发送消息；仅凭阅读不能标记已联系，必须有实际联系事实或用户明确指示。
 - 匹配：`match candidate --id ID --wait` 或 `match job --id ID --wait`；`--targets ID,ID`限定池。指定组合用 `match pair`。详情可查看全部已评分结果；每次文案或分享最多选十项，默认选前五。外层列表不按分数排序；用户明确选择优先。
 - 查找：`search candidates|companies|jobs 关键词 [--limit N] [--cursor C] [--company-id ID] [--json]` 模糊查人、公司、JD（按权限，最多 50 条，返回 id 和少量字段；用 nextCursor 翻页）。先查到 id 再做匹配、原件下载或文案。

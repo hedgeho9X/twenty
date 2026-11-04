@@ -1,3 +1,7 @@
+import {
+  ResultInput,
+  ResultSelect,
+} from '@/recruiting/shared/components/ResultControls';
 import { ResultPagination } from '@/recruiting/shared/components/ResultPagination';
 import { recruitingRequest } from '@/recruiting/shared/api/request';
 import { MatchSelection } from './MatchSelection';
@@ -41,11 +45,13 @@ export const RecruitingMatchResults = ({
   const [pageSize, setPageSize] = useState(50);
   const [search, setSearch] = useState('');
   const [readFilter, setReadFilter] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [followFilter, setFollowFilter] = useState('');
   const [workflowError, setWorkflowError] = useState('');
   const [direction, setDirection] = useState('CANDIDATE_TO_JOBS');
   const list = useRecruitingQuery<RecruitingPage<RecruitingMatchRun>>(
-    `match-results?offset=${offset}&limit=${pageSize}&direction=${direction}&search=${encodeURIComponent(search)}&read=${readFilter}&followUp=${followFilter}`,
+    `match-results?offset=${offset}&limit=${pageSize}&direction=${direction}&search=${encodeURIComponent(search)}&read=${readFilter}&followUp=${followFilter}&from=${from}&to=${to}`,
     0,
     active && !runId,
   );
@@ -212,7 +218,16 @@ export const RecruitingMatchResults = ({
       (direction === 'CANDIDATE_TO_JOBS' && row.direction === 'PAIR'),
   );
   return (
-    <StyledRecruitingPanel>
+    <StyledRecruitingPanel
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        height: 'calc(100dvh - 160px)',
+        minHeight: 300,
+        boxSizing: 'border-box',
+      }}
+    >
       <StyledRecruitingRow style={{ justifyContent: 'space-between' }}>
         <StyledRecruitingTitle>{t`匹配结果`}</StyledRecruitingTitle>
         <StyledRecruitingRow>
@@ -240,9 +255,9 @@ export const RecruitingMatchResults = ({
       {list.error && (
         <StyledRecruitingError role="alert">{list.error}</StyledRecruitingError>
       )}
-      <input
+      <ResultInput
         aria-label="搜索匹配结果"
-        placeholder="搜索姓名或岗位"
+        placeholder="搜索姓名、岗位或公司"
         value={search}
         onChange={(event) => {
           setSearch(event.target.value);
@@ -250,7 +265,7 @@ export const RecruitingMatchResults = ({
         }}
       />
       <StyledRecruitingRow>
-        <select
+        <ResultSelect
           aria-label={t`阅读状态`}
           value={readFilter}
           onChange={(event) => {
@@ -261,8 +276,8 @@ export const RecruitingMatchResults = ({
           <option value="">{t`全部阅读状态`}</option>
           <option value="unread">{t`未读`}</option>
           <option value="read">{t`已读`}</option>
-        </select>
-        <select
+        </ResultSelect>
+        <ResultSelect
           aria-label={t`筛选跟进状态`}
           value={followFilter}
           onChange={(event) => {
@@ -275,7 +290,27 @@ export const RecruitingMatchResults = ({
           <option value="TO_CONTACT">{t`待联系`}</option>
           <option value="CONTACTED">{t`已联系`}</option>
           <option value="DISMISSED">{t`暂不推进`}</option>
-        </select>
+        </ResultSelect>
+        <ResultInput
+          aria-label={t`开始日期`}
+          title={t`开始日期`}
+          type="date"
+          value={from}
+          onChange={(event) => {
+            setFrom(event.target.value);
+            setOffset(0);
+          }}
+        />
+        <ResultInput
+          aria-label={t`结束日期`}
+          title={t`结束日期`}
+          type="date"
+          value={to}
+          onChange={(event) => {
+            setTo(event.target.value);
+            setOffset(0);
+          }}
+        />
       </StyledRecruitingRow>
       {workflowError && (
         <StyledRecruitingError role="alert">
@@ -289,8 +324,8 @@ export const RecruitingMatchResults = ({
         }}
         style={{
           overflow: 'auto',
-          maxHeight: 'calc(100vh - 340px)',
-          minHeight: 180,
+          flex: 1,
+          minHeight: 0,
         }}
       >
         <StyledRecruitingTable style={{ minWidth: 760 }}>
@@ -333,7 +368,7 @@ export const RecruitingMatchResults = ({
                   </StyledRecruitingStatus>
                 </td>
                 <td>
-                  <select
+                  <ResultSelect
                     aria-label={`${row.subjectLabel} 跟进状态`}
                     value={row.followUpStatus ?? 'TODO'}
                     style={{
@@ -378,7 +413,7 @@ export const RecruitingMatchResults = ({
                     <option value="TO_CONTACT">{t`待联系`}</option>
                     <option value="CONTACTED">{t`已联系`}</option>
                     <option value="DISMISSED">{t`暂不推进`}</option>
-                  </select>
+                  </ResultSelect>
                 </td>
                 <td>
                   {{

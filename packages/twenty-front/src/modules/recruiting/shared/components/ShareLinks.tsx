@@ -1,3 +1,4 @@
+import { ResultInput } from '@/recruiting/shared/components/ResultControls';
 /** Lists share subjects with compact actions and an optional link to their source match. */
 import { ResultPagination } from './ResultPagination';
 import { Button } from 'twenty-ui/primitives/input';
@@ -51,9 +52,18 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
     }
   };
   return (
-    <StyledRecruitingPanel>
+    <StyledRecruitingPanel
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        height: 'calc(100dvh - 160px)',
+        minHeight: 300,
+        boxSizing: 'border-box',
+      }}
+    >
       <StyledRecruitingTitle>分享链接</StyledRecruitingTitle>
-      <input
+      <ResultInput
         aria-label="搜索分享资料"
         placeholder="搜索分享对象或岗位"
         value={search}
@@ -64,9 +74,9 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
       />
       <div
         style={{
-          maxHeight: 'calc(100vh - 330px)',
+          flex: 1,
+          minHeight: 0,
           overflow: 'auto',
-          minHeight: 160,
         }}
       >
         <StyledRecruitingTable>

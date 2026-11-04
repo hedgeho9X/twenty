@@ -1,3 +1,7 @@
+import {
+  ResultInput,
+  ResultSelect,
+} from '@/recruiting/shared/components/ResultControls';
 /** Keeps result pagination visible and supports direct navigation without a wall of page buttons. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
@@ -40,7 +44,7 @@ export const ResultPagination = ({
       <span>
         {t`共 ${count} 条`} · {page} / {totalPages}
       </span>
-      <select
+      <ResultSelect
         aria-label={t`每页条数`}
         value={pageSize}
         onChange={(event) => onPageSize(Number(event.target.value))}
@@ -48,7 +52,7 @@ export const ResultPagination = ({
         {[20, 50, 100].map((size) => (
           <option key={size} value={size}>{t`每页 ${size} 条`}</option>
         ))}
-      </select>
+      </ResultSelect>
       <Button
         disabled={page <= 1}
         onClick={() => onPage(page - 1)}
@@ -77,7 +81,7 @@ export const ResultPagination = ({
             onPage(value);
         }}
       >
-        <input
+        <ResultInput
           aria-label={t`跳转页码`}
           type="number"
           min={1}

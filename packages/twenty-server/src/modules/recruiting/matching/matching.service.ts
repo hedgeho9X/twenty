@@ -190,13 +190,25 @@ export class RecruitingMatchingService {
     offset: number,
     limit: number,
     search = '',
-    filters: { read?: string; followUp?: string } = {},
+    filters: {
+      read?: string;
+      followUp?: string;
+      from?: string;
+      to?: string;
+    } = {},
   ) {
     if (
       !['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES'].includes(direction) ||
       !this.orm
     )
       throw new BadRequestException('匹配方向无效');
+    for (const date of [filters.from, filters.to])
+      if (
+        date &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+          !Number.isFinite(Date.parse(`${date}T00:00:00+08:00`)))
+      )
+        throw new BadRequestException('日期无效');
     const descriptors = await this.orm.executeInWorkspaceContext(async () => {
       return this.orm!.getRepositoryWithContextPermissions('recruitingMatchRun')
         .createQueryBuilder('run')
@@ -278,6 +290,17 @@ export class RecruitingMatchingService {
     const viewer = contentVersion(this.actors.capture(context));
     const visible = descriptors
       .filter((row) => {
+        const created = new Date(row.createdAt).getTime();
+        if (
+          filters.from &&
+          created < Date.parse(`${filters.from}T00:00:00+08:00`)
+        )
+          return false;
+        if (
+          filters.to &&
+          created >= Date.parse(`${filters.to}T00:00:00+08:00`) + 86400000
+        )
+          return false;
         const subject = subjects.get(row.subjectId);
         const read = Boolean(row.reviewedBy?.[viewer]);
         if (

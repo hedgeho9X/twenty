@@ -132,7 +132,7 @@ it.each([
       target: { value: direction },
     });
     expect(useRecruitingQuery).toHaveBeenCalledWith(
-      `match-results?offset=0&limit=50&direction=${direction}&search=&read=&followUp=`,
+      `match-results?offset=0&limit=50&direction=${direction}&search=&read=&followUp=&from=&to=`,
       0,
       true,
     );

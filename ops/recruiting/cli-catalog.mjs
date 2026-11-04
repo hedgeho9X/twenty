@@ -40,7 +40,7 @@ export const COMMANDS = {
   },
   match: {
     results:
-      '[--direction CANDIDATE_TO_JOBS|JOB_TO_CANDIDATES] [--query 关键词] [--offset N] [--limit N] [--read read|unread] [--status TODO|TO_CONTACT|CONTACTED|DISMISSED]',
+      '[--direction CANDIDATE_TO_JOBS|JOB_TO_CANDIDATES] [--query 关键词] [--offset N] [--limit N] [--read read|unread] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--status TODO|TO_CONTACT|CONTACTED|DISMISSED]',
     get: '--id 结果ID；读取全部匹配结果',
     reviewed: '--id 结果ID；标记当前身份已读',
     workflow:

@@ -589,6 +589,20 @@ it('paginates canonical subject results after native grouping, never mixing pair
   expect(builder.where).toHaveBeenCalledWith('"run"."direction" = :direction', {
     direction: 'CANDIDATE_TO_JOBS',
   });
+  expect(
+    (
+      await service.listGrouped(context, 'CANDIDATE_TO_JOBS', 0, 50, '', {
+        from: '2026-11-06',
+      })
+    ).count,
+  ).toBe(0);
+  expect(
+    (
+      await service.listGrouped(context, 'CANDIDATE_TO_JOBS', 0, 50, '', {
+        to: '2026-11-04',
+      })
+    ).count,
+  ).toBe(0);
   expect(result.count).toBe(1);
   expect(result.records).toHaveLength(1);
   expect(

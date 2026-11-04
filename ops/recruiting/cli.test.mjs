@@ -746,11 +746,16 @@ test('workflow CLI uses paginated result APIs and explicit reparse receipts', as
       '40',
       '--read',
       'unread',
+      '--from',
+      '2026-11-01',
+      '--to',
+      '2026-11-05',
     ]);
     const url = new URL(calls[0].url);
     assert.equal(url.pathname, '/recruiting/match-results');
     assert.equal(url.searchParams.get('search'), 'A & B');
     assert.equal(url.searchParams.get('limit'), '20');
+    assert.equal(url.searchParams.get('from'), '2026-11-01');
     await main([
       'candidates',
       'reparse',

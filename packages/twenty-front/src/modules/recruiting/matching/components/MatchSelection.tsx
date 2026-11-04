@@ -1,3 +1,4 @@
+import { ResultInput } from '@/recruiting/shared/components/ResultControls';
 import { MatchShareActions } from '@/recruiting/shared/components/MatchShareActions';
 /** Selects up to ten ranked results and generates a persistent editable communication draft. */
 import { useEffect, useState } from 'react';
@@ -176,7 +177,7 @@ export const MatchSelection = ({
   };
   return (
     <StyledRecruitingStack>
-      <input
+      <ResultInput
         aria-label={t`搜索匹配项`}
         placeholder={t`搜索岗位、公司或候选人`}
         value={search}

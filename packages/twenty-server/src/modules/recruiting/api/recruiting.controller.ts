@@ -668,6 +668,8 @@ export class RecruitingController {
     @Query('search') search = '',
     @Query('read') read?: string,
     @Query('followUp') followUp?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     return this.matching.listGrouped(
       buildWorkspaceAuthContextFromRequest(request),
@@ -675,7 +677,7 @@ export class RecruitingController {
       Math.max(0, Number.parseInt(offset, 10) || 0),
       Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 50)),
       search.slice(0, 100),
-      { read, followUp },
+      { read, followUp, from, to },
     );
   }
 

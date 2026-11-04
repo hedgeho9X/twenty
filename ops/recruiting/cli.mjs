@@ -277,6 +277,8 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       limit: { type: 'string' },
       direction: { type: 'string', default: 'CANDIDATE_TO_JOBS' },
       read: { type: 'string' },
+      from: { type: 'string' },
+      to: { type: 'string' },
       cursor: { type: 'string' },
       'key-stdin': { type: 'boolean' },
       'match-run-id': { type: 'string' },
@@ -459,6 +461,8 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       search: values.query ?? '',
       read: values.read ?? '',
       followUp: values.status ?? '',
+      from: values.from ?? '',
+      to: values.to ?? '',
     });
     result = await client.request(`/recruiting/match-results?${parameters}`);
   } else if (
