@@ -11,16 +11,17 @@ test('remote HTTP requires explicit opt-in and still rejects embedded credential
   const original = process.env.FANHAN_ALLOW_HTTP;
   try {
     delete process.env.FANHAN_ALLOW_HTTP;
-    assert.throws(() => apiOrigin('http://150.158.164.85'));
+    assert.equal(apiOrigin('https://43.136.55.30'), 'https://43.136.55.30');
+    assert.throws(() => apiOrigin('http://43.136.55.30'));
     process.env.FANHAN_ALLOW_HTTP = '1';
-    assert.equal(apiOrigin('http://150.158.164.85'), 'http://150.158.164.85');
+    assert.equal(apiOrigin('http://43.136.55.30'), 'http://43.136.55.30');
     assert.doesNotThrow(() =>
       createRecruitingClient({
-        baseUrl: 'http://150.158.164.85',
+        baseUrl: 'http://43.136.55.30',
         token: 'synthetic',
       }),
     );
-    assert.throws(() => apiOrigin('http://secret@150.158.164.85'));
+    assert.throws(() => apiOrigin('http://secret@43.136.55.30'));
   } finally {
     if (original === undefined) delete process.env.FANHAN_ALLOW_HTTP;
     else process.env.FANHAN_ALLOW_HTTP = original;

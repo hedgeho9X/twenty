@@ -2,7 +2,7 @@
 export const FANHAN_RELEASE_URL =
   'https://github.com/hedgeho9X/twenty/releases/download/fanhan-cli-v0.3.0';
 
-/** Supports the temporary HTTP IP entry point, where the Clipboard API is unavailable. */
+/** Supports HTTP test or self-hosted origins, where the Clipboard API is unavailable. */
 export const copyFanhanAgentPrompt = async (text: string) => {
   if (navigator.clipboard?.writeText)
     return navigator.clipboard.writeText(text);
