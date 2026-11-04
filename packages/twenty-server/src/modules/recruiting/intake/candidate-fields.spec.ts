@@ -4,7 +4,9 @@ import { candidateProfileSchema } from './schemas';
 
 describe('candidate contact projection', () => {
   it('marks a successfully stored extraction complete in the native candidate table', () => {
-    expect(candidateFields({ summary: 'parsed' }).candidateAiStatus).toBe('COMPLETED');
+    expect(candidateFields({ summary: 'parsed' }).candidateAiStatus).toBe(
+      'COMPLETED',
+    );
   });
   it('projects an international number into native phone components', () => {
     expect(candidateFields({ phone: '+86 138 0013 8000' }).phones).toEqual({
@@ -20,6 +22,13 @@ describe('candidate contact projection', () => {
       primaryPhoneCallingCode: '',
       primaryPhoneCountryCode: '',
     });
+  });
+  it('retains a parenthesized national number without inventing its country', () => {
+    expect(candidateFields({ phone: '(202) 555-0123' }).phones).toMatchObject({
+      primaryPhoneNumber: '(202) 555-0123',
+      primaryPhoneCallingCode: '',
+    });
+    expect(candidateFields({ phone: '12' }).phones).toBeUndefined();
   });
   it('does not overwrite a manual primary number or erase it on missing extraction', () => {
     const current = { phones: { primaryPhoneNumber: '12345678' } };
