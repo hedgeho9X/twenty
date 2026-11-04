@@ -11,6 +11,7 @@ export type RecruitingMatchRun = {
   source?: 'manual' | 'api' | 'email' | 'system';
   createdAt: string;
   reviewedAt?: string;
+  followUpStatus?: string;
   error?: string;
   billing?: { estimatedUsd: number; unknownUsage: number };
   counts: {

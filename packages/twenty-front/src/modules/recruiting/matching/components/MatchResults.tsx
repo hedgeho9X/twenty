@@ -1,3 +1,5 @@
+import { ResultPagination } from '@/recruiting/shared/components/ResultPagination';
+import { recruitingRequest } from '@/recruiting/shared/api/request';
 import { MatchSelection } from './MatchSelection';
 /** Shows matching history and a focused subject detail with current ranked results. */
 import { useEffect, useState } from 'react';
@@ -18,6 +20,7 @@ import {
   StyledRecruitingStack,
   StyledRecruitingTable,
   StyledRecruitingTitle,
+  StyledRecruitingStatus,
 } from '@/recruiting/shared/styles';
 
 /** Filters direction in the toolbar and preserves explicit warnings only when results are incomplete. */
@@ -33,9 +36,14 @@ export const RecruitingMatchResults = ({
   const [finished, setFinished] = useState(false);
   const [runId, setRunId] = useState(initialRunId);
   const [offset, setOffset] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const [search, setSearch] = useState('');
+  const [readFilter, setReadFilter] = useState('');
+  const [followFilter, setFollowFilter] = useState('');
+  const [workflowError, setWorkflowError] = useState('');
   const [direction, setDirection] = useState('CANDIDATE_TO_JOBS');
   const list = useRecruitingQuery<RecruitingPage<RecruitingMatchRun>>(
-    `match-runs?offset=${offset}&direction=${direction}&terminalHistory=true`,
+    `match-results?offset=${offset}&limit=${pageSize}&direction=${direction}&search=${encodeURIComponent(search)}&read=${readFilter}&followUp=${followFilter}`,
     0,
     active && !runId,
   );
@@ -195,13 +203,63 @@ export const RecruitingMatchResults = ({
       {list.error && (
         <StyledRecruitingError role="alert">{list.error}</StyledRecruitingError>
       )}
-      <div style={{ overflowX: 'auto' }}>
+      <input
+        aria-label="搜索匹配结果"
+        placeholder="搜索姓名或岗位"
+        value={search}
+        onChange={(event) => {
+          setSearch(event.target.value);
+          setOffset(0);
+        }}
+      />
+      <StyledRecruitingRow>
+        <select
+          aria-label={t`阅读状态`}
+          value={readFilter}
+          onChange={(event) => {
+            setReadFilter(event.target.value);
+            setOffset(0);
+          }}
+        >
+          <option value="">{t`全部阅读状态`}</option>
+          <option value="unread">{t`未读`}</option>
+          <option value="read">{t`已读`}</option>
+        </select>
+        <select
+          aria-label={t`筛选跟进状态`}
+          value={followFilter}
+          onChange={(event) => {
+            setFollowFilter(event.target.value);
+            setOffset(0);
+          }}
+        >
+          <option value="">{t`全部跟进状态`}</option>
+          <option value="TODO">{t`待处理`}</option>
+          <option value="TO_CONTACT">{t`待联系`}</option>
+          <option value="CONTACTED">{t`已联系`}</option>
+          <option value="DISMISSED">{t`暂不推进`}</option>
+        </select>
+      </StyledRecruitingRow>
+      {workflowError && (
+        <StyledRecruitingError role="alert">
+          {workflowError}
+        </StyledRecruitingError>
+      )}
+      <div
+        style={{
+          overflow: 'auto',
+          maxHeight: 'calc(100vh - 340px)',
+          minHeight: 180,
+        }}
+      >
         <StyledRecruitingTable style={{ minWidth: 760 }}>
           <thead>
             <tr>
               <th>{direction === 'JOB_TO_CANDIDATES' ? t`岗位` : t`姓名`}</th>
               {direction !== 'JOB_TO_CANDIDATES' && <th>{t`期望岗位`}</th>}
-              <th>{t`状态`}</th>
+              <th>{t`阅读`}</th>
+              <th>{t`跟进状态`}</th>
+              <th>{t`匹配状态`}</th>
               <th>{t`时间`}</th>
               <th />
             </tr>
@@ -226,7 +284,61 @@ export const RecruitingMatchResults = ({
                     </span>
                   </td>
                 )}
-                <td>{row.status}</td>
+                <td>
+                  <StyledRecruitingStatus
+                    data-tone={row.reviewedAt ? 'neutral' : 'blue'}
+                  >
+                    {row.reviewedAt ? t`已读` : t`未读`}
+                  </StyledRecruitingStatus>
+                </td>
+                <td>
+                  <select
+                    aria-label={`${row.subjectLabel} 跟进状态`}
+                    value={row.followUpStatus ?? 'TODO'}
+                    style={{
+                      color: (
+                        {
+                          TODO: '#666',
+                          TO_CONTACT: '#a35e00',
+                          CONTACTED: '#16814a',
+                          DISMISSED: '#666',
+                        } as Record<string, string>
+                      )[row.followUpStatus ?? 'TODO'],
+                      borderRadius: 6,
+                      padding: 4,
+                    }}
+                    onChange={async (event) => {
+                      try {
+                        await recruitingRequest(
+                          `match-runs/${row.runId}/workflow`,
+                          {
+                            method: 'POST',
+                            body: JSON.stringify({
+                              status: event.target.value,
+                            }),
+                          },
+                        );
+                        await list.reload();
+                      } catch {
+                        setWorkflowError(t`跟进状态未保存，请重试`);
+                      }
+                    }}
+                  >
+                    <option value="TODO">{t`待处理`}</option>
+                    <option value="TO_CONTACT">{t`待联系`}</option>
+                    <option value="CONTACTED">{t`已联系`}</option>
+                    <option value="DISMISSED">{t`暂不推进`}</option>
+                  </select>
+                </td>
+                <td>
+                  {{
+                    COMPLETED: t`已完成`,
+                    PARTIAL: t`部分完成`,
+                    NO_RESULTS: t`暂无结果`,
+                    FAILED: t`处理失败`,
+                    SUPERSEDED: t`资料已更新`,
+                  }[row.status] ?? row.status}
+                </td>
                 <td
                   style={{
                     whiteSpace: 'nowrap',
@@ -249,7 +361,17 @@ export const RecruitingMatchResults = ({
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => setRunId(row.runId)}
+                    onClick={async () => {
+                      try {
+                        await recruitingRequest(
+                          `match-runs/${row.runId}/reviewed`,
+                          { method: 'POST' },
+                        );
+                      } catch {
+                        setWorkflowError(t`阅读状态未保存`);
+                      }
+                      setRunId(row.runId);
+                    }}
                   >{t`查看结果`}</Button>
                 </td>
               </tr>
@@ -260,16 +382,16 @@ export const RecruitingMatchResults = ({
       {!list.loading && !rows.length && (
         <StyledRecruitingMuted>{t`暂无匹配记录`}</StyledRecruitingMuted>
       )}
-      <StyledRecruitingRow>
-        <Button
-          disabled={!offset}
-          onClick={() => setOffset(Math.max(0, offset - 50))}
-        >{t`上一页`}</Button>
-        <Button
-          disabled={!list.data?.hasNextPage}
-          onClick={() => setOffset(offset + 50)}
-        >{t`下一页`}</Button>
-      </StyledRecruitingRow>
+      <ResultPagination
+        count={list.data?.count ?? 0}
+        page={Math.floor(offset / pageSize) + 1}
+        pageSize={pageSize}
+        onPage={(page) => setOffset((page - 1) * pageSize)}
+        onPageSize={(size) => {
+          setPageSize(size);
+          setOffset(0);
+        }}
+      />
     </StyledRecruitingPanel>
   );
 };

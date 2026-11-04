@@ -6,6 +6,9 @@ import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery
 import { type RecruitingMatchRun } from '@/recruiting/matching/types/MatchRun';
 
 jest.mock('@/recruiting/shared/hooks/useRecruitingQuery');
+jest.mock('@/recruiting/shared/api/request', () => ({
+  recruitingRequest: jest.fn().mockResolvedValue({}),
+}));
 jest.mock('../MatchSelection', () => ({
   MatchSelection: jest.fn(() => <button>生成沟通文案</button>),
 }));
@@ -20,6 +23,7 @@ jest.mock('@/recruiting/shared/styles', () => ({
   StyledRecruitingStack: 'div',
   StyledRecruitingTable: 'table',
   StyledRecruitingTitle: 'h2',
+  StyledRecruitingStatus: 'span',
 }));
 jest.mock('twenty-ui/icon', () => ({
   IconRefresh: () => null,
@@ -105,7 +109,7 @@ it.each([
   ['JOB_TO_CANDIDATES', 'FAILED'],
 ])(
   'recovers %s partial history containing %s after remount',
-  (direction, unscoredStatus) => {
+  async (direction, unscoredStatus) => {
     const run = makeRun(direction, unscoredStatus);
     jest
       .mocked(useRecruitingQuery)
@@ -128,14 +132,15 @@ it.each([
       target: { value: direction },
     });
     expect(useRecruitingQuery).toHaveBeenCalledWith(
-      `match-runs?offset=0&direction=${direction}&terminalHistory=true`,
+      `match-results?offset=0&limit=50&direction=${direction}&search=&read=&followUp=`,
       0,
       true,
     );
     expect(
-      within(screen.getByRole('table')).getByText('PARTIAL'),
+      within(screen.getByRole('table')).getByText('部分完成'),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '查看结果' }));
+    await screen.findByText('匹配值：3.25 / 4');
     expect(screen.getByText('匹配值：3.25 / 4')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '岗位0' })).toHaveAttribute(
       'href',
