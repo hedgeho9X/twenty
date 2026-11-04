@@ -49,11 +49,12 @@ export const RecruitingMatchResults = ({
   const [to, setTo] = useState('');
   const [followFilter, setFollowFilter] = useState('');
   const [workflowError, setWorkflowError] = useState('');
+  const [viewedIds, setViewedIds] = useState<Set<string>>(() => new Set());
   const [direction, setDirection] = useState('CANDIDATE_TO_JOBS');
   const list = useRecruitingQuery<RecruitingPage<RecruitingMatchRun>>(
     `match-results?offset=${offset}&limit=${pageSize}&direction=${direction}&search=${encodeURIComponent(search)}&read=${readFilter}&followUp=${followFilter}&from=${from}&to=${to}`,
     0,
-    active && !runId,
+    active,
   );
   const detail = useRecruitingQuery<RecruitingMatchRun>(
     runId ? `match-runs/${runId}` : null,
@@ -74,6 +75,7 @@ export const RecruitingMatchResults = ({
   const openResult = async (id: string) => {
     try {
       await recruitingRequest(`match-runs/${id}/reviewed`, { method: 'POST' });
+      setViewedIds((previous) => new Set([...previous, id]));
     } catch {
       setWorkflowError(t`阅读状态未保存`);
     }
@@ -82,7 +84,8 @@ export const RecruitingMatchResults = ({
   const navigationRows = list.data?.records ?? [];
   const currentIndex = navigationRows.findIndex((row) => row.runId === runId);
   const nextUnread = navigationRows.find(
-    (row, index) => index > currentIndex && !row.reviewedAt,
+    (row, index) =>
+      index > currentIndex && !row.reviewedAt && !viewedIds.has(row.runId),
   );
   const run = detail.error ? undefined : detail.data;
   const notice = run ? matchResultNotice(run) : undefined;
@@ -362,9 +365,15 @@ export const RecruitingMatchResults = ({
                 )}
                 <td>
                   <StyledRecruitingStatus
-                    data-tone={row.reviewedAt ? 'neutral' : 'blue'}
+                    data-tone={
+                      row.reviewedAt || viewedIds.has(row.runId)
+                        ? 'neutral'
+                        : 'blue'
+                    }
                   >
-                    {row.reviewedAt ? t`已读` : t`未读`}
+                    {row.reviewedAt || viewedIds.has(row.runId)
+                      ? t`已读`
+                      : t`未读`}
                   </StyledRecruitingStatus>
                 </td>
                 <td>

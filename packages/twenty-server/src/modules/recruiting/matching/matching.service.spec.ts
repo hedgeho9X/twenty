@@ -609,3 +609,21 @@ it('paginates canonical subject results after native grouping, never mixing pair
     (await service.listGrouped(context, 'CANDIDATE_TO_JOBS', 50, 50)).records,
   ).toEqual([]);
 });
+
+it('stores workflow separately from scoring and rejects unknown workflow states', async () => {
+  const { service, records, evaluator, queue } = setup(1);
+  await service.workflow(context, 'run', 'TO_CONTACT');
+  expect(records.update).toHaveBeenCalledWith(
+    context,
+    'recruitingMatchRun',
+    'run',
+    expect.objectContaining({
+      payload: expect.objectContaining({ followUpStatus: 'TO_CONTACT' }),
+    }),
+  );
+  expect(evaluator.run).not.toHaveBeenCalled();
+  expect(queue.add).not.toHaveBeenCalled();
+  await expect(
+    service.workflow(context, 'run', 'AUTOMATICALLY_HIRED'),
+  ).rejects.toThrow('跟进状态无效');
+});

@@ -169,6 +169,8 @@ it.each([
       0,
       true,
     );
+    fireEvent.click(screen.getByRole('button', { name: '返回匹配列表' }));
+    expect(within(screen.getByRole('table')).getByText('已读')).toBeInTheDocument();
   },
 );
 
