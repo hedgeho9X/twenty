@@ -33,7 +33,7 @@ export async function matchPool({ client, subjects, targets, direction, checkpoi
         }
         const deadline = Date.now() + 1800000;
         while (Date.now() < deadline) {
-          const result = await client.request(`/recruiting/match-runs/${row.runId}`);
+          const result = await client.request(`/recruiting/match-runs/${row.runId}/summary`);
           row.status = result.status; row.counts = result.counts;
           await save();
           if (!['QUEUED', 'PROCESSING'].includes(row.status)) break;

@@ -25,3 +25,16 @@ test('deduplicates the plan and resumes without resubmitting completed work', as
 test('rejects invalid concurrency before making requests', async () => {
   await assert.rejects(reparseCandidates({ client: {}, ids: [id], concurrency: 9 }), /Concurrency/);
 });
+test('a slow receipt leaves a checkpoint while other candidates are still dispatched', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'reparse-pending-'));
+  const otherId = '22222222-2222-4222-8222-222222222222';
+  const calls = [];
+  const client = { post: async (path) => { calls.push(path); return { intakeId: path }; }, request: async () => ({ state: 'PROCESSING' }) };
+  try {
+    await reparseCandidates({ client, ids: [id, otherId], batchKey: 'slow', checkpoint: join(dir, 'state'), apply: true, concurrency: 1, timeoutMs: 0, log: () => {} });
+    assert.equal(calls.length, 2);
+    const state = JSON.parse(await readFile(join(dir, 'state'), 'utf8'));
+    assert.equal(Object.keys(state.records).length, 2);
+    assert.equal(state.records[id].state, 'QUEUED');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

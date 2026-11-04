@@ -26,7 +26,7 @@ while (!stopped) {
   const parsed = JSON.parse(await readFile(values.input, 'utf8'));
   const ready = [...new Set([...Object.entries(parsed.records).filter(([, row]) => row.state === 'COMPLETED').map(([id]) => id), ...extra])];
   for (const record of Object.values(state.records).filter((row) => !terminal.has(row.status))) {
-    const result = await client.request(`/recruiting/match-runs/${record.runId}`);
+    const result = await client.request(`/recruiting/match-runs/${record.runId}/summary`);
     record.status = result.status;
     record.counts = result.counts;
     if (terminal.has(record.status)) console.log(JSON.stringify({ event: 'matched', ...record }));

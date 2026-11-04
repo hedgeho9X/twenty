@@ -29,7 +29,7 @@ export async function reparseCandidates({ client, ids, batchKey, checkpoint, con
     await Promise.all(Array.from({ length: concurrency }, async () => {
       while (!stopped && index < unique.length) {
         const id = unique[index++];
-        if (state.records[id]?.state === 'COMPLETED') continue;
+        if (['COMPLETED', 'NEEDS_REVIEW', 'FAILED'].includes(state.records[id]?.state)) continue;
         try {
           let record = state.records[id];
           if (!record?.intakeId) {
@@ -46,7 +46,11 @@ export async function reparseCandidates({ client, ids, batchKey, checkpoint, con
             if (['COMPLETED', 'NEEDS_REVIEW', 'FAILED'].includes(task.state)) break;
             await pause(pollMs);
           }
-          if (!['COMPLETED', 'NEEDS_REVIEW', 'FAILED'].includes(record.state)) throw new Error('Task still pending; resume checkpoint');
+          if (!['COMPLETED', 'NEEDS_REVIEW', 'FAILED'].includes(record.state)) {
+            // A slow receipt stays resumable without blocking dispatch of the rest of the pool.
+            log(JSON.stringify({ event: 'pending', candidateId: id, ...record }));
+            continue;
+          }
           log(JSON.stringify({ event: 'candidate', candidateId: id, ...record }));
         } catch (error) {
           stopped = true;
