@@ -95,7 +95,8 @@ export const RecruitingMatchResults = ({
     [running, setRunning] = useState(true);
   const [lastPage, setLastPage] = useState<ResultPage>();
   const scrollRoot = useRef<HTMLDivElement>(null),
-    scrollTop = useRef(0);
+    scrollTop = useRef(0),
+    scrollLeft = useRef(0);
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search), 250);
     return () => clearTimeout(timer);
@@ -131,7 +132,10 @@ export const RecruitingMatchResults = ({
       const viewport = scrollRoot.current?.querySelector(
         '[data-radix-scroll-area-viewport]',
       );
-      if (viewport) viewport.scrollTop = scrollTop.current;
+      if (viewport) {
+        viewport.scrollTop = scrollTop.current;
+        viewport.scrollLeft = scrollLeft.current;
+      }
     }
   }, [runId, list.data]);
   const rows = list.data?.records ?? [];
@@ -418,18 +422,21 @@ export const RecruitingMatchResults = ({
         ref={scrollRoot}
         className="min-h-0 flex-1"
         onScrollCapture={(event) => {
-          if (event.target instanceof HTMLElement)
+          if (event.target instanceof HTMLElement) {
             scrollTop.current = event.target.scrollTop;
+            scrollLeft.current = event.target.scrollLeft;
+          }
         }}
       >
         {list.loading ? (
           <LoadingRows />
         ) : (
           <Table
+            containerClassName="overflow-visible"
             className="recruiting-results-table"
             data-direction={direction}
           >
-            <TableHeader className="sticky top-0 bg-background">
+            <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
                 <TableHead>
                   {direction === 'JOB_TO_CANDIDATES' ? '岗位' : '候选人'}

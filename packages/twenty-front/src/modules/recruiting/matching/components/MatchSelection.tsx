@@ -199,7 +199,10 @@ export const MatchSelection = ({
         />
       )}
       <div style={{ maxHeight: '55vh', overflow: 'auto' }}>
-        <StyledRecruitingTable className="recruiting-recommendations-table">
+        <StyledRecruitingTable
+          className="recruiting-recommendations-table"
+          containerClassName="overflow-visible"
+        >
           <TableHeader>
             <TableRow>
               <TableHead>
@@ -267,7 +270,10 @@ export const MatchSelection = ({
                     {pair.score?.toFixed(2)} / 4
                     {pair.longContext && (
                       <div>
-                        <ContextBadge variant="warning" title="长材料评分，需人工复核">
+                        <ContextBadge
+                          variant="warning"
+                          title="长材料评分，需人工复核"
+                        >
                           长材料
                         </ContextBadge>
                       </div>

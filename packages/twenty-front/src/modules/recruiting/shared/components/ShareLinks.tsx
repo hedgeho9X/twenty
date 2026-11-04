@@ -1,3 +1,5 @@
+import { Skeleton } from '@/recruiting/shadcn/ui/skeleton';
+import { Alert, AlertDescription } from '@/recruiting/shadcn/ui/alert';
 import {
   TableHeader,
   TableBody,
@@ -42,7 +44,7 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
     0,
     active,
   );
-  const rows = query.error ? [] : (query.data?.records ?? []);
+  const rows = query.error || query.loading ? [] : (query.data?.records ?? []);
   const currentPage = page;
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState<string>();
@@ -64,8 +66,8 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
-        height: 'calc(100dvh - 160px)',
-        minHeight: 300,
+        height: '100%',
+        minHeight: 0,
         boxSizing: 'border-box',
       }}
     >
@@ -86,7 +88,7 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
           overflow: 'auto',
         }}
       >
-        <StyledRecruitingTable>
+        <StyledRecruitingTable containerClassName="overflow-visible">
           <TableHeader>
             <TableRow>
               <TableHead>分享对象</TableHead>
@@ -95,6 +97,15 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {query.loading && (
+              <TableRow>
+                <TableCell colSpan={3}>
+                  <div role="status" aria-label="正在加载分享链接">
+                    <Skeleton className="h-16 w-full" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
             {rows.map((row) => (
               <TableRow key={row.key}>
                 <TableCell>
@@ -188,10 +199,13 @@ export const ShareLinks = ({ active }: { active: boolean }) => {
           setPage(1);
         }}
       />
-      {!query.loading && !rows.length && <p>暂无分享链接</p>}
-      {(message || query.error) && (
-        <p role="status">{message || query.error}</p>
+      {!query.loading && !query.error && !rows.length && <p>暂无分享链接</p>}
+      {query.error && (
+        <Alert variant="destructive">
+          <AlertDescription>{query.error}</AlertDescription>
+        </Alert>
       )}
+      {message && <p role="status">{message}</p>}
     </StyledRecruitingPanel>
   );
 };

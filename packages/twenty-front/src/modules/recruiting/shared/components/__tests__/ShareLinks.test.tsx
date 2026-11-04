@@ -79,3 +79,32 @@ it('shows the matching subject and serializable icon actions instead of a wall o
     method: 'POST',
   });
 });
+
+it('shows a loading indicator instead of an empty share result during a request', () => {
+  jest
+    .mocked(useRecruitingQuery)
+    .mockReturnValue({
+      data: undefined,
+      loading: true,
+      error: '',
+      reload: jest.fn(),
+    });
+  render(<ShareLinks active />);
+  expect(
+    screen.getByRole('status', { name: '正在加载分享链接' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText('暂无分享链接')).not.toBeInTheDocument();
+});
+it('does not mislabel a permission failure as an empty share list', () => {
+  jest
+    .mocked(useRecruitingQuery)
+    .mockReturnValue({
+      data: undefined,
+      loading: false,
+      error: '当前无权读取分享',
+      reload: jest.fn(),
+    });
+  render(<ShareLinks active />);
+  expect(screen.getByRole('alert')).toHaveTextContent('当前无权读取分享');
+  expect(screen.queryByText('暂无分享链接')).not.toBeInTheDocument();
+});
