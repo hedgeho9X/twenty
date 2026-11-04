@@ -467,7 +467,7 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
     result = await client.request(`/recruiting/match-results?${parameters}`);
   } else if (
     group === 'match' &&
-    ['get', 'reviewed', 'workflow'].includes(action)
+    ['get', 'summary', 'reviewed', 'workflow'].includes(action)
   ) {
     const path = `match-runs/${encodeURIComponent(required('id'))}`;
     if (
@@ -475,9 +475,23 @@ export const main = async (arguments_ = process.argv.slice(2)) => {
       !['TODO', 'TO_CONTACT', 'CONTACTED', 'DISMISSED'].includes(values.status)
     )
       throw new Error('Invalid --status');
+    const pageOffset = Number(values.offset),
+      pageLimit = Number(values.limit ?? 20);
+    if (
+      !Number.isSafeInteger(pageOffset) ||
+      pageOffset < 0 ||
+      !Number.isSafeInteger(pageLimit) ||
+      pageLimit < 1 ||
+      pageLimit > 100
+    )
+      throw new Error('Use nonnegative --offset and --limit 1..100');
     result =
-      action === 'get'
-        ? await client.request(`/recruiting/${path}`)
+      action === 'get' || action === 'summary'
+        ? await client.request(
+            action === 'summary'
+              ? `/recruiting/${path}/summary`
+              : `/recruiting/${path}?offset=${pageOffset}&limit=${pageLimit}`,
+          )
         : await client.post(
             `${path}/${action}`,
             action === 'workflow' ? { status: values.status } : {},

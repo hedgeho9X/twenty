@@ -41,7 +41,8 @@ export const COMMANDS = {
   match: {
     results:
       '[--direction CANDIDATE_TO_JOBS|JOB_TO_CANDIDATES] [--query 关键词] [--offset N] [--limit N] [--read read|unread] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--status TODO|TO_CONTACT|CONTACTED|DISMISSED]',
-    get: '--id 结果ID；读取全部匹配结果',
+    get: '--id 结果ID [--offset N] [--limit N]；逐页读取匹配结果',
+    summary: '--id 结果ID；只读取轻量进度摘要',
     reviewed: '--id 结果ID；标记当前身份已读',
     workflow:
       '--id 结果ID --status TODO|TO_CONTACT|CONTACTED|DISMISSED；更新跟进状态',

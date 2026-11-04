@@ -21,6 +21,7 @@ import {
   buildCandidateMatchContext,
 } from '../matching/domain/match-context';
 
+import { RecruitingMatchingService } from '../matching/matching.service';
 import { RecruitingCandidateFilesService } from '../files/candidate-files.service';
 
 const SHARE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -48,6 +49,7 @@ export class RecruitingJobPageService {
     private readonly links: CacheStorageService,
     @Optional()
     private readonly candidateFiles?: RecruitingCandidateFilesService,
+    @Optional() private readonly matching?: RecruitingMatchingService,
   ) {}
   /** Creates a purpose-bound link after checking the publisher's current access to every selected job. */
   async create(
@@ -307,6 +309,12 @@ export class RecruitingJobPageService {
       candidateIds.some((id) => !allowedCandidates.has(id))
     )
       throw new BadRequestException('分享资料不属于此匹配结果');
+    const selectedIds =
+      payload.input.direction === 'JOB_TO_CANDIDATES' ? candidateIds : jobIds;
+    if (selectedIds.length) {
+      if (!this.matching) throw new BadRequestException('匹配服务尚未就绪');
+      await this.matching.selection(context, matchRunId, selectedIds);
+    }
     return {
       matchRunId,
       subjectId: payload.input.subjectId,

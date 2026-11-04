@@ -18,7 +18,7 @@ const setup = (states: { status: string; complete: boolean }[]) => {
     })),
   };
   const matching = {
-    one: jest.fn(async (_c, id: string) => ({
+    summary: jest.fn(async (_c, id: string) => ({
       ...states[Number(id.split('-')[1])],
       runId: id,
       counts: { processed: 2, total: 4 },

@@ -2,6 +2,7 @@ import { getMatchBilling } from './domain/match-billing';
 /** Coordinates independent matching runs; stored candidates are never rolled back by scoring failures. */
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   Optional,
@@ -345,7 +346,7 @@ export class RecruitingMatchingService {
   async workflow(context: WorkspaceAuthContext, id: string, status: string) {
     if (!['TODO', 'TO_CONTACT', 'CONTACTED', 'DISMISSED'].includes(status))
       throw new BadRequestException('跟进状态无效');
-    await this.one(context, id);
+    await this.summary(context, id);
     const run = await this.records.one(context, 'recruitingMatchRun', id);
     return this.receipt(
       await this.records.update(context, 'recruitingMatchRun', id, {
@@ -442,6 +443,228 @@ export class RecruitingMatchingService {
       }
     }
     return { ...page, records: visible };
+  }
+
+  /** Loads the header without hydrating or re-evaluating the target pool. */
+  async summary(context: WorkspaceAuthContext, id: string) {
+    const run = await this.records.one(context, 'recruitingMatchRun', id);
+    const payload = this.payload(run);
+    const object =
+      payload.input.direction === 'JOB_TO_CANDIDATES'
+        ? 'recruitmentJob'
+        : 'person';
+    const subjects = await this.metadataByIds(context, object, [
+      payload.input.subjectId,
+    ]);
+    const subject = subjects.get(payload.input.subjectId);
+    if (!subject) throw new NotFoundException('来源记录不存在或当前无权访问');
+    return {
+      ...this.receipt(run, context),
+      subjectLabel: this.recordLabel(subject.name),
+      executionComplete: !['QUEUED', 'PROCESSING'].includes(String(run.status)),
+      complete: ['COMPLETED', 'NO_RESULTS'].includes(String(run.status)),
+    };
+  }
+
+  /** Fetches only lightweight identity fields while retaining native row and field permissions. */
+  private async metadataByIds(
+    context: WorkspaceAuthContext,
+    object: string,
+    ids: string[],
+  ) {
+    const result = new Map<string, RecruitingRecord>();
+    const unique = [...new Set(ids)];
+    const select =
+      object === 'person'
+        ? ['id', 'name', 'contactRoles']
+        : object === 'recruitmentJob'
+          ? ['id', 'name', 'companyId']
+          : ['id', 'name'];
+    for (let index = 0; index < unique.length; index += 100) {
+      const page = await this.records.list(context, object, {
+        filter: { id: { in: unique.slice(index, index + 100) } },
+        select,
+        limit: 100,
+      });
+      for (const row of page.records as RecruitingRecord[])
+        result.set(row.id, row);
+    }
+    return result;
+  }
+
+  /** Formats native names without loading resume bodies for search. */
+  private recordLabel(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (!value || typeof value !== 'object') return '';
+    const name = value as { firstName?: string; lastName?: string };
+    return [name.firstName, name.lastName].filter(Boolean).join(' ');
+  }
+
+  /** Searches lightweight identities and validates full source versions only for the requested page. */
+  async resultPage(
+    context: WorkspaceAuthContext,
+    id: string,
+    offset = 0,
+    limit = 20,
+    search = '',
+    status = 'ALL',
+  ) {
+    if (
+      !['ALL', 'SCORED', 'EXCLUDED', 'NEEDS_REVIEW', 'FAILED'].includes(status)
+    )
+      throw new BadRequestException('结果状态无效');
+    offset = Math.max(0, Math.floor(offset));
+    limit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const run = await this.records.one(context, 'recruitingMatchRun', id);
+    const payload = this.payload(run);
+    await this.records.one(
+      context,
+      payload.input.direction === 'JOB_TO_CANDIDATES'
+        ? 'recruitmentJob'
+        : 'person',
+      payload.input.subjectId,
+    );
+    const raw = payload.results.filter(
+      (row) => status === 'ALL' || row.status === status,
+    );
+    const [candidateMetadata, jobMetadata] = await Promise.all([
+      this.metadataByIds(
+        context,
+        'person',
+        raw.map((row) => row.candidateId),
+      ),
+      this.metadataByIds(
+        context,
+        'recruitmentJob',
+        raw.map((row) => row.jobId),
+      ),
+    ]);
+    const companyMetadata = await this.metadataByIds(
+      context,
+      'company',
+      [...jobMetadata.values()].flatMap((row) =>
+        typeof row.companyId === 'string' ? [row.companyId] : [],
+      ),
+    );
+    const query = search.trim().toLocaleLowerCase();
+    const visible = raw
+      .filter((row) => {
+        const person = candidateMetadata.get(row.candidateId),
+          job = jobMetadata.get(row.jobId);
+        if (!person || !this.isCandidate(person) || !job) return false;
+        const company =
+          typeof job.companyId === 'string'
+            ? companyMetadata.get(job.companyId)
+            : undefined;
+        if (job.companyId && !company) return false;
+        return (
+          !query ||
+          [
+            this.recordLabel(person.name),
+            this.recordLabel(job.name),
+            this.recordLabel(company?.name),
+          ]
+            .join(' ')
+            .toLocaleLowerCase()
+            .includes(query)
+        );
+      })
+      .sort(
+        (a, b) =>
+          (b.score ?? -1) - (a.score ?? -1) ||
+          a.candidateId.localeCompare(b.candidateId) ||
+          a.jobId.localeCompare(b.jobId),
+      );
+    const selected = visible.slice(offset, offset + limit);
+    const records = await this.currentPairs(context, selected);
+    return {
+      records,
+      count: visible.length,
+      hasNextPage: offset + limit < visible.length,
+      staleOnPage: records.filter((row) => row.status === 'STALE').length,
+    };
+  }
+
+  /** Hydrates and rechecks only the selected result page. */
+  private async currentPairs(
+    context: WorkspaceAuthContext,
+    selected: RecruitingPairResult[],
+  ) {
+    const [candidates, jobs] = await Promise.all([
+      this.records.byIds(
+        context,
+        'person',
+        selected.map((row) => row.candidateId),
+      ),
+      this.records.byIds(
+        context,
+        'recruitmentJob',
+        selected.map((row) => row.jobId),
+      ),
+    ]);
+    const companies = await this.records.byIds(
+      context,
+      'company',
+      [...jobs.values()].flatMap((row) =>
+        typeof row.companyId === 'string' ? [row.companyId] : [],
+      ),
+    );
+    return selected.flatMap((row) => {
+      const person = candidates.get(row.candidateId),
+        job = jobs.get(row.jobId);
+      if (!person || !this.isCandidate(person) || !job) return [];
+      const company =
+        typeof job.companyId === 'string'
+          ? companies.get(job.companyId)
+          : undefined;
+      if (job.companyId && !company) return [];
+      const prepared = this.evaluator.prepare(context, person, job, company);
+      const stale = prepared.cacheKey !== row.cacheKey;
+      return [
+        {
+          ...row,
+          ...(stale
+            ? { status: 'STALE', storedStatus: row.status, score: undefined }
+            : {}),
+          candidateLabel: prepared.candidate.label,
+          jobLabel: prepared.job.label,
+          companyId: company?.id,
+          companyLabel: this.recordLabel(company?.name),
+          candidateUrl: `/object/person/${row.candidateId}`,
+          jobUrl: `/object/recruitmentJob/${row.jobId}`,
+        },
+      ];
+    });
+  }
+
+  /** Allows usable selections from partial runs while rejecting stale or unscored targets. */
+  async selection(
+    context: WorkspaceAuthContext,
+    id: string,
+    selectedIds: string[],
+  ) {
+    const wanted = new Set(selectedIds);
+    if (!wanted.size || wanted.size > 10)
+      throw new BadRequestException('请选择一至十项匹配结果');
+    const run = await this.records.one(context, 'recruitingMatchRun', id);
+    const payload = this.payload(run);
+    const selected = payload.results.filter(
+      (row) =>
+        row.status === 'SCORED' &&
+        wanted.has(
+          payload.input.direction === 'JOB_TO_CANDIDATES'
+            ? row.candidateId
+            : row.jobId,
+        ),
+    );
+    const results = await this.currentPairs(context, selected);
+    if (
+      results.length !== wanted.size ||
+      results.some((row) => row.status !== 'SCORED')
+    )
+      throw new ConflictException('所选匹配结果已变化，请刷新后重新选择');
+    const summary = await this.summary(context, id);
+    return { ...summary, results };
   }
 
   /** Excludes stale and now-inaccessible pairs from the current top five without claiming full coverage. */
@@ -635,7 +858,7 @@ export class RecruitingMatchingService {
 
   /** Marks review as an operator action and leaves actual contact/recommendation state untouched. */
   async reviewed(context: WorkspaceAuthContext, id: string) {
-    await this.one(context, id);
+    await this.summary(context, id);
     const run = await this.records.one(context, 'recruitingMatchRun', id);
     return this.receipt(
       await this.records.update(context, 'recruitingMatchRun', id, {

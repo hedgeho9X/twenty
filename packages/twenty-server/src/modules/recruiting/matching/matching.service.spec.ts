@@ -49,11 +49,17 @@ const setup = (count = 7, orm?: unknown) => {
     list: jest.fn(
       async (
         _context?: unknown,
-        _object?: string,
+        object?: string,
         _options?: { filter?: unknown },
       ) => ({
         count: jobs.length,
-        records: [] as Record<string, unknown>[],
+        records: (object === 'person'
+          ? [person]
+          : object === 'recruitmentJob'
+            ? jobs
+            : object === 'company'
+              ? [rows.get('company')!]
+              : []) as Record<string, unknown>[],
         hasNextPage: false,
       }),
     ),
@@ -612,6 +618,17 @@ it('paginates canonical subject results after native grouping, never mixing pair
 
 it('stores workflow separately from scoring and rejects unknown workflow states', async () => {
   const { service, records, evaluator, queue } = setup(1);
+  records.list.mockResolvedValue({
+    records: [
+      {
+        id: 'person',
+        name: { firstName: 'Person' },
+        contactRoles: ['CANDIDATE'],
+      },
+    ],
+    count: 1,
+    hasNextPage: false,
+  });
   await service.workflow(context, 'run', 'TO_CONTACT');
   expect(records.update).toHaveBeenCalledWith(
     context,
@@ -626,4 +643,60 @@ it('stores workflow separately from scoring and rejects unknown workflow states'
   await expect(
     service.workflow(context, 'run', 'AUTOMATICALLY_HIRED'),
   ).rejects.toThrow('跟进状态无效');
+});
+
+it('hydrates only the requested 20 of 250 results and keeps the header cheap', async () => {
+  const { service, records, rows, jobs, evaluator } = setup(250);
+  await service.process({ runId: 'run', actor });
+  records.list.mockImplementation(async (_ctx, object, options) => {
+    const ids = (options?.filter as { id?: { in?: string[] } })?.id?.in ?? [];
+    const records = ids.map((id) => rows.get(id)).filter(Boolean) as Record<
+      string,
+      unknown
+    >[];
+    return { records, count: records.length, hasNextPage: false };
+  });
+  records.byIds.mockClear();
+  evaluator.prepare.mockClear();
+  const header = await service.summary(context, 'run');
+  expect(header.counts.total).toBe(250);
+  expect(records.byIds).not.toHaveBeenCalled();
+  const page = await service.resultPage(context, 'run', 20, 20);
+  expect(page.count).toBe(250);
+  expect(page.records).toHaveLength(20);
+  expect(evaluator.prepare).toHaveBeenCalledTimes(20);
+  expect(records.byIds.mock.calls.every((call) => call[2].length <= 20)).toBe(
+    true,
+  );
+  expect(page.hasNextPage).toBe(true);
+});
+
+it('permits a fresh scored selection from a partial run, but rejects stale selections', async () => {
+  const { service, records, rows, evaluator } = setup(1);
+  await service.process({ runId: 'run', actor });
+  rows.get('run')!.status = 'PARTIAL';
+  records.list.mockImplementation(async (_ctx, _object, options) => {
+    const ids = (options?.filter as { id?: { in?: string[] } })?.id?.in ?? [];
+    return {
+      records: ids.map((id) => rows.get(id)).filter(Boolean) as Record<
+        string,
+        unknown
+      >[],
+      count: ids.length,
+      hasNextPage: false,
+    };
+  });
+  expect(
+    (await service.selection(context, 'run', ['job-0'])).results,
+  ).toHaveLength(1);
+  evaluator.prepare.mockImplementationOnce(() => ({
+    cacheKey: 'changed',
+    cacheId: 'changed',
+    modelId: 'model',
+    candidate: { label: 'person', context: { expectedRoles: [] } },
+    job: { label: 'job', duplicateKey: 'job' },
+  }));
+  await expect(service.selection(context, 'run', ['job-0'])).rejects.toThrow(
+    '已变化',
+  );
 });

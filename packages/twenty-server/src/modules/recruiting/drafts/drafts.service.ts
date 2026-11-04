@@ -442,19 +442,12 @@ export class RecruitingDraftsService {
     input: z.infer<typeof recruitingDraftInputSchema>,
   ) {
     if (!this.matching) throw new BadRequestException('匹配服务未就绪');
-    const run = await this.matching.one(context, input.matchRunId!);
-    if (!run.complete)
-      throw new ConflictException('匹配结果已变化，请重新匹配后生成');
-    const wanted = new Set(input.selectedIds);
-    const selected = (run.results ?? run.top).filter(
-      (pair) =>
-        pair.status === 'SCORED' &&
-        wanted.has(
-          run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateId : pair.jobId,
-        ),
+    const run = await this.matching.selection(
+      context,
+      input.matchRunId!,
+      input.selectedIds ?? [],
     );
-    if (!selected.length || selected.length !== wanted.size)
-      throw new BadRequestException('请选择当前匹配结果中的记录');
+    const selected = run.results;
     const brief = await buildMatchBrief(
       String(run.direction),
       selected,

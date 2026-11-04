@@ -54,6 +54,7 @@ const setup = () => {
     list: jest.fn(async () => ({ files: [] })),
     download: jest.fn(async () => ({ label: 'resume.pdf', stream: {} })),
   };
+  const matching = { selection: jest.fn(async () => ({})) };
   const service = new RecruitingJobPageService(
     {
       get: (key: string) =>
@@ -63,8 +64,9 @@ const setup = () => {
     records as never,
     links as never,
     files as never,
+    matching as never,
   );
-  return { service, job, actors, records, links, tokens, files };
+  return { service, job, actors, records, links, tokens, files, matching };
 };
 it('returns only the selected job public projection without needing the reader login', async () => {
   const { service } = setup();

@@ -637,10 +637,63 @@ export class RecruitingController {
     );
   }
 
+  /** Lightweight header and bounded result pages avoid hydrating an entire matching pool. */
+  @Get('match-runs/:id/summary')
+  matchSummary(@Req() request: Request, @Param('id') id: string) {
+    return this.matching.summary(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
+  @Get('match-runs/:id/results')
+  matchResultPage(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '20',
+    @Query('search') search = '',
+    @Query('status') status = 'ALL',
+  ) {
+    return this.matching.resultPage(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 20)),
+      search.slice(0, 100),
+      status,
+    );
+  }
+
   /** Returns current, authorized results with coverage and source links. */
   @Get('match-runs/:id')
-  matchResult(@Req() request: Request, @Param('id') id: string) {
-    return this.matching.one(buildWorkspaceAuthContextFromRequest(request), id);
+  async matchResult(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '20',
+  ) {
+    const context = buildWorkspaceAuthContextFromRequest(request);
+    const pageOffset = Math.max(0, Number.parseInt(offset, 10) || 0);
+    const pageLimit = Math.min(
+      100,
+      Math.max(1, Number.parseInt(limit, 10) || 20),
+    );
+    const [summary, page] = await Promise.all([
+      this.matching.summary(context, id),
+      this.matching.resultPage(context, id, pageOffset, pageLimit),
+    ]);
+    return {
+      ...summary,
+      results: page.records,
+      top: page.records.filter((row) => row.status === 'SCORED').slice(0, 10),
+      resultCount: page.count,
+      hasNextPage: page.hasNextPage,
+      offset: pageOffset,
+      limit: pageLimit,
+      stale: page.staleOnPage,
+      complete: summary.complete && !page.staleOnPage,
+      validationScope: 'page',
+    };
   }
 
   /** Reuses valid pair caches and retries only the necessary scoring work. */

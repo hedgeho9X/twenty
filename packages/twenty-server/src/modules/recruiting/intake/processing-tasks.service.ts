@@ -63,7 +63,7 @@ export class ProcessingTasksService {
       let missing = false;
       for (const id of ids) {
         try {
-          const match = await this.matching.one(context, id);
+          const match = await this.matching.summary(context, id);
           matches.push(match);
           progress.processed += match.counts.processed;
           progress.total += match.counts.total;
