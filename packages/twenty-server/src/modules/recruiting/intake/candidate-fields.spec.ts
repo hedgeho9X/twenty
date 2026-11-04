@@ -16,18 +16,9 @@ describe('candidate contact projection', () => {
       additionalPhones: [],
     });
   });
-  it('retains national numbers without guessing a country', () => {
-    expect(candidateFields({ phone: '020 7946 0958' }).phones).toMatchObject({
-      primaryPhoneNumber: '020 7946 0958',
-      primaryPhoneCallingCode: '',
-      primaryPhoneCountryCode: '',
-    });
-  });
-  it('retains a parenthesized national number without inventing its country', () => {
-    expect(candidateFields({ phone: '(202) 555-0123' }).phones).toMatchObject({
-      primaryPhoneNumber: '(202) 555-0123',
-      primaryPhoneCallingCode: '',
-    });
+  it('keeps country-ambiguous numbers in the parsed profile without sending invalid native phone components', () => {
+    expect(candidateFields({ phone: '020 7946 0958' }).phones).toBeUndefined();
+    expect(candidateFields({ phone: '(202) 555-0123' }).phones).toBeUndefined();
     expect(candidateFields({ phone: '12' }).phones).toBeUndefined();
   });
   it('does not overwrite a manual primary number or erase it on missing extraction', () => {

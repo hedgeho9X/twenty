@@ -43,18 +43,6 @@ export const candidateFields = (
         primaryPhoneCountryCode: parsed.country ?? '',
         additionalPhones: phones.additionalPhones ?? [],
       };
-    } else if (
-      /^[+\d(][\d\s().-]*$/.test(raw) &&
-      raw.replace(/\D/g, '').length >= 7 &&
-      raw.replace(/\D/g, '').length <= 15
-    ) {
-      fields.phones = {
-        ...phones,
-        primaryPhoneNumber: raw,
-        primaryPhoneCallingCode: '',
-        primaryPhoneCountryCode: '',
-        additionalPhones: phones.additionalPhones ?? [],
-      };
     }
   }
   return fields;
