@@ -35,7 +35,7 @@ export const RecruitingMatchResults = ({
   const [offset, setOffset] = useState(0);
   const [direction, setDirection] = useState('CANDIDATE_TO_JOBS');
   const list = useRecruitingQuery<RecruitingPage<RecruitingMatchRun>>(
-    `match-runs?offset=${offset}&direction=${direction}&completed=true`,
+    `match-runs?offset=${offset}&direction=${direction}&terminalHistory=true`,
     0,
     active && !runId,
   );
@@ -89,6 +89,7 @@ export const RecruitingMatchResults = ({
                   {run.counts.processed} / {run.counts.total} 已处理
                 </strong>
                 <span>复用 {run.counts.cached} 项</span>
+                <span>状态：{run.status}</span>
                 <span>
                   {run.billing
                     ? `预计费用 $${run.billing.estimatedUsd.toFixed(6)}`
@@ -117,35 +118,41 @@ export const RecruitingMatchResults = ({
               {run.complete && (run.top?.length ?? 0) > 0 && (
                 <MatchSelection key={run.runId} run={run} active={active} />
               )}
+              {!run.complete && (
+                <StyledRecruitingMuted role="status">
+                  已评分 {run.counts.scored} / {run.counts.total}{' '}
+                  项。结果覆盖不完整，仅供查看；完整匹配后才可选择、生成文案或推荐。
+                </StyledRecruitingMuted>
+              )}
               {!run.complete &&
-                (run.results ?? [])
-                  .filter((pair) => pair.status !== 'SCORED')
-                  .map((pair) => (
-                    <div key={`${pair.candidateId}:${pair.jobId}`}>
-                      <strong>
-                        {{
-                          EXCLUDED: t`明确条件冲突`,
-                          NEEDS_REVIEW: t`待补资料或人工核对`,
-                          FAILED: t`处理失败`,
-                        }[pair.status] ?? pair.status}
-                      </strong>
-                      <div>
-                        {run.direction === 'JOB_TO_CANDIDATES' && (
-                          <>
-                            <a href={pair.candidateUrl}>
-                              {pair.candidateLabel}
-                            </a>{' '}
-                            ·{' '}
-                          </>
-                        )}
-                        <a href={pair.jobUrl}>{pair.jobLabel}</a>
-                      </div>
-                      {pair.eligibility.reasons.map((reason) => (
-                        <p key={reason.code}>{reason.message}</p>
-                      ))}
-                      {pair.error && <p>{pair.error}</p>}
+                (run.results ?? []).map((pair) => (
+                  <div key={`${pair.candidateId}:${pair.jobId}`}>
+                    <strong>
+                      {{
+                        SCORED: t`已评分`,
+                        EXCLUDED: t`明确条件冲突`,
+                        NEEDS_REVIEW: t`待补资料或人工核对`,
+                        FAILED: t`处理失败`,
+                      }[pair.status] ?? pair.status}
+                    </strong>
+                    <div>
+                      {run.direction === 'JOB_TO_CANDIDATES' && (
+                        <>
+                          <a href={pair.candidateUrl}>{pair.candidateLabel}</a>{' '}
+                          ·{' '}
+                        </>
+                      )}
+                      <a href={pair.jobUrl}>{pair.jobLabel}</a>
                     </div>
-                  ))}
+                    {pair.status === 'SCORED' && (
+                      <div>匹配值：{pair.score?.toFixed(2)} / 4</div>
+                    )}
+                    {pair.eligibility.reasons.map((reason) => (
+                      <p key={reason.code}>{reason.message}</p>
+                    ))}
+                    {pair.error && <p>{pair.error}</p>}
+                  </div>
+                ))}
               {run.complete && !run.top?.length && (
                 <StyledRecruitingMuted>{t`暂无匹配结果`}</StyledRecruitingMuted>
               )}
@@ -194,6 +201,7 @@ export const RecruitingMatchResults = ({
             <tr>
               <th>{direction === 'JOB_TO_CANDIDATES' ? t`岗位` : t`姓名`}</th>
               {direction !== 'JOB_TO_CANDIDATES' && <th>{t`期望岗位`}</th>}
+              <th>{t`状态`}</th>
               <th>{t`时间`}</th>
               <th />
             </tr>
@@ -218,6 +226,7 @@ export const RecruitingMatchResults = ({
                     </span>
                   </td>
                 )}
+                <td>{row.status}</td>
                 <td
                   style={{
                     whiteSpace: 'nowrap',

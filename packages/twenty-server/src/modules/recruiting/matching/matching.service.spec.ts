@@ -46,13 +46,37 @@ const setup = (count = 7) => {
     ...jobs.map((job) => [job.id, job] as [string, Record<string, unknown>]),
   ]);
   const records = {
-    list: jest.fn(async () => ({ count: jobs.length })),
+    list: jest.fn(
+      async (
+        _context?: unknown,
+        _object?: string,
+        _options?: { filter?: unknown },
+      ) => ({
+        count: jobs.length,
+        records: [] as Record<string, unknown>[],
+        hasNextPage: false,
+      }),
+    ),
     one: jest.fn(async (_context, _object, id: string) => {
       if (!rows.has(id)) throw new NotFoundException();
       return rows.get(id)!;
     }),
     all: jest.fn(async (_context, object: string) =>
-      object === 'company' ? [rows.get('company')] : jobs,
+      object === 'company'
+        ? [rows.get('company')]
+        : object === 'person'
+          ? [...rows.values()].filter((row) => row.contactRoles)
+          : jobs,
+    ),
+    create: jest.fn(
+      async (_context, _object, value: Record<string, unknown>) => {
+        const record = {
+          ...structuredClone(value),
+          createdAt: new Date().toISOString(),
+        };
+        rows.set(String(value.id), record);
+        return record;
+      },
     ),
     byIds: jest.fn(
       async (_context, _object, ids: string[]) =>
@@ -107,14 +131,16 @@ const setup = (count = 7) => {
     resolve: jest.fn(async () => context),
     capture: () => actor,
   };
-  const service = new RecruitingMatchingService(
-    records as unknown as RecruitingRecordsService,
-    actors as unknown as RecruitingActorService,
-    evaluator as unknown as RecruitingPairEvaluatorService,
-    queue as unknown as MessageQueueService,
-  );
+  const reloadService = () =>
+    new RecruitingMatchingService(
+      records as unknown as RecruitingRecordsService,
+      actors as unknown as RecruitingActorService,
+      evaluator as unknown as RecruitingPairEvaluatorService,
+      queue as unknown as MessageQueueService,
+    );
   return {
-    service,
+    service: reloadService(),
+    reloadService,
     rows,
     jobs,
     evaluator,
@@ -195,7 +221,11 @@ describe('recruiting matching runs', () => {
   it('does not claim current full coverage when new targets entered the pool after the snapshot', async () => {
     const { service, records } = setup();
     await service.process({ runId: 'run', actor });
-    records.list.mockResolvedValue({ count: 8 });
+    records.list.mockResolvedValue({
+      count: 8,
+      records: [],
+      hasNextPage: false,
+    });
     const result = await service.one(context, 'run');
     expect(result.poolChanged).toBe(true);
     expect(result.complete).toBe(false);
@@ -323,3 +353,167 @@ it('loads a large result set with a fixed number of authorized batch reads', asy
   expect(records.byIds).toHaveBeenCalledTimes(3);
   expect(result.results[0].companyId).toBe('company');
 });
+
+describe.each(['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES'])(
+  '%s durable history',
+  (direction) => {
+    it.each(['NEEDS_REVIEW', 'FAILED'] as const)(
+      'persists submission and reloads a scored pair alongside %s',
+      async (unscoredStatus) => {
+        const { service, reloadService, records, rows, evaluator, queue } =
+          setup(2);
+        const subjectId = 'e055629e-1c81-4bda-a22c-329e2e73982d';
+        const jobFirst = direction === 'JOB_TO_CANDIDATES';
+        rows.set(
+          subjectId,
+          jobFirst
+            ? { ...rows.get('job-0'), id: subjectId }
+            : { ...rows.get('person'), id: subjectId },
+        );
+        if (jobFirst) {
+          rows.set('person-2', { id: 'person-2', contactRoles: ['CANDIDATE'] });
+        } else {
+          rows.delete('person');
+        }
+        const evaluate = evaluator.run.getMockImplementation()!;
+        evaluator.run.mockImplementation(async (ctx, candidate, job) => {
+          const result = await evaluate(ctx, candidate, job);
+          return (jobFirst ? candidate.id === 'person-2' : job.id === 'job-1')
+            ? { ...result, status: unscoredStatus, score: undefined }
+            : result;
+        });
+        const receipt = await service.submit(context, { direction, subjectId });
+        expect(records.create).toHaveBeenCalledWith(
+          context,
+          'recruitingMatchRun',
+          expect.objectContaining({
+            id: receipt.runId,
+            direction,
+            subjectId,
+            status: 'QUEUED',
+          }),
+        );
+        expect(queue.add).toHaveBeenCalledWith(
+          'RecruitingMatchJob',
+          { runId: receipt.runId, actor },
+          expect.objectContaining({ workspaceId: actor.workspaceId }),
+        );
+        await service.process({ runId: receipt.runId, actor });
+        expect(evaluator.run).toHaveBeenCalledWith(
+          context,
+          expect.objectContaining({ id: jobFirst ? 'person' : subjectId }),
+          expect.objectContaining({ id: jobFirst ? subjectId : 'job-0' }),
+          expect.anything(),
+        );
+        expect(records.update).toHaveBeenCalledWith(
+          context,
+          'recruitingMatchRun',
+          receipt.runId,
+          expect.objectContaining({
+            payload: expect.objectContaining({
+              results: expect.arrayContaining([
+                expect.objectContaining({ status: 'SCORED' }),
+              ]),
+            }),
+          }),
+        );
+        const result = await reloadService().one(context, receipt.runId);
+        expect(result.status).toBe('PARTIAL');
+        expect(result.complete).toBe(false);
+        expect(result.results).toHaveLength(2);
+        expect(result.top).toEqual([
+          expect.objectContaining({ status: 'SCORED', score: 3 }),
+        ]);
+        expect(result.results).toContainEqual(
+          expect.objectContaining({ status: unscoredStatus }),
+        );
+
+        records.list.mockImplementation(async (_ctx, object, options) => {
+          if (object !== 'recruitingMatchRun')
+            return { count: 2, records: [], hasNextPage: false };
+          const serialized = JSON.stringify(options?.filter) ?? '';
+          const visible = serialized.includes('PARTIAL');
+          return {
+            records: visible ? [rows.get(receipt.runId)!] : [],
+            count: visible ? 1 : 0,
+            hasNextPage: false,
+          };
+        });
+        const history = await reloadService().list(
+          context,
+          50,
+          direction,
+          false,
+          true,
+        );
+        expect(history.records).toEqual([
+          expect.objectContaining({ runId: receipt.runId, status: 'PARTIAL' }),
+        ]);
+        expect(records.list).toHaveBeenLastCalledWith(
+          context,
+          'recruitingMatchRun',
+          expect.objectContaining({
+            offset: 50,
+            limit: 50,
+            orderBy: [{ createdAt: 'DescNullsLast' }],
+            filter: {
+              and: [
+                jobFirst
+                  ? { direction: { eq: direction } }
+                  : {
+                      or: [
+                        { direction: { eq: direction } },
+                        { direction: { eq: 'PAIR' } },
+                      ],
+                    },
+                {
+                  or: [
+                    'COMPLETED',
+                    'PARTIAL',
+                    'NO_RESULTS',
+                    'FAILED',
+                    'SUPERSEDED',
+                  ].map((status) => ({ status: { eq: status } })),
+                },
+              ],
+            },
+          }),
+        );
+        expect(
+          (await reloadService().list(context, 0, direction, true, true))
+            .records,
+        ).toEqual([]);
+        expect(records.list).toHaveBeenLastCalledWith(
+          context,
+          'recruitingMatchRun',
+          expect.objectContaining({
+            filter: {
+              and: [
+                jobFirst
+                  ? { direction: { eq: direction } }
+                  : {
+                      or: [
+                        { direction: { eq: direction } },
+                        { direction: { eq: 'PAIR' } },
+                      ],
+                    },
+                { status: { eq: 'COMPLETED' } },
+              ],
+            },
+          }),
+        );
+      },
+    );
+
+    it('propagates a failed create without enqueueing', async () => {
+      const { service, records, rows, queue } = setup();
+      const subjectId = 'e055629e-1c81-4bda-a22c-329e2e73982d';
+      rows.set(subjectId, { id: subjectId, contactRoles: ['CANDIDATE'] });
+      records.create.mockRejectedValueOnce(new Error('write failed'));
+      await expect(
+        service.submit(context, { direction, subjectId }),
+      ).rejects.toThrow('write failed');
+      expect(queue.add).not.toHaveBeenCalled();
+    });
+  },
+);

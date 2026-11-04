@@ -183,6 +183,7 @@ export class RecruitingMatchingService {
     offset = 0,
     direction?: string,
     completedOnly = false,
+    terminalHistory = false,
   ) {
     if (
       direction &&
@@ -202,6 +203,12 @@ export class RecruitingMatchingService {
           : { direction: { eq: direction } },
       );
     if (completedOnly) filters.push({ status: { eq: 'COMPLETED' } });
+    else if (terminalHistory)
+      filters.push({
+        or: ['COMPLETED', 'PARTIAL', 'NO_RESULTS', 'FAILED', 'SUPERSEDED'].map(
+          (status) => ({ status: { eq: status } }),
+        ),
+      });
     const page = await this.records.list(context, 'recruitingMatchRun', {
       ...(filters.length
         ? { filter: filters.length === 1 ? filters[0] : { and: filters } }

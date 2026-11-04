@@ -612,12 +612,14 @@ export class RecruitingController {
     @Query('offset') offset = '0',
     @Query('direction') direction?: string,
     @Query('completed') completed?: string,
+    @Query('terminalHistory') terminalHistory?: string,
   ) {
     return this.matching.list(
       buildWorkspaceAuthContextFromRequest(request),
       Math.max(0, Number.parseInt(offset, 10) || 0),
       direction,
       completed === 'true',
+      terminalHistory === 'true',
     );
   }
 
