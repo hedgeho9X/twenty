@@ -95,6 +95,20 @@ export class RecruitingRecordsService {
     }
   }
 
+  /** Batches permitted records while retaining native row and field access checks. */
+  async byIds(
+    context: WorkspaceAuthContext,
+    objectName: string,
+    ids: string[],
+  ): Promise<Map<string, RecruitingRecord>> {
+    const uniqueIds = [...new Set(ids)];
+    if (!uniqueIds.length) return new Map();
+    const records = await this.all(context, objectName, {
+      id: { in: uniqueIds },
+    });
+    return new Map(records.map((record) => [record.id, record]));
+  }
+
   /** Returns no inaccessible record content in the not-found response. */
   async one(
     context: WorkspaceAuthContext,

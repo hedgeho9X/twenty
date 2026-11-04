@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { OrderByDirection } from 'twenty-shared/types';
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
-import { RecruitingRecordsService } from '../records/records.service';
+import {
+  RecruitingRecordsService,
+  type RecruitingRecord,
+} from '../records/records.service';
 import { RecruitingIntakeService } from './intake.service';
 import { RecruitingMatchingService } from '../matching/matching.service';
 
@@ -43,8 +46,8 @@ export class ProcessingTasksService {
       orderBy: [{ createdAt: OrderByDirection.DescNullsLast }],
     });
     const rows = [];
-    for (const record of page.records as { id: string }[]) {
-      const intake = await this.intakes.one(context, String(record.id));
+    for (const record of page.records as RecruitingRecord[]) {
+      const intake = this.intakes.summary(record);
       const ids = [
         ...new Set([
           ...(intake.matchingRunIds ?? []),
@@ -100,7 +103,6 @@ export class ProcessingTasksService {
         else if (intake.matchingStatus === 'QUEUED') stage = 'MATCHING';
       }
       if (missing) stage = 'IDENTITY_REVIEW';
-      const { detail: _detail, ...summary } = intake;
       const state = ['COMPLETED', 'NO_RESULTS', 'MATCH_DISABLED'].includes(
         stage,
       )
@@ -113,7 +115,7 @@ export class ProcessingTasksService {
             ? 'NEEDS_REVIEW'
             : 'PROCESSING';
       rows.push({
-        ...summary,
+        ...intake,
         intakeState: intake.state,
         state,
         stage,

@@ -9,7 +9,7 @@ const setup = (states: { status: string; complete: boolean }[]) => {
     })),
   };
   const intakes = {
-    one: jest.fn(async () => ({
+    summary: jest.fn(() => ({
       intakeId: 'task',
       state: 'COMPLETED',
       stage: 'STORED',
@@ -63,7 +63,7 @@ it('filters direction before paginating the material roots', async () => {
 
 it('labels stored material with disabled matching as a separate terminal state', async () => {
   const { service, intakes } = setup([]);
-  intakes.one.mockResolvedValue({
+  intakes.summary.mockReturnValue({
     intakeId: 'task',
     state: 'COMPLETED',
     stage: 'STORED',

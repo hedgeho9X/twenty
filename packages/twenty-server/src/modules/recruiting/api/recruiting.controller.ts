@@ -374,11 +374,13 @@ export class RecruitingController {
     @Req() request: Request,
     @Query('search') search = '',
     @Query('offset') offset = '0',
+    @Query('limit') limit = '50',
   ) {
     return this.directory.candidates(
       buildWorkspaceAuthContextFromRequest(request),
       search,
       Math.max(0, Number.parseInt(offset, 10) || 0),
+      Number.parseInt(limit, 10) || 50,
     );
   }
 
@@ -390,12 +392,14 @@ export class RecruitingController {
     @Query('search') search = '',
     @Query('active') active = 'true',
     @Query('offset') offset = '0',
+    @Query('limit') limit = '100',
   ) {
     return this.directory.jobs(buildWorkspaceAuthContextFromRequest(request), {
       companyId,
       search,
       active: active === 'true',
       offset: Math.max(0, Number.parseInt(offset, 10) || 0),
+      limit: Number.parseInt(limit, 10) || 100,
     });
   }
 
@@ -441,7 +445,8 @@ export class RecruitingController {
   )
   async uploadResume(
     @Req() request: Request,
-    @UploadedFiles() incoming:
+    @UploadedFiles()
+    incoming:
       | { buffer: Buffer; originalname: string }[]
       | { buffer: Buffer; originalname: string }
       | undefined,
@@ -718,11 +723,13 @@ export class RecruitingController {
     @Req() request: Request,
     @Query('search') search = '',
     @Query('offset') offset = '0',
+    @Query('limit') limit = '50',
   ) {
     return this.directory.companies(
       buildWorkspaceAuthContextFromRequest(request),
       search,
       Math.max(0, Number.parseInt(offset, 10) || 0),
+      Number.parseInt(limit, 10) || 50,
     );
   }
 

@@ -63,7 +63,12 @@ export class RecruitingDirectoryService {
   }
 
   /** Searches bounded company choices before material submission. */
-  companies(context: WorkspaceAuthContext, search = '', offset = 0) {
+  companies(
+    context: WorkspaceAuthContext,
+    search = '',
+    offset = 0,
+    limit = 50,
+  ) {
     const query = search.trim().slice(0, 200);
     return this.records.list(context, 'company', {
       filter: query
@@ -75,7 +80,7 @@ export class RecruitingDirectoryService {
           }
         : undefined,
       offset,
-      limit: 50,
+      limit: Math.min(50, Math.max(1, limit)),
       select: [
         'id',
         'name',
@@ -142,7 +147,12 @@ export class RecruitingDirectoryService {
   }
 
   /** Returns minimal candidate choices; full resumes are read only when the authorized matching task needs them. */
-  candidates(context: WorkspaceAuthContext, search = '', offset = 0) {
+  candidates(
+    context: WorkspaceAuthContext,
+    search = '',
+    offset = 0,
+    limit = 50,
+  ) {
     const query = search.trim().slice(0, 200);
     return this.records.list(context, 'person', {
       filter: {
@@ -162,7 +172,7 @@ export class RecruitingDirectoryService {
         ],
       },
       select: ['id', 'name', 'jobTitle'],
-      limit: 50,
+      limit: Math.min(50, Math.max(1, limit)),
       offset,
     });
   }
@@ -175,6 +185,7 @@ export class RecruitingDirectoryService {
       search?: string;
       active?: boolean;
       offset?: number;
+      limit?: number;
     } = {},
   ) {
     if (
@@ -194,7 +205,7 @@ export class RecruitingDirectoryService {
     return this.records.list(context, 'recruitmentJob', {
       filter: filter.length ? { and: filter } : undefined,
       select: ['id', 'name', 'companyId', 'jobStatus'],
-      limit: 100,
+      limit: Math.min(100, Math.max(1, options.limit ?? 100)),
       offset: options.offset ?? 0,
     });
   }

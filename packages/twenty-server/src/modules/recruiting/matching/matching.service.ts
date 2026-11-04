@@ -210,17 +210,37 @@ export class RecruitingMatchingService {
       limit: 50,
       orderBy: [{ createdAt: OrderByDirection.DescNullsLast }],
     });
+    const runs = (page.records as RecruitingRecord[]).map((record) => ({
+      record,
+      payload: this.payload(record),
+    }));
+    if (!runs.length) return { ...page, records: [] };
+    const [candidates, jobs] = await Promise.all([
+      this.records.byIds(
+        context,
+        'person',
+        runs
+          .filter(
+            ({ payload }) => payload.input.direction !== 'JOB_TO_CANDIDATES',
+          )
+          .map(({ payload }) => payload.input.subjectId),
+      ),
+      this.records.byIds(
+        context,
+        'recruitmentJob',
+        runs
+          .filter(
+            ({ payload }) => payload.input.direction === 'JOB_TO_CANDIDATES',
+          )
+          .map(({ payload }) => payload.input.subjectId),
+      ),
+    ]);
     const visible = [];
-    for (const record of page.records as RecruitingRecord[]) {
-      const payload = this.payload(record);
-      try {
-        const subject = await this.records.one(
-          context,
-          payload.input.direction === 'JOB_TO_CANDIDATES'
-            ? 'recruitmentJob'
-            : 'person',
-          payload.input.subjectId,
-        );
+    for (const { record, payload } of runs) {
+      const subject = (
+        payload.input.direction === 'JOB_TO_CANDIDATES' ? jobs : candidates
+      ).get(payload.input.subjectId);
+      if (subject) {
         visible.push({
           ...this.receipt(record),
           expectedRoles:
@@ -232,8 +252,6 @@ export class RecruitingMatchingService {
               ? buildJobMatchContext(subject).label
               : buildCandidateMatchContext(subject).label,
         });
-      } catch (error) {
-        if (!(error instanceof NotFoundException)) throw error;
       }
     }
     return { ...page, records: visible };
@@ -250,28 +268,44 @@ export class RecruitingMatchingService {
         : 'person',
       payload.input.subjectId,
     );
-    const recordCache = new Map<string, RecruitingRecord>();
-    const read = async (object: string, recordId: string) => {
-      const key = `${object}:${recordId}`;
-      if (!recordCache.has(key))
-        recordCache.set(key, await this.records.one(context, object, recordId));
-      return recordCache.get(key)!;
-    };
+    const [candidates, jobs] = await Promise.all([
+      this.records.byIds(
+        context,
+        'person',
+        payload.results.map((result) => result.candidateId),
+      ),
+      this.records.byIds(
+        context,
+        'recruitmentJob',
+        payload.results.map((result) => result.jobId),
+      ),
+    ]);
+    const companies = await this.records.byIds(
+      context,
+      'company',
+      [...jobs.values()].flatMap((job) =>
+        typeof job.companyId === 'string' ? [job.companyId] : [],
+      ),
+    );
     let stale = 0;
     let inaccessible = 0;
     const results = [];
     for (const result of payload.results) {
       try {
-        const candidate = await read('person', result.candidateId);
+        const candidate = candidates.get(result.candidateId);
+        if (!candidate) throw new NotFoundException();
         if (!this.isCandidate(candidate)) {
           stale++;
           continue;
         }
-        const job = await read('recruitmentJob', result.jobId);
+        const job = jobs.get(result.jobId);
+        if (!job) throw new NotFoundException();
         const company =
           typeof job.companyId === 'string'
-            ? await read('company', job.companyId)
+            ? companies.get(job.companyId)
             : undefined;
+        if (typeof job.companyId === 'string' && !company)
+          throw new NotFoundException();
         const prepared = this.evaluator.prepare(
           context,
           candidate,
@@ -293,6 +327,9 @@ export class RecruitingMatchingService {
           },
           candidateLabel: prepared.candidate.label,
           jobLabel: prepared.job.label,
+          companyId: company?.id,
+          companyLabel:
+            typeof company?.name === 'string' ? company.name : undefined,
           candidateUrl: `/object/person/${result.candidateId}`,
           jobUrl: `/object/recruitmentJob/${result.jobId}`,
         });

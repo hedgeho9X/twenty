@@ -54,6 +54,12 @@ const setup = (count = 7) => {
     all: jest.fn(async (_context, object: string) =>
       object === 'company' ? [rows.get('company')] : jobs,
     ),
+    byIds: jest.fn(
+      async (_context, _object, ids: string[]) =>
+        new Map(
+          ids.filter((id) => rows.has(id)).map((id) => [id, rows.get(id)!]),
+        ),
+    ),
     update: jest.fn(
       async (_context, _object, id: string, patch: Record<string, unknown>) => {
         const value = { ...rows.get(id), ...structuredClone(patch) };
@@ -304,4 +310,16 @@ it('returns at most ten ranked results', async () => {
   const { service } = setup(12);
   await service.process({ runId: 'run', actor });
   expect((await service.one(context, 'run')).top).toHaveLength(10);
+});
+
+it('loads a large result set with a fixed number of authorized batch reads', async () => {
+  const { service, records } = setup(60);
+  await service.process({ runId: 'run', actor });
+  records.one.mockClear();
+  records.byIds.mockClear();
+  const result = await service.one(context, 'run');
+  expect(result.results).toHaveLength(60);
+  expect(records.one).toHaveBeenCalledTimes(2);
+  expect(records.byIds).toHaveBeenCalledTimes(3);
+  expect(result.results[0].companyId).toBe('company');
 });

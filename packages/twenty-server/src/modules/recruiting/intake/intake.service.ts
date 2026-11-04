@@ -329,6 +329,11 @@ export class RecruitingIntakeService {
     };
   }
 
+  /** Projects an intake already read through the current caller's record permissions. */
+  summary(record: RecruitingRecord) {
+    return this.receipt(record);
+  }
+
   /** Returns the full authorized material state for a detail/preview view. */
   async one(context: WorkspaceAuthContext, id: string) {
     const record = await this.records.one(context, 'recruitingIntake', id);
