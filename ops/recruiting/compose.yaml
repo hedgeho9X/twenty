@@ -12,8 +12,10 @@ services:
       timeout: 3s
       retries: 20
   cache:
+    # Match production's data budget and AOF rewrite headroom.
+    mem_limit: 1g
     image: valkey/valkey:7@sha256:828b1cbb1c258e02b9cd9588063fa997e097444e610d3f3c00d43e21400e2b8d
-    command: ["valkey-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    command: ["valkey-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes", "--maxmemory", "384mb", "--auto-aof-rewrite-min-size", "256mb"]
     ports: ["127.0.0.1:26379:6379"]
     volumes: ["cache:/data"]
     networks: [local]

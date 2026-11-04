@@ -20,6 +20,8 @@ import {
   buildCandidateMatchContext,
 } from '../matching/domain/match-context';
 
+const SHARE_LINK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 const scopeSchema = z.object({
   jobIds: z.array(z.string().uuid()).max(10),
   candidateIds: z.array(z.string().uuid()).max(10).default([]),
@@ -86,7 +88,7 @@ export class RecruitingJobPageService {
         await this.links.setIfAbsent(
           `recruiting-job-page:${candidate}`,
           token,
-          7 * 24 * 60 * 60 * 1000,
+          SHARE_LINK_TTL_MS,
         )
       ) {
         key = candidate;
@@ -104,11 +106,13 @@ export class RecruitingJobPageService {
         source,
         owner: this.owner(context),
       },
-      7 * 24 * 60 * 60 * 1000,
+      SHARE_LINK_TTL_MS,
     );
-    await this.links.setAdd(`recruiting-share-index:${this.owner(context)}`, [
-      key,
-    ]);
+    await this.links.setAdd(
+      `recruiting-share-index:${this.owner(context)}`,
+      [key],
+      SHARE_LINK_TTL_MS,
+    );
     return this.urlForKey(key);
   }
 
@@ -153,9 +157,8 @@ export class RecruitingJobPageService {
     return owner === workspace || owner.startsWith(`${workspace}:`);
   }
   async list(context: WorkspaceAuthContext) {
-    const keys = await this.links.setMembers(
-      `recruiting-share-index:${this.owner(context)}`,
-    );
+    const indexKey = `recruiting-share-index:${this.owner(context)}`;
+    const keys = await this.links.setMembers(indexKey);
     const rows = await Promise.all(
       keys.map((key) =>
         this.links.get<{
@@ -172,6 +175,9 @@ export class RecruitingJobPageService {
         }>(`recruiting-share-meta:${key}`),
       ),
     );
+    // New links refresh the index TTL, so also prune expired members of active indexes.
+    const expiredKeys = keys.filter((_key, index) => !rows[index]);
+    if (expiredKeys.length) await this.links.setRemove(indexKey, expiredKeys);
     const result = [];
     for (const row of rows) {
       if (!row || !this.belongsToWorkspace(row.owner, context)) continue;

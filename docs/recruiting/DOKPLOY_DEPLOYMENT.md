@@ -52,3 +52,48 @@ CI 不在应用启动时导入或覆盖数据库。Compose 默认禁用启动迁
 公开工具交付：fanhan-cli-v0.3.0 已发布为 GitHub Pre-release，包含 fanhan-cli.tgz、fanhan-recruiting-skill.zip、SHA256SUMS；下载URL与API Key页面提示词一致。预发布说明明确尚未完成腾讯云生产端到端验收，不将工具包可下载等同服务上线。
 
 主机复核：直连及另一条代理网络的SSH均停在banner exchange超时，HTTP健康超时，ICMP仍有回复；没有足够证据认定具体原因。当前需通过腾讯云VNC/监控确认主机状态后恢复SSH。恢复后先停验收API/Worker做资源诊断，保留PG/Redis与卷；核对OOM、磁盘及数据库活动，再应用已准备的资源上限，读取元数据最新状态后继续增量操作。
+
+## Redis AOF 内存与恢复（2026-11-04）
+
+本次生产证据已确认：Redis 在 256 MiB cgroup 内加载 AOF 后，自动 rewrite 的 fork/COW 导致 OOM 重启；API 鉴权读取缓存遇到 `LOADING Redis is loading the dataset in memory`，被现有 JwtAuthGuard 转为 403 `Forbidden resource`。这不是角色权限不足，不修改鉴权守卫。
+
+生产 `deploy/compose.yaml` 的 redis 和本地 `compose.yaml` 的 cache 使用相同预算：容器 `mem_limit: 1g`、Redis `--maxmemory 384mb`、`--auto-aof-rewrite-min-size 256mb`，保留 AOF 与 `noeviction`。相对已观察到的约 202 MB RSS，1 GiB 提供恢复和 fork 余量；即使按 384 MiB 的两份数据估算，仍有约 256 MiB 用于进程、缓冲和分配器开销。256 MiB 最小 AOF 大小减少小文件 rewrite；自动 rewrite 百分比保留默认 100，不禁用压缩。
+
+这不是 RSS 的硬保证：Redis maxmemory 不包含所有缓冲、碎片和 fork 内存。达到数据预算后 `noeviction` 会拒绝新增分配，而不是删除队列键；持续监测 used_memory、used_memory_rss、cgroup 峰值、持久化状态和主机可用内存。[Redis 7 配置](https://raw.githubusercontent.com/redis/redis/7.0/redis.conf)、[AOF rewrite/备份说明](https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/)、[BullMQ noeviction 要求](https://docs.bullmq.io/guide/going-to-production)。
+
+以下由 Jerry 在生产执行，本次仓库修复不执行 Docker、Redis 或 Dokploy 操作：
+
+1. 暂停自动发布，私下保存当前 Dokploy Compose/镜像版本。通过 Dokploy 停止 server、worker、migrate 及其他 Redis 写入方，再停止 redis；保持原 cache 卷。多段 AOF 必须整体备份，不能在 rewrite 中只复制某一个文件。
+2. 在独立 Bash 会话中替换容器名，定位已停止容器的 `/data` 挂载并离线备份；不要导出容器环境变量：
+
+```bash
+set -eu
+redis_container='REPLACE_WITH_DOKPLOY_REDIS_CONTAINER'
+redis_data_dir="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' "$redis_container")"
+test -n "$redis_data_dir"
+test "$redis_data_dir" != /
+test -d "$redis_data_dir"
+test "$(docker inspect --format '{{.State.Running}}' "$redis_container")" = false
+backup_dir="/var/backups/fanhan-redis-$(date -u +%Y%m%dT%H%M%SZ)"
+sudo install -d -m 700 "$backup_dir"
+sudo tar -C "$redis_data_dir" -cpf "$backup_dir/data.tar" .
+sudo tar -tf "$backup_dir/data.tar" >/dev/null
+```
+
+3. 在 Dokploy 当前 Compose 中应用本次 redis 配置并 redeploy，复用同一 cache 卷和已批准的应用镜像；不要用仓库模板的 bootstrap 标签替换线上精确镜像。不要删卷、FLUSH、关闭 AOF 或手工删除 AOF 分段。部署后将 `redis_container` 更新为新容器名。
+4. 核对实际限制/参数并至少观察 5 分钟（跨过多个原约 64 秒周期），在同一容器上重复 inspect；新容器的 RestartCount 从零重新计数，不能与旧 ID 直接比较：
+
+```bash
+docker inspect --format 'id={{.Id}} memory={{.HostConfig.Memory}} restarts={{.RestartCount}} oom={{.State.OOMKilled}}' "$redis_container"
+docker logs --since 10m "$redis_container"
+docker exec "$redis_container" redis-cli PING
+docker exec "$redis_container" redis-cli CONFIG GET maxmemory maxmemory-policy auto-aof-rewrite-min-size
+docker exec "$redis_container" redis-cli INFO memory
+docker exec "$redis_container" redis-cli INFO persistence
+```
+
+期望 memory=1073741824、maxmemory=402653184、noeviction、auto-aof-rewrite-min-size=268435456；日志出现 `Ready to accept connections`，PING=PONG，loading=0，RestartCount 不增长且 OOM=false。恢复 server/worker 后再次观察，并用同一正常会话验收两个手动匹配方向与结果轮询，确认 JwtAuthGuard 不再报 LOADING。
+
+5. 仅在稳定、磁盘有足够新 base 文件空间、内存有余量，且 INFO persistence 的 aof_rewrite_in_progress=0、aof_rewrite_scheduled=0、rdb_bgsave_in_progress=0 时，考虑执行一次 `docker exec "$redis_container" redis-cli BGREWRITEAOF`；已经自动 rewrite 成功则无需重复。完成后检查 aof_last_bgrewrite_status=ok、aof_rewrite_in_progress=0 和稳定的 RestartCount。让 Redis 自行切换 manifest/清理旧段，不手工删这 171 个文件。
+
+回滚应用时使用原精确镜像，但保留 1 GiB 的 Redis 限制与 noeviction；不要把仍有同一数据集的 Redis 降回 256 MiB。需要恢复数据时，先停全部写入方和 redis，将完整离线备份恢复到新的独立卷，在 Dokploy 切换挂载后验证；保留故障卷供诊断，不覆盖运行中的数据。

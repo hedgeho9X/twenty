@@ -29,6 +29,27 @@ const setup = () => {
     ),
   };
   const tokens = new Map<string, string>();
+  const links = {
+    set: async (key: string, value: string) => {
+      tokens.set(key, value);
+    },
+    get: async (key: string) => tokens.get(key),
+    setIfAbsent: async (key: string, value: string) => {
+      if (tokens.has(key)) return false;
+      tokens.set(key, value);
+      return true;
+    },
+    setAdd: jest.fn(async () => {}),
+    setMembers: jest.fn(async () =>
+      [...tokens.keys()]
+        .filter((key) => key.startsWith('recruiting-share-meta:'))
+        .map((key) => key.split(':').pop()),
+    ),
+    del: async (key: string) => {
+      tokens.delete(key);
+    },
+    setRemove: jest.fn(async () => 1),
+  };
   const service = new RecruitingJobPageService(
     {
       get: (key: string) =>
@@ -36,28 +57,9 @@ const setup = () => {
     } as never,
     actors as never,
     records as never,
-    {
-      set: async (key: string, value: string) => {
-        tokens.set(key, value);
-      },
-      get: async (key: string) => tokens.get(key),
-      setIfAbsent: async (key: string, value: string) => {
-        if (tokens.has(key)) return false;
-        tokens.set(key, value);
-        return true;
-      },
-      setAdd: async () => {},
-      setMembers: async () =>
-        [...tokens.keys()]
-          .filter((key) => key.startsWith('recruiting-share-meta:'))
-          .map((key) => key.split(':').pop()),
-      del: async (key: string) => {
-        tokens.delete(key);
-      },
-      setRemove: async () => 1,
-    } as never,
+    links as never,
   );
-  return { service, job, actors, records };
+  return { service, job, actors, records, links, tokens };
 };
 it('returns only the selected job public projection without needing the reader login', async () => {
   const { service } = setup();
@@ -92,6 +94,39 @@ it('deletes the public capability immediately on revocation', async () => {
   const token = new URL(url).pathname.split('/').pop()!;
   await service.revoke(context, token);
   await expect(service.view(token)).rejects.toThrow('已失效');
+});
+
+it('expires share indexes and prunes expired members while keeping live shares', async () => {
+  const { service, links, tokens } = setup();
+  const context = {} as never;
+  const expiredUrl = await service.create(context, [jobId]);
+  const liveUrl = await service.create(context, [jobId]);
+  const expiredKey = new URL(expiredUrl).pathname.split('/').pop()!;
+  const liveKey = new URL(liveUrl).pathname.split('/').pop()!;
+  const indexKey = `recruiting-share-index:${actor.workspaceId}`;
+
+  // Redis expires the metadata, but SADD does not expire individual set members.
+  tokens.delete(`recruiting-share-meta:${expiredKey}`);
+  tokens.delete(`recruiting-job-page:${expiredKey}`);
+  links.setMembers.mockResolvedValue([expiredKey, liveKey]);
+
+  expect(await service.list(context)).toEqual([
+    expect.objectContaining({ key: liveKey, url: liveUrl }),
+  ]);
+  expect(links.setRemove).toHaveBeenCalledWith(indexKey, [expiredKey]);
+  expect(links.setAdd).toHaveBeenNthCalledWith(
+    1,
+    indexKey,
+    [expiredKey],
+    7 * 24 * 60 * 60 * 1000,
+  );
+  expect(links.setAdd).toHaveBeenNthCalledWith(
+    2,
+    indexKey,
+    [liveKey],
+    7 * 24 * 60 * 60 * 1000,
+  );
+  expect((await service.view(liveKey)).jobs).toHaveLength(1);
 });
 
 it('rebases active draft links without reviving revoked or foreign shares', async () => {
