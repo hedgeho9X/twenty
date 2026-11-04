@@ -236,8 +236,16 @@ export class RecruitingController {
   }
   /** Exposes only the current mailbox owner's native connections and capture choices. */
   @Get('mailboxes')
-  mailboxList(@Req() request: Request) {
-    return this.mailboxes.list(this.mailboxOwner(request));
+  mailboxList(
+    @Req() request: Request,
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '20',
+  ) {
+    return this.mailboxes.list(
+      this.mailboxOwner(request),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 20)),
+    );
   }
   /** Enables recruiting capture without turning on native historical synchronization. */
   @Post('mailboxes/configure')
