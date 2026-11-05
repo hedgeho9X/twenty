@@ -9,7 +9,7 @@ description: 通过 fanhan CLI 完成泛函招聘运营：公司/JD录入、简�
 
 本机可用 `fanhan auth login --base URL` 隐藏输入并保存 Keychain；Agent 用 `--key-stdin` 从标准输入提供Key。`auth logout` 只删除本机凭据。服务器使用 `FANHAN_API_KEY` 和 `FANHAN_BASE_URL` 注入；环境变量优先于已保存登录，Keychain凭据按服务地址隔离。先执行 `fanhan auth status --json`，确认目标连接；不能把 Key 写进命令参数或输出。未安装命令时可在本仓库运行 `node ops/recruiting/fanhan.mjs`。Node >=22。
 
-CLI 版本要求：0.5.0。升级后先验证 `fanhan --version` 和 `fanhan auth status --json`，保留现有 Keychain 登录。
+CLI 版本要求：0.5.1。升级后先验证 `fanhan --version` 和 `fanhan auth status --json`，保留现有 Keychain 登录。
 
 ## 按任务加载
 
@@ -21,8 +21,8 @@ CLI 版本要求：0.5.0。升级后先验证 `fanhan --version` 和 `fanhan aut
 - 匹配：`match candidate --id ID --wait` 或 `match job --id ID --wait`；`--targets ID,ID`限定池。指定组合用 `match pair`。详情可查看全部已评分结果；每次文案或分享最多选十项，默认选前五。外层列表不按分数排序；用户明确选择优先。
 - 查找：`search candidates|companies|jobs 关键词 [--limit N] [--cursor C] [--company-id ID] [--json]` 模糊查人、公司、JD（按权限，最多 50 条，返回 id 和少量字段；用 nextCursor 翻页）。先查到 id 再做匹配、原件下载或文案。
 - 原件：`candidates files --id ID --json` 查询有权读取的 `fileId/label`；`candidates download --id ID --file-id FILE_ID --out 本地路径` 下载，不覆盖已有文件。引用可能对应已缺失原件，下载错误不能声称成功；不返回公开链接。
-- 文案：`draft generate --match-run-id ID --top 5 --key KEY --wait`；明确选择用`--selected-ids`。结果中的 `jobPageUrl` 已可分享，不重复创建同一分享。编辑用 `draft edit --id ID --data-file draft.json`，文件含 title/body。
-- 分享：`share create`接受`--job-ids`和`--candidate-ids`，默认 `--include-files` 附带当前候选人的全部原始 PDF/附件；`--no-files` 创建不含附件的分享。分享文件和鉴权 CLI 下载是独立链路；`share list`找已创建链接；撤销用`share revoke --id`。链接本身是访问凭据，只交付给用户或任务指定接收者。
+- 文案：`draft generate --match-run-id ID --top 5 --key KEY --wait`；明确选择用`--selected-ids`。只生成可编辑文案，不创建分享链接；需要分享时单独执行 `share create`。编辑用 `draft edit --id ID --data-file draft.json`，文件含 title/body。
+- 分享：创建前明确将分享的候选人/岗位名称及数量、是否包含 PDF；用户已明确范围及附件选择时直接执行，不重复确认，范围不明时先询问。用户要求全选时，按已确认的范围全选，不擅自只取前五或提前创建链接。`share create`接受`--job-ids`和`--candidate-ids`，默认 `--include-files` 附带当前候选人的全部原始 PDF/附件；`--no-files` 创建不含附件的分享。分享文件和鉴权 CLI 下载是独立链路；`share list`找已创建链接；撤销用`share revoke --id`。链接本身是访问凭据，只交付给用户或任务指定接收者。
 - 恢复：`tasks list` → `tasks get --id ID --kind intake|match|draft|mail`；失败时看具体原因后重试，不循环创建新任务。`tasks wait`可继续等待。
 
 ## 完成判断

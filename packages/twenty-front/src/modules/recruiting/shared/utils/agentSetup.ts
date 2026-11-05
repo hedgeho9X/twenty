@@ -1,6 +1,6 @@
 /** Defines the versioned public artifacts and copyable Agent onboarding instructions. */
 export const FANHAN_RELEASE_URL =
-  'https://github.com/hedgeho9X/twenty/releases/download/fanhan-cli-v0.5.0';
+  'https://github.com/hedgeho9X/twenty/releases/download/fanhan-cli-v0.5.1';
 
 /** Supports HTTP test or self-hosted origins, where the Clipboard API is unavailable. */
 export const copyFanhanAgentPrompt = async (text: string) => {
