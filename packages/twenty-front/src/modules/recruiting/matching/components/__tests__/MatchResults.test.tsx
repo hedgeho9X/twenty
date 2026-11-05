@@ -92,6 +92,9 @@ beforeEach(() => {
         error: '',
         loading,
         reload: jest.fn(),
+        updateData: jest.fn((update) => {
+          list = update(list);
+        }),
       }) as never,
   );
 });
@@ -178,4 +181,28 @@ it('replaces unusable stale scores with one recovery action instead of an empty 
       method: 'POST',
     }),
   );
+});
+
+it('updates the saved row without reloading the list or resetting its scroll', async () => {
+  Element.prototype.scrollIntoView = jest.fn();
+  const { container } = render(<RecruitingMatchResults />);
+  const viewport = container.querySelector(
+    '[data-radix-scroll-area-viewport]',
+  )!;
+  viewport.scrollTop = 180;
+  fireEvent.scroll(viewport);
+  fireEvent.keyDown(screen.getByRole('combobox', { name: '跟进状态' }), {
+    key: 'ArrowDown',
+  });
+  fireEvent.click(await screen.findByRole('option', { name: '待联系' }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole('combobox', { name: '跟进状态' }),
+    ).toHaveTextContent('待联系'),
+  );
+  expect(viewport.scrollTop).toBe(180);
+  expect(screen.queryByLabelText('正在加载结果')).not.toBeInTheDocument();
+  expect(list.records).toEqual([
+    expect.objectContaining({ followUpStatus: 'TO_CONTACT' }),
+  ]);
 });

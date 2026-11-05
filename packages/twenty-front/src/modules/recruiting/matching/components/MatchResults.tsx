@@ -172,11 +172,27 @@ export const RecruitingMatchResults = ({
     setBusyId(id);
     setError('');
     try {
-      await recruitingRequest(`match-runs/${id}/workflow`, {
-        method: 'POST',
-        body: JSON.stringify({ status }),
+      const saved = await recruitingRequest<RecruitingMatchRun>(
+        `match-runs/${id}/workflow`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ status }),
+        },
+      );
+      list.updateData((page) => {
+        if (!page.records.some((row) => row.runId === id)) return page;
+        const followUpStatus = saved.followUpStatus ?? status;
+        const remove = Boolean(followFilter && followUpStatus !== followFilter);
+        return {
+          ...page,
+          records: remove
+            ? page.records.filter((row) => row.runId !== id)
+            : page.records.map((row) =>
+                row.runId === id ? { ...row, followUpStatus } : row,
+              ),
+          count: Math.max(0, page.count - (remove ? 1 : 0)),
+        };
       });
-      await list.reload();
     } catch {
       setError('跟进状态保存失败');
     } finally {
