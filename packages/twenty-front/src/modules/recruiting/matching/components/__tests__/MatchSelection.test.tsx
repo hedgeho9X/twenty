@@ -92,6 +92,7 @@ it('defaults to five selections, expands to ten and saves/copies the selected dr
       error: '',
       loading: false,
       reload: jest.fn(),
+      updateData: jest.fn(),
     }));
   jest.mocked(recruitingRequest).mockResolvedValue({ draftId: 'draft' });
   render(<MatchSelection run={run} />);
@@ -148,6 +149,7 @@ it('keeps a generated draft visible when clipboard access is unavailable', async
       error: '',
       loading: false,
       reload: jest.fn(),
+      updateData: jest.fn(),
     }));
   jest.mocked(recruitingRequest).mockResolvedValue({ draftId: 'draft' });
   render(<MatchSelection run={run} />);
@@ -177,6 +179,7 @@ it('restores saved selection without copying an existing draft on page load', as
       error: '',
       loading: false,
       reload: jest.fn(),
+      updateData: jest.fn(),
     }));
   render(<MatchSelection run={run} />);
   await screen.findByText('已选 2 项');
@@ -195,6 +198,7 @@ it('shows and searches scored matches beyond the former top ten', () => {
     loading: false,
     error: '',
     reload: jest.fn(),
+    updateData: jest.fn(),
   });
   const results = Array.from({ length: 15 }, (_, index) => ({
     ...run.top![0],
@@ -211,4 +215,36 @@ it('shows and searches scored matches beyond the former top ten', () => {
   });
   expect(screen.getByText('岗位14')).toBeInTheDocument();
   expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+});
+
+it('selects all ten displayed results before confirming the exact sharing scope', async () => {
+  jest.clearAllMocks();
+  jest
+    .mocked(useRecruitingQuery)
+    .mockReturnValue({
+      data: undefined,
+      error: '',
+      loading: false,
+      reload: jest.fn(),
+      updateData: jest.fn(),
+    });
+  jest
+    .mocked(recruitingRequest)
+    .mockResolvedValue({ url: 'https://example.test/r/confirmed' });
+  render(<MatchSelection run={run} showAll />);
+  fireEvent.click(screen.getByRole('button', { name: '全选当前结果' }));
+  expect(screen.getByText('已选 10 项')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '生成分享链接' }));
+  expect(screen.getByRole('dialog')).toHaveTextContent('共 10 个岗位');
+  expect(
+    screen.getByRole('list', { name: '将要分享的匹配结果' }).children,
+  ).toHaveLength(10);
+  expect(recruitingRequest).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: '确认并生成链接' }));
+  await waitFor(() => expect(recruitingRequest).toHaveBeenCalled());
+  const [path, options] = jest.mocked(recruitingRequest).mock.calls[0];
+  expect(path).toBe('share-links');
+  expect(JSON.parse(options!.body as string).jobIds).toEqual(
+    run.top!.map((pair) => pair.jobId),
+  );
 });

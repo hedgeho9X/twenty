@@ -129,6 +129,9 @@ it('keeps PDF sharing available for scored candidates in a partial job run', asy
       screen.getByRole('button', { name: '生成分享链接' }),
     ).not.toBeDisabled(),
   );
+  fireEvent.click(screen.getByRole('button', { name: '生成分享链接' }));
+  expect(screen.getByRole('dialog')).toHaveTextContent('确认分享范围');
+  expect(recruitingRequest).not.toHaveBeenCalled();
   expect(
     screen.getByLabelText('附带所选候选人的全部 PDF / 原始附件'),
   ).toBeChecked();

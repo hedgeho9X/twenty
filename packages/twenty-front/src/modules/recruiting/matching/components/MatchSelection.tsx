@@ -105,6 +105,7 @@ export const MatchSelection = ({
   const identifier = (pair: (typeof pairs)[number]) =>
     run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateId : pair.jobId;
   const [visibleCount, setVisibleCount] = useState(5);
+  const selectionCount = Math.min(showAll ? filtered.length : visibleCount, 10);
   const [selected, setSelected] = useState(
     () => new Set(pairs.slice(0, 5).map(identifier)),
   );
@@ -210,7 +211,7 @@ export const MatchSelection = ({
                   variant="ghost"
                   onClick={() => {
                     const visible = filtered
-                      .slice(0, Math.min(visibleCount, 10))
+                      .slice(0, selectionCount)
                       .map(identifier);
                     const all =
                       visible.length > 0 &&
@@ -219,7 +220,7 @@ export const MatchSelection = ({
                   }}
                 >
                   {filtered
-                    .slice(0, Math.min(visibleCount, 10))
+                    .slice(0, selectionCount)
                     .every((pair) => selected.has(identifier(pair)))
                     ? t`取消全选`
                     : t`全选当前结果`}
@@ -305,7 +306,12 @@ export const MatchSelection = ({
       </StyledRecruitingRow>
       <MatchShareActions
         matchRunId={run.runId}
-        currentUrl={draft?.jobPageUrl}
+        selectionLabels={pairs
+          .filter((pair) => selected.has(identifier(pair)))
+          .map(
+            (pair) =>
+              `${pair.candidateLabel ?? ''} → ${pair.companyLabel ?? ''} · ${pair.jobLabel}`,
+          )}
         jobIds={[
           ...new Set(
             pairs
