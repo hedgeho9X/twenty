@@ -157,3 +157,25 @@ it('restores the same view after detail navigation but starts a new page at the 
   await waitFor(() => expect(viewport.scrollTop).toBe(0));
   expect(viewport.scrollLeft).toBe(0);
 });
+
+it('replaces unusable stale scores with one recovery action instead of an empty ranking table', async () => {
+  page5 = {
+    ...page5,
+    staleOnPage: 5,
+    records: pairs
+      .slice(0, 5)
+      .map((pair) => ({ ...pair, status: 'STALE', score: undefined })),
+  };
+  render(<RecruitingMatchResults initialRunId="run" />);
+  expect(await screen.findByText('评分已过期')).toBeInTheDocument();
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: '生成分享链接' }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '按最新资料重新匹配' }));
+  await waitFor(() =>
+    expect(recruitingRequest).toHaveBeenCalledWith('match-runs/run/retry', {
+      method: 'POST',
+    }),
+  );
+});

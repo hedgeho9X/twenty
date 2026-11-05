@@ -59,6 +59,7 @@ type MatchRunPayload = {
   source?: 'manual' | 'api' | 'email' | 'system';
   input: z.infer<typeof recruitingMatchInputSchema>;
   inputHash: string;
+  sourceVersion?: string;
   actor: RecruitingActor;
   targetIds?: string[];
   results: RecruitingPairResult[];
@@ -458,11 +459,31 @@ export class RecruitingMatchingService {
     ]);
     const subject = subjects.get(payload.input.subjectId);
     if (!subject) throw new NotFoundException('来源记录不存在或当前无权访问');
+    let sourceChanged = false;
+    if (payload.sourceVersion) {
+      const current = await this.records.one(
+        context,
+        object,
+        payload.input.subjectId,
+      );
+      const company =
+        object === 'recruitmentJob' && typeof current.companyId === 'string'
+          ? await this.records.one(context, 'company', current.companyId)
+          : undefined;
+      const version =
+        object === 'recruitmentJob'
+          ? contentVersion(buildJobMatchContext(current, company))
+          : buildCandidateMatchContext(current).version;
+      sourceChanged = version !== payload.sourceVersion;
+    }
     return {
       ...this.receipt(run, context),
       subjectLabel: this.recordLabel(subject.name),
       executionComplete: !['QUEUED', 'PROCESSING'].includes(String(run.status)),
-      complete: ['COMPLETED', 'NO_RESULTS'].includes(String(run.status)),
+      sourceChanged,
+      complete:
+        ['COMPLETED', 'NO_RESULTS'].includes(String(run.status)) &&
+        !sourceChanged,
     };
   }
 
@@ -847,9 +868,11 @@ export class RecruitingMatchingService {
               ? undefined
               : payload.targetIds,
           results: [],
+          sourceVersion: undefined,
           error: undefined,
           completedAt: undefined,
           reviewedAt: undefined,
+          reviewedBy: undefined,
         },
       },
     );
@@ -944,6 +967,7 @@ export class RecruitingMatchingService {
             ),
           )
         : buildCandidateMatchContext(subject).version;
+      payload = { ...payload, sourceVersion };
       if (jobFirst && this.evaluator.reusePool) {
         const reusable = await this.evaluator.reusePool(
           context,
@@ -1092,6 +1116,29 @@ export class RecruitingMatchingService {
           ),
         );
         await save('PROCESSING', { results: [...results] });
+      }
+      context = await this.actors.resolve(data.actor);
+      const finalSource = await this.records.one(
+        context,
+        jobFirst ? 'recruitmentJob' : 'person',
+        input.subjectId,
+      );
+      const finalCompany =
+        jobFirst && typeof finalSource.companyId === 'string'
+          ? await this.records.one(context, 'company', finalSource.companyId)
+          : undefined;
+      const finalVersion = jobFirst
+        ? contentVersion(buildJobMatchContext(finalSource, finalCompany))
+        : buildCandidateMatchContext(finalSource).version;
+      if (
+        finalVersion !== sourceVersion ||
+        (!jobFirst && !this.isCandidate(finalSource))
+      ) {
+        await save('SUPERSEDED', {
+          error: '来源资料已更新，请按最新资料重新匹配',
+          completedAt: new Date().toISOString(),
+        });
+        return;
       }
       const incomplete =
         results.length < selected.length ||

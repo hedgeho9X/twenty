@@ -724,3 +724,36 @@ it('builds a reverse shortlist from a fully authorized cache snapshot without pe
   expect(evaluator.run).not.toHaveBeenCalled();
   expect(records.update).toHaveBeenCalledTimes(1);
 });
+
+it('rejects publication when source material changes during the final scoring chunk', async () => {
+  const { service, rows, evaluator } = setup(1);
+  const original = evaluator.run.getMockImplementation()!;
+  evaluator.run.mockImplementation(async (...args) => {
+    const result = await original(...args);
+    rows.set('person', {
+      ...rows.get('person'),
+      id: 'person',
+      jobTitle: 'new material',
+    });
+    return result;
+  });
+  await service.process({ runId: 'run', actor });
+  expect(rows.get('run')!.status).toBe('SUPERSEDED');
+});
+
+it('marks a completed receipt stale after a later professional profile update without rereading the target pool', async () => {
+  const { service, rows, records } = setup(1);
+  await service.process({ runId: 'run', actor });
+  expect((await service.summary(context, 'run')).complete).toBe(true);
+  records.all.mockClear();
+  rows.set('person', {
+    ...rows.get('person'),
+    id: 'person',
+    jobTitle: 'updated material',
+  });
+  expect(await service.summary(context, 'run')).toMatchObject({
+    sourceChanged: true,
+    complete: false,
+  });
+  expect(records.all).not.toHaveBeenCalled();
+});

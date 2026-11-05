@@ -29,6 +29,7 @@ export type RecruitingMatchRun = {
   results?: RecruitingPair[];
   complete?: boolean;
   stale?: number;
+  sourceChanged?: boolean;
   inaccessible?: number;
   poolChanged?: boolean;
   currentPoolCount?: number;

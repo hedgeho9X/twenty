@@ -183,9 +183,29 @@ export const RecruitingMatchResults = ({
       setBusyId(undefined);
     }
   };
+  /** Reuses the existing authorized retry endpoint and its versioned pair cache. */
+  const refreshMatching = async () => {
+    if (!runId || busyId) return;
+    setBusyId(runId);
+    setError('');
+    try {
+      await recruitingRequest(`match-runs/${runId}/retry`, { method: 'POST' });
+      setTopLimit(5);
+      setLastPage(undefined);
+      setRunning(true);
+      await Promise.all([summary.reload(), results.reload()]);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : '重新匹配失败');
+    } finally {
+      setBusyId(undefined);
+    }
+  };
   if (runId) {
     const run = summary.data?.runId === runId ? summary.data : undefined;
     const page = lastPage?.runId === runId ? lastPage : undefined;
+    const sourceChanged = Boolean(
+      page?.staleOnPage || run?.sourceChanged || run?.status === 'SUPERSEDED',
+    );
     const nextUnread = rows.find(
       (row, i) => i > index && !row.reviewedAt && !viewed.has(row.runId),
     );
@@ -229,9 +249,17 @@ export const RecruitingMatchResults = ({
               <div className="flex flex-wrap items-center gap-3">
                 <CardTitle>{run.subjectLabel}</CardTitle>
                 <Badge
-                  variant={run.status === 'COMPLETED' ? 'success' : 'secondary'}
+                  variant={
+                    sourceChanged
+                      ? 'warning'
+                      : run.status === 'COMPLETED'
+                        ? 'success'
+                        : 'secondary'
+                  }
                 >
-                  {stateLabels[run.status] ?? run.status}
+                  {sourceChanged
+                    ? '评分已过期'
+                    : (stateLabels[run.status] ?? run.status)}
                 </Badge>
                 <Button variant="outline" size="sm" asChild>
                   <a
@@ -276,15 +304,23 @@ export const RecruitingMatchResults = ({
                 </AlertDescription>
               </Alert>
             )}
-            {!!page?.staleOnPage && (
+            {sourceChanged && (
               <Alert>
                 <AlertDescription>
-                  部分资料已经更新，过期评分不可选择，请重新匹配。
+                  简历或岗位资料在评分后更新，旧评分已失效。按最新资料重新匹配后恢复分数和排名。
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={Boolean(busyId) || running}
+                    onClick={() => void refreshMatching()}
+                  >
+                    {busyId === runId ? '正在提交…' : '按最新资料重新匹配'}
+                  </Button>
                 </AlertDescription>
               </Alert>
             )}
             {page?.records
-              .filter((pair) => pair.status !== 'SCORED')
+              .filter((pair) => !['SCORED', 'STALE'].includes(pair.status))
               .map((pair) => (
                 <Alert key={`${pair.candidateId}:${pair.jobId}`}>
                   <AlertDescription>
@@ -312,11 +348,15 @@ export const RecruitingMatchResults = ({
               ))}
             {!page ? (
               <LoadingRows />
-            ) : !page.records.length ? (
+            ) : !page.records.some((pair) => pair.status === 'SCORED') ? (
               <Empty>
                 <EmptyHeader>
                   <EmptyTitle>
-                    {running ? '正在生成推荐结果…' : '暂无可推荐的有效结果'}
+                    {running
+                      ? '正在生成推荐结果…'
+                      : sourceChanged
+                        ? '当前评分需要更新'
+                        : '暂无可推荐的有效结果'}
                   </EmptyTitle>
                   <EmptyDescription>
                     可以稍后刷新，或检查原始资料。
