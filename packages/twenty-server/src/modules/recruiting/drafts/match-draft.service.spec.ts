@@ -62,17 +62,33 @@ const setup = () => {
       };
     }),
   };
-  const jobPages = { activeDraftUrl: jest.fn() };
+  const jobPages = { activeDraftUrl: jest.fn(), create: jest.fn() };
+  const extractor = {
+    draft: jest.fn(async () => ({
+      profile: {
+        title: '岗位推荐',
+        body: '您好，已为您整理相关岗位。',
+        needsReview: false,
+        reviewNotes: [],
+      },
+    })),
+  };
+  const locks = {
+    tryWithLock: async (_key: string, callback: () => Promise<unknown>) => ({
+      acquired: true,
+      value: await callback(),
+    }),
+  };
   const service = new RecruitingDraftsService(
     records as never,
     actors as never,
-    {} as never,
-    {} as never,
+    extractor as never,
+    locks as never,
     queue as never,
     matching as never,
     jobPages as never,
   );
-  return { service, records, rows, queue, jobPages };
+  return { service, records, rows, queue, jobPages, extractor };
 };
 it('binds a selected current result to a saved draft and reloads it', async () => {
   const { service, rows } = setup();
@@ -125,4 +141,28 @@ it('rejects a record not present in the current ranked results before creation',
   ).rejects.toThrow('请选择当前匹配结果');
   expect(records.create).not.toHaveBeenCalled();
   expect(queue.add).not.toHaveBeenCalled();
+});
+
+it('generates a selected match draft without creating or requiring a public share', async () => {
+  const { service, rows, jobPages, extractor } = setup();
+  const context = { workspace: { id: 'workspace' } } as never;
+  const receipt = await service.submit(context, {
+    kind: 'GREETING',
+    matchRunId: runId,
+    selectedIds: [jobId],
+    idempotencyKey: 'text-only',
+  });
+  await service.process({
+    draftId: receipt.draftId,
+    actor: { workspaceId: 'workspace' },
+  });
+  expect(rows.get(receipt.draftId).status).toBe('READY');
+  expect(jobPages.create).not.toHaveBeenCalled();
+  expect(jobPages.activeDraftUrl).not.toHaveBeenCalled();
+  expect(rows.get(receipt.draftId).payload.jobPageUrl).toBeUndefined();
+  expect(extractor.draft).toHaveBeenCalledWith(
+    'MATCH_BRIEF',
+    expect.not.stringContaining('jobPageUrl'),
+    expect.any(String),
+  );
 });

@@ -327,37 +327,24 @@ export class RecruitingDraftsService {
           if (source.version !== payload.sourceVersion)
             throw new ConflictException();
           const savedUrl = payload.jobPageUrl;
-          if (payload.input.matchRunId) {
-            if (!this.jobPages)
-              throw new BadRequestException('岗位介绍服务未就绪');
-            const activeUrl = savedUrl
-              ? await this.jobPages.activeDraftUrl(context, savedUrl)
-              : undefined;
-            const jobPageUrl =
-              activeUrl ??
-              (await this.jobPages.create(
-                context,
-                'jobIds' in source ? source.jobIds : [],
-                'candidateIds' in source &&
-                  source.context.direction === 'JOB_TO_CANDIDATES'
-                  ? source.candidateIds
-                  : [],
-                payload.input.matchRunId,
-              ));
+          if (savedUrl) {
+            const jobPageUrl = await this.jobPages?.activeDraftUrl(
+              context,
+              savedUrl,
+            );
             if (jobPageUrl !== savedUrl) {
               const generation = payload.generation;
               payload = { ...payload, jobPageUrl };
-              if (savedUrl && generation) {
+              if (generation)
                 payload.generation = {
                   ...generation,
                   profile: {
                     ...generation.profile,
                     body: generation.profile.body
                       .split(savedUrl)
-                      .join(jobPageUrl),
+                      .join(jobPageUrl ?? ''),
                   },
                 };
-              }
               await update({ payload });
             }
           }
