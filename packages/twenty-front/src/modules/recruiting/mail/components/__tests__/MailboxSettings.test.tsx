@@ -18,6 +18,7 @@ it('shows a loading state instead of claiming no mailbox exists', () => {
       loading: true,
       error: '',
       reload: jest.fn(),
+      updateData: jest.fn(),
     });
   render(<RecruitingMailboxSettings active />);
   expect(
@@ -38,6 +39,7 @@ it('requests a new bounded server page without reconfiguring capture', () => {
       loading: false,
       error: '',
       reload: jest.fn(),
+      updateData: jest.fn(),
     } as never);
   render(<RecruitingMailboxSettings active />);
   expect(useRecruitingQuery).toHaveBeenLastCalledWith(

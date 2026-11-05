@@ -117,6 +117,7 @@ beforeEach(() => {
       error: '',
       loading: false,
       reload,
+      updateData: jest.fn(),
     }));
 });
 

@@ -88,6 +88,7 @@ it('shows a loading indicator instead of an empty share result during a request'
       loading: true,
       error: '',
       reload: jest.fn(),
+      updateData: jest.fn(),
     });
   render(<ShareLinks active />);
   expect(
@@ -103,6 +104,7 @@ it('does not mislabel a permission failure as an empty share list', () => {
       loading: false,
       error: '当前无权读取分享',
       reload: jest.fn(),
+      updateData: jest.fn(),
     });
   render(<ShareLinks active />);
   expect(screen.getByRole('alert')).toHaveTextContent('当前无权读取分享');

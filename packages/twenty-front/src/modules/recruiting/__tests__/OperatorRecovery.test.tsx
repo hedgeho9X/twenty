@@ -159,6 +159,7 @@ beforeEach(() => {
       error: '',
       loading: false,
       reload: jest.fn().mockResolvedValue(undefined),
+      updateData: jest.fn(),
     }));
 });
 

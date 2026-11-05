@@ -42,6 +42,7 @@ beforeEach(() => {
     loading: false,
     error: '',
     reload,
+    updateData: jest.fn(),
   }));
 });
 
@@ -88,6 +89,7 @@ it('reads migrated blocknote-only preferences through the native rich-text reade
     loading: false,
     error: '',
     reload,
+    updateData: jest.fn(),
   });
   render(<RecruitingMatchCompanyContext companyId="company-a" />);
   fireEvent.click(screen.getByRole('button', { name: '查看公司资料' }));
@@ -100,6 +102,7 @@ it('does not present previously cached company details after a permission failur
     loading: false,
     error: '当前无权读取公司',
     reload,
+    updateData: jest.fn(),
   });
   render(<RecruitingMatchCompanyContext companyId="company-a" />);
   fireEvent.click(screen.getByRole('button', { name: '查看公司资料' }));

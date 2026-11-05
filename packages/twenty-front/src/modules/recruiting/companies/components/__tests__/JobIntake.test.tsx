@@ -130,6 +130,7 @@ beforeEach(() => {
     loading: false,
     error: '',
     reload: jest.fn(),
+    updateData: jest.fn(),
   }));
 });
 
