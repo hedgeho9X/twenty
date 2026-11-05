@@ -6,6 +6,7 @@ import {
   SelectGroup,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from './ui/select';
 export const workflowOptions = {
   TODO: { label: '待处理', variant: 'info' },
@@ -36,11 +37,13 @@ export const WorkflowSelect = ({
         aria-label={filter ? '筛选跟进状态' : '跟进状态'}
         className="w-36"
       >
-        {choice ? (
-          <Badge variant={choice.variant}>{choice.label}</Badge>
-        ) : (
-          <span>全部跟进状态</span>
-        )}
+        <SelectValue>
+          {choice ? (
+            <Badge variant={choice.variant}>{choice.label}</Badge>
+          ) : (
+            <span>全部跟进状态</span>
+          )}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
