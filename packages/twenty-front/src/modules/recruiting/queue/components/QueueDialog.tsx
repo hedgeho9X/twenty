@@ -49,7 +49,7 @@ export const RecruitingQueueDialog = ({
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState('');
   const [retryingId, setRetryingId] = useState<string>();
-  const [selected, setSelected] = useState<string>();
+  const [selected, setSelected] = useState<ProcessingTask>();
   const query = useRecruitingQuery<RecruitingPage<ProcessingTask>>(
     open ? `processing-tasks?offset=${offset}&direction=${direction}` : null,
     open ? 5000 : 0,
@@ -87,7 +87,9 @@ export const RecruitingQueueDialog = ({
                 <RecruitingTaskDetail
                   embedded
                   kind="intake"
-                  id={selected}
+                  id={selected.intakeId}
+                  matchingRunIds={selected.matchingRunIds}
+                  workflowStage={selected.stage}
                   onBack={() => setSelected(undefined)}
                   onClose={() => {
                     setSelected(undefined);
@@ -192,7 +194,7 @@ export const RecruitingQueueDialog = ({
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => setSelected(row.intakeId)}
+                                    onClick={() => setSelected(row)}
                                   >{t`详情`}</Button>
                                   {row.stage === 'MATCH_DISABLED' && (
                                     <Button

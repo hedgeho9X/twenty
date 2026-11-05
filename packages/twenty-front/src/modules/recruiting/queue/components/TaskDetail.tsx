@@ -45,6 +45,8 @@ type RecruitingTaskDetailProps = {
   onClose: () => void;
   embedded?: boolean;
   onBack?: () => void;
+  matchingRunIds?: string[];
+  workflowStage?: string;
 };
 /** Opens only the selected task; linked matching state is read independently from the intake stage. */
 export const RecruitingTaskDetail = ({
@@ -53,6 +55,8 @@ export const RecruitingTaskDetail = ({
   onClose,
   embedded = false,
   onBack,
+  matchingRunIds,
+  workflowStage,
 }: RecruitingTaskDetailProps) => {
   const [preview, setPreview] =
     useState<NonNullable<RecruitingIntake['files']>[number]>();
@@ -62,7 +66,9 @@ export const RecruitingTaskDetail = ({
     5000,
   );
   const task = query.error ? undefined : query.data;
-  const stage = kind === 'intake' ? task?.stage : task?.status;
+  const stage =
+    kind === 'intake' ? (workflowStage ?? task?.stage) : task?.status;
+  const matches = matchingRunIds ?? task?.matchingRunIds;
   const content = preview ? (
     <RecruitingFilePreview
       embedded
@@ -156,8 +162,8 @@ export const RecruitingTaskDetail = ({
                       variant="ghost"
                       onClick={() => setShowSource(true)}
                     >{t`原始材料`}</Button>
-                    {task.matchingRunIds?.length ? (
-                      <IntakeMatchingState ids={task.matchingRunIds} />
+                    {matches?.length ? (
+                      <IntakeMatchingState ids={matches} />
                     ) : (
                       <StyledRecruitingMuted>{t`尚未创建匹配任务`}</StyledRecruitingMuted>
                     )}

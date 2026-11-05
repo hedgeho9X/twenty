@@ -53,6 +53,7 @@ it.each([undefined, '11111111-1111-4111-8111-111111111111'])(
 
 it.each([
   ['false', 'DISABLED'],
+  ['true', 'QUEUED'],
   [undefined, 'QUEUED'],
 ] as const)(
   'keeps a stored candidate while automatic matching is %s',
