@@ -1,8 +1,15 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
 /** Records explicit operator follow-up and preserves legacy history without executing an external action. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button, Field, Input, Textarea } from 'twenty-ui/primitives/input';
-import { Select } from '@/ui/input/components/Select';
+import { Button, Field, Input, Textarea } from '@/recruiting/shadcn/compat';
+import { Select } from '@/recruiting/shadcn/compat';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/shared/api/request';
 import { type RecruitingPage } from '@/recruiting/shared/types/Page';
@@ -156,37 +163,37 @@ export const RecruitingActivities = ({
         <StyledRecruitingError role="alert">{list.error}</StyledRecruitingError>
       )}
       <StyledRecruitingTable>
-        <thead>
-          <tr>
-            <th>{t`时间`}</th>
-            <th>{t`记录`}</th>
-            <th>{t`说明`}</th>
-            <th>{t`确认来源`}</th>
-          </tr>
-        </thead>
-        <tbody>
+        <TableHeader>
+          <TableRow>
+            <TableHead>{t`时间`}</TableHead>
+            <TableHead>{t`记录`}</TableHead>
+            <TableHead>{t`说明`}</TableHead>
+            <TableHead>{t`确认来源`}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {list.data?.records.map((row) => (
-            <tr key={row.activityId}>
-              <td>{new Date(row.at).toLocaleString()}</td>
-              <td>
+            <TableRow key={row.activityId}>
+              <TableCell>{new Date(row.at).toLocaleString()}</TableCell>
+              <TableCell>
                 {labels[row.action as keyof typeof labels] ??
                   row.action ??
                   t`历史记录`}
-              </td>
-              <td>
+              </TableCell>
+              <TableCell>
                 <div>{row.note}</div>
                 <StyledRecruitingMuted>{row.channel}</StyledRecruitingMuted>
-              </td>
-              <td>
+              </TableCell>
+              <TableCell>
                 {row.humanConfirmed
                   ? t`本人确认`
                   : row.verified
                     ? t`备注`
                     : t`历史数据／需核对`}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
+        </TableBody>
       </StyledRecruitingTable>
       {!list.loading && !list.data?.records.length && (
         <StyledRecruitingMuted>{t`暂无跟进记录。`}</StyledRecruitingMuted>

@@ -1,7 +1,7 @@
 /** Keeps unsaved operator edits separate from periodic queue refreshes. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button, Field, Input, Textarea } from 'twenty-ui/primitives/input';
+import { Button, Field, Input, Textarea } from '@/recruiting/shadcn/compat';
 import { type RecruitingDraft } from '@/recruiting/drafts/types/Draft';
 import { recruitingRequest } from '@/recruiting/shared/api/request';
 import {

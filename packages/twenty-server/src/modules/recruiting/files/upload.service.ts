@@ -93,6 +93,49 @@ export class RecruitingUploadService {
     });
   }
 
+  /** Reauthorizes existing candidate attachments without accepting arbitrary workspace file IDs. */
+  async fromCandidate(context: WorkspaceAuthContext, candidateId: string) {
+    const candidate = await this.records.one(context, 'person', candidateId);
+    if (
+      !Array.isArray(candidate.contactRoles) ||
+      !candidate.contactRoles.includes('CANDIDATE')
+    )
+      throw new BadRequestException('目标记录不是候选人');
+    const principal = await this.assertUploadPermission(context);
+    const references = Array.isArray(candidate.candidateResumes)
+      ? candidate.candidateResumes
+      : [];
+    return references.flatMap((value) => {
+      const file = value as { fileId?: string; label?: string };
+      if (
+        !file ||
+        typeof file.fileId !== 'string' ||
+        typeof file.label !== 'string'
+      )
+        return [];
+      if (/^(mail-body\.|mail-metadata\.|original\.eml$)/i.test(file.label))
+        return [];
+      return [
+        {
+          fileId: file.fileId,
+          label: file.label,
+          role: 'primary' as const,
+          uploadReceipt: signRecruitingUploadReceipt(
+            {
+              version: 1,
+              workspaceId: context.workspace.id,
+              principalHash: contentVersion(principal),
+              fileId: file.fileId,
+              label: file.label,
+              expiresAt: Date.now() + 24 * 60 * 60_000,
+            },
+            this.config.get('APP_SECRET'),
+          ),
+        },
+      ];
+    });
+  }
+
   /** Renews only completed uploads bound to a readable signed portal invitation, never caller-supplied foreign file IDs. */
   async fromPortalInvitation(
     context: WorkspaceAuthContext,

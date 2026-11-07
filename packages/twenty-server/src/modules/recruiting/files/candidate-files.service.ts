@@ -5,7 +5,10 @@ import { isPlainObject } from 'twenty-shared/utils';
 
 import { type WorkspaceAuthContext } from 'src/engine/core-modules/auth/types/workspace-auth-context.type';
 import { FileService } from 'src/engine/core-modules/file/services/file.service';
-import { RecruitingRecordsService } from '../records/records.service';
+import {
+  RecruitingRecordsService,
+  type RecruitingRecord,
+} from '../records/records.service';
 
 @Injectable()
 export class RecruitingCandidateFilesService {
@@ -24,14 +27,14 @@ export class RecruitingCandidateFilesService {
       limit: 1,
       select: ['id', 'contactRoles', 'candidateResumes'],
     });
-    const candidate = page.records[0];
+    const candidate = page.records[0] as RecruitingRecord | undefined;
     if (
       !candidate ||
       !Array.isArray(candidate.contactRoles) ||
       !candidate.contactRoles.includes('CANDIDATE')
     )
       throw new NotFoundException('候选人不存在或当前无权访问');
-    const references = Array.isArray(candidate.candidateResumes)
+    const references: unknown[] = Array.isArray(candidate.candidateResumes)
       ? candidate.candidateResumes
       : [];
     const files = references.flatMap((file) =>
@@ -59,8 +62,7 @@ export class RecruitingCandidateFilesService {
   ) {
     const { files } = await this.list(context, candidateId);
     const reference = files.find((file) => file.fileId === fileId);
-    if (!reference)
-      throw new NotFoundException('候选人没有可读取的这份材料');
+    if (!reference) throw new NotFoundException('候选人没有可读取的这份材料');
     const file = await this.files.getFileStreamById({
       workspaceId: context.workspace.id,
       fileId,

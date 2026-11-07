@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { JobProfileDialog } from './JobProfileDialog';
 /** Shows permission-scoped existing jobs before an operator imports another company-bound batch. */
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
+import { Button } from '@/recruiting/shadcn/compat';
 import { RecruitingJobStatus } from './JobStatus';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { type RecruitingJob } from '@/recruiting/companies/types/Job';

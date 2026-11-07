@@ -1,8 +1,17 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
+import { Badge as ContextBadge } from '@/recruiting/shadcn/ui/badge';
+import { ResultInput } from '@/recruiting/shared/components/ResultControls';
 import { MatchShareActions } from '@/recruiting/shared/components/MatchShareActions';
 /** Selects up to ten ranked results and generates a persistent editable communication draft. */
 import { useEffect, useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button, Checkbox, Textarea } from 'twenty-ui/primitives/input';
+import { Button, Checkbox, Textarea } from '@/recruiting/shadcn/compat';
 import { type RecruitingMatchRun } from '@/recruiting/matching/types/MatchRun';
 import { type RecruitingDraft } from '@/recruiting/drafts/types/Draft';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
@@ -76,14 +85,27 @@ const DraftText = ({ draft }: { draft: RecruitingDraft }) => {
 export const MatchSelection = ({
   run,
   active = true,
+  showAll = false,
 }: {
   run: RecruitingMatchRun;
   active?: boolean;
+  showAll?: boolean;
 }) => {
-  const pairs = (run.top ?? []).slice(0, 10);
+  const pairs = (
+    run.results
+      ? run.results.filter((pair) => pair.status === 'SCORED')
+      : (run.top ?? [])
+  ).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const [search, setSearch] = useState('');
+  const filtered = pairs.filter((pair) =>
+    `${pair.candidateLabel} ${pair.jobLabel} ${pair.companyLabel ?? ''}`
+      .toLocaleLowerCase()
+      .includes(search.toLocaleLowerCase()),
+  );
   const identifier = (pair: (typeof pairs)[number]) =>
     run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateId : pair.jobId;
   const [visibleCount, setVisibleCount] = useState(5);
+  const selectionCount = Math.min(showAll ? filtered.length : visibleCount, 10);
   const [selected, setSelected] = useState(
     () => new Set(pairs.slice(0, 5).map(identifier)),
   );
@@ -156,93 +178,140 @@ export const MatchSelection = ({
     }
   };
   const select = (next: Set<string>) => {
+    if (next.size > 10) {
+      setMessage(t`一次最多选择十项`);
+      return;
+    }
     setSelectionTouched(true);
     setSelected(next);
     setKey(crypto.randomUUID());
   };
   return (
     <StyledRecruitingStack>
-      <StyledRecruitingTable>
-        <thead>
-          <tr>
-            <th>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  const visible = pairs.slice(0, visibleCount).map(identifier);
-                  const all =
-                    visible.length > 0 &&
-                    visible.every((id) => selected.has(id));
-                  select(all ? new Set() : new Set(visible));
-                }}
-              >
-                {pairs
-                  .slice(0, visibleCount)
-                  .every((pair) => selected.has(identifier(pair)))
-                  ? t`取消全选`
-                  : t`全选当前结果`}
-              </Button>
-              <span>{t`已选 ${selected.size} 项`}</span>
-            </th>
-            <th>{run.direction === 'JOB_TO_CANDIDATES' ? t`姓名` : t`岗位`}</th>
-            <th>{t`公司`}</th>
-            <th>{t`匹配值`}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pairs.slice(0, visibleCount).map((pair) => (
-            <tr key={identifier(pair)}>
-              <td>
-                <Checkbox
-                  aria-label={`${t`选择`} ${run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateLabel : pair.jobLabel}`}
-                  checked={selected.has(identifier(pair))}
-                  onCheckedChange={(checked) => {
-                    const next = new Set(selected);
-                    if (checked) next.add(identifier(pair));
-                    else next.delete(identifier(pair));
-                    select(next);
+      {!showAll && (
+        <ResultInput
+          aria-label={t`搜索匹配项`}
+          placeholder={t`搜索岗位、公司或候选人`}
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setVisibleCount(20);
+          }}
+        />
+      )}
+      <div style={{ maxHeight: '55vh', overflow: 'auto' }}>
+        <StyledRecruitingTable
+          className="recruiting-recommendations-table"
+          containerClassName="overflow-visible"
+        >
+          <TableHeader>
+            <TableRow>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    const visible = filtered
+                      .slice(0, selectionCount)
+                      .map(identifier);
+                    const all =
+                      visible.length > 0 &&
+                      visible.every((id) => selected.has(id));
+                    select(all ? new Set() : new Set(visible));
                   }}
-                />
-              </td>
-              <td>
-                {run.direction === 'JOB_TO_CANDIDATES' ? (
-                  <a href={pair.candidateUrl}>{pair.candidateLabel}</a>
-                ) : (
-                  <RecruitingJobFacts id={pair.jobId} label={pair.jobLabel} />
-                )}
-              </td>
-              <td>
-                <RecruitingCompanyName
-                  id={pair.companyId}
-                  label={pair.companyLabel}
-                />
-              </td>
-              <td>{pair.score?.toFixed(2)} / 4</td>
-            </tr>
-          ))}
-        </tbody>
-      </StyledRecruitingTable>
-      {pairs.length > visibleCount && (
+                >
+                  {filtered
+                    .slice(0, selectionCount)
+                    .every((pair) => selected.has(identifier(pair)))
+                    ? t`取消全选`
+                    : t`全选当前结果`}
+                </Button>
+                <span>{t`已选 ${selected.size} 项`}</span>
+              </TableHead>
+              <TableHead>
+                {run.direction === 'JOB_TO_CANDIDATES' ? t`姓名` : t`岗位`}
+              </TableHead>
+              <TableHead>{t`公司`}</TableHead>
+              <TableHead>{t`匹配值`}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered
+              .slice(0, showAll ? filtered.length : visibleCount)
+              .map((pair) => (
+                <TableRow key={identifier(pair)}>
+                  <TableCell>
+                    <Checkbox
+                      aria-label={`${t`选择`} ${run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateLabel : pair.jobLabel}`}
+                      checked={selected.has(identifier(pair))}
+                      onCheckedChange={(checked) => {
+                        const next = new Set(selected);
+                        if (checked) next.add(identifier(pair));
+                        else next.delete(identifier(pair));
+                        select(next);
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {run.direction === 'JOB_TO_CANDIDATES' ? (
+                      <a href={pair.candidateUrl}>{pair.candidateLabel}</a>
+                    ) : (
+                      <RecruitingJobFacts
+                        id={pair.jobId}
+                        label={pair.jobLabel}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <RecruitingCompanyName
+                      id={pair.companyId}
+                      label={pair.companyLabel}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {pair.score?.toFixed(2)} / 4
+                    {pair.longContext && (
+                      <div>
+                        <ContextBadge
+                          variant="warning"
+                          title="长材料评分，需人工复核"
+                        >
+                          长材料
+                        </ContextBadge>
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+          </TableBody>
+        </StyledRecruitingTable>
+      </div>
+      {!showAll && filtered.length > visibleCount && (
         <Button
           variant="ghost"
-          onClick={() => setVisibleCount(10)}
+          onClick={() => setVisibleCount((count) => count + 20)}
         >{t`加载更多`}</Button>
       )}
-      <Button
-        disabled={
-          !run.complete ||
-          !selected.size ||
-          busy ||
-          ['QUEUED', 'PROCESSING'].includes(draft?.status ?? '')
-        }
-        loading={busy}
-        onClick={() => {
-          void generate();
-        }}
-      >{t`生成沟通文案`}</Button>
+      <StyledRecruitingRow>
+        <Button
+          disabled={
+            !selected.size ||
+            busy ||
+            ['QUEUED', 'PROCESSING'].includes(draft?.status ?? '')
+          }
+          loading={busy}
+          onClick={() => {
+            void generate();
+          }}
+        >{t`生成沟通文案`}</Button>
+      </StyledRecruitingRow>
       <MatchShareActions
         matchRunId={run.runId}
-        currentUrl={draft?.jobPageUrl}
+        selectionLabels={pairs
+          .filter((pair) => selected.has(identifier(pair)))
+          .map(
+            (pair) =>
+              `${pair.candidateLabel ?? ''} → ${pair.companyLabel ?? ''} · ${pair.jobLabel}`,
+          )}
         jobIds={[
           ...new Set(
             pairs

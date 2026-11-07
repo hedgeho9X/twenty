@@ -1,186 +1,211 @@
-/** Verifies persisted partial history can be reopened without enabling recommendation actions. */
-import { fireEvent, render, screen, within } from '@testing-library/react';
+/** Verifies bounded recommendation loading, usable partial results and explicit date defaults. */
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RecruitingMatchResults } from '../MatchResults';
-import { MatchSelection } from '../MatchSelection';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
-import { type RecruitingMatchRun } from '@/recruiting/matching/types/MatchRun';
-
+import { recruitingRequest } from '@/recruiting/shared/api/request';
 jest.mock('@/recruiting/shared/hooks/useRecruitingQuery');
-jest.mock('../MatchSelection', () => ({
-  MatchSelection: jest.fn(() => <button>生成沟通文案</button>),
+jest.mock('@/recruiting/shared/api/request');
+jest.mock('twenty-ui/icon', () => ({
+  IconArrowLeft: () => null,
+  IconRefresh: () => null,
+  IconChevronDown: () => null,
+  IconChevronUp: () => null,
+  IconChevronLeft: () => null,
+  IconChevronRight: () => null,
+  IconCheck: () => null,
+  IconX: () => null,
+  IconDotsVertical: () => null,
+  IconLoader: () => null,
+  IconLink: () => null,
+  IconCopy: () => null,
+  IconExternalLink: () => null,
 }));
 jest.mock('../MatchFacts', () => ({
-  RecruitingCandidateFacts: ({ label }: { label: string }) => <h2>{label}</h2>,
+  RecruitingCompanyName: ({ label }: { label: string }) => <span>{label}</span>,
+  RecruitingJobFacts: ({ label }: { label: string }) => <span>{label}</span>,
 }));
-jest.mock('@/recruiting/shared/styles', () => ({
-  StyledRecruitingPanel: 'section',
-  StyledRecruitingError: 'div',
-  StyledRecruitingMuted: 'p',
-  StyledRecruitingRow: 'div',
-  StyledRecruitingStack: 'div',
-  StyledRecruitingTable: 'table',
-  StyledRecruitingTitle: 'h2',
+const pairs = Array.from({ length: 10 }, (_, i) => ({
+  candidateId: `candidate-${i}`,
+  jobId: `job-${i}`,
+  candidateLabel: `候选人${i}`,
+  jobLabel: `岗位${i}`,
+  companyLabel: '公司',
+  status: 'SCORED',
+  score: 3 - i / 10,
+  cached: false,
+  eligibility: { status: 'eligible', reasons: [] },
 }));
-jest.mock('twenty-ui/icon', () => ({
-  IconRefresh: () => null,
-  IconArrowLeft: () => null,
-}));
-jest.mock('twenty-ui/primitives/input', () => ({
-  Button: ({
-    children,
-    onClick,
-    disabled,
-  }: {
-    children: React.ReactNode;
-    onClick: () => void;
-    disabled?: boolean;
-  }) => (
-    <button onClick={onClick} disabled={disabled}>
-      {children}
-    </button>
-  ),
-}));
-jest.mock('@/ui/input/components/Select', () => ({
-  Select: ({
-    value,
-    options,
-    onChange,
-  }: {
-    value: string;
-    options: { value: string; label: string }[];
-    onChange: (value: string) => void;
-  }) => (
-    <select
-      aria-label="匹配方向"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  ),
-}));
-
-const makeRun = (direction: string, unscoredStatus: string) =>
-  ({
-    runId: 'saved-run',
+let direction = 'CANDIDATE_TO_JOBS';
+let loading = false;
+let state = 'COMPLETED';
+let summary: Record<string, unknown>;
+let page5: Record<string, unknown>,
+  page10: Record<string, unknown>,
+  list: Record<string, unknown>;
+beforeEach(() => {
+  jest.clearAllMocks();
+  direction = 'CANDIDATE_TO_JOBS';
+  loading = false;
+  state = 'COMPLETED';
+  jest.mocked(recruitingRequest).mockResolvedValue({});
+  summary = {
+    runId: 'run',
     direction,
     subjectId: 'subject',
-    subjectLabel: '匹配来源',
-    createdAt: '2026-01-01T00:00:00Z',
-    status: 'PARTIAL',
-    complete: false,
+    subjectLabel: '测试对象',
+    status: state,
+    createdAt: '2026-11-05T00:00:00Z',
+    executionComplete: true,
     counts: {
-      total: 2,
-      processed: 2,
-      scored: 1,
-      needsReview: 1,
-      failed: 0,
+      total: 500,
+      processed: 500,
+      scored: 480,
+      excluded: 20,
       cached: 0,
-      excluded: 0,
+      failed: 0,
+      needsReview: 0,
     },
-    results: ['SCORED', unscoredStatus].map((status, index) => ({
-      candidateId: `candidate-${index}`,
-      candidateLabel: `候选人${index}`,
-      candidateUrl: `/object/person/candidate-${index}`,
-      jobId: `job-${index}`,
-      jobLabel: `岗位${index}`,
-      jobUrl: `/object/recruitmentJob/job-${index}`,
-      status,
-      score: status === 'SCORED' ? 3.25 : undefined,
-      cached: false,
-      eligibility: { status: 'eligible', reasons: [] },
-    })),
-  }) as RecruitingMatchRun;
-
-beforeEach(() => jest.clearAllMocks());
-
-it.each([
-  ['CANDIDATE_TO_JOBS', 'NEEDS_REVIEW'],
-  ['CANDIDATE_TO_JOBS', 'FAILED'],
-  ['JOB_TO_CANDIDATES', 'NEEDS_REVIEW'],
-  ['JOB_TO_CANDIDATES', 'FAILED'],
-])(
-  'recovers %s partial history containing %s after remount',
-  (direction, unscoredStatus) => {
-    const run = makeRun(direction, unscoredStatus);
+  };
+  page5 = {
+    runId: 'run',
+    records: pairs.slice(0, 5),
+    count: 480,
+    hasNextPage: true,
+    staleOnPage: 0,
+  };
+  page10 = { ...page5, records: pairs };
+  list = { records: [summary], count: 1, hasNextPage: false };
+  jest.mocked(useRecruitingQuery).mockImplementation(
+    (path) =>
+      ({
+        data: path?.endsWith('/summary')
+          ? summary
+          : path?.includes('/results?')
+            ? path.includes('limit=10')
+              ? page10
+              : page5
+            : path?.startsWith('match-results?')
+              ? loading
+                ? undefined
+                : list
+              : undefined,
+        error: '',
+        loading,
+        reload: jest.fn(),
+        updateData: jest.fn((update) => {
+          list = update(list);
+        }),
+      }) as never,
+  );
+});
+it('loads five recommendations first and requests ten only after expanding', async () => {
+  render(<RecruitingMatchResults initialRunId="run" />);
+  await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(5));
+  expect(useRecruitingQuery).toHaveBeenCalledWith(
+    'match-runs/run/summary',
+    expect.any(Number),
+    true,
+  );
+  expect(useRecruitingQuery).toHaveBeenCalledWith(
+    'match-runs/run/results?offset=0&limit=5&status=SCORED',
+    expect.any(Number),
+    true,
+  );
+  expect(
     jest
       .mocked(useRecruitingQuery)
-      .mockImplementation(<T,>(path: string | null) => ({
-        data: (path === 'match-runs/saved-run'
-          ? run
-          : { records: [run], hasNextPage: false }) as T,
-        error: '',
-        loading: false,
-        reload: jest.fn(),
-      }));
-
-    // Simulate leaving the result page and returning without an in-memory run ID.
-    const previous = render(
-      <RecruitingMatchResults initialRunId="saved-run" />,
-    );
-    previous.unmount();
-    render(<RecruitingMatchResults />);
-    fireEvent.change(screen.getByRole('combobox', { name: '匹配方向' }), {
-      target: { value: direction },
-    });
-    expect(useRecruitingQuery).toHaveBeenCalledWith(
-      `match-runs?offset=0&direction=${direction}&terminalHistory=true`,
-      0,
-      true,
-    );
+      .mock.calls.some(([path]) => path === 'match-runs/run'),
+  ).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: '展开到前 10 名' }));
+  await waitFor(() => expect(screen.getAllByRole('checkbox')).toHaveLength(10));
+});
+it('keeps PDF sharing available for scored candidates in a partial job run', async () => {
+  summary.direction = 'JOB_TO_CANDIDATES';
+  summary.status = 'PARTIAL';
+  render(<RecruitingMatchResults initialRunId="run" />);
+  await screen.findByText(/部分资料需要核对/);
+  await waitFor(() =>
     expect(
-      within(screen.getByRole('table')).getByText('PARTIAL'),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '查看结果' }));
-    expect(screen.getByText('匹配值：3.25 / 4')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '岗位0' })).toHaveAttribute(
-      'href',
-      '/object/recruitmentJob/job-0',
-    );
-    if (direction === 'JOB_TO_CANDIDATES')
-      expect(screen.getByRole('link', { name: '候选人0' })).toHaveAttribute(
-        'href',
-        '/object/person/candidate-0',
-      );
-    expect(
-      screen.getByText(
-        unscoredStatus === 'FAILED' ? '处理失败' : '待补资料或人工核对',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/已评分 1 \/ 2 项/)).toHaveTextContent(
-      '结果覆盖不完整',
-    );
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: '生成沟通文案' }),
-    ).not.toBeInTheDocument();
-    expect(MatchSelection).not.toHaveBeenCalled();
-    expect(useRecruitingQuery).toHaveBeenLastCalledWith(
-      'match-runs/saved-run',
-      0,
-      true,
-    );
-  },
-);
-
-it('retains selection and draft actions for complete results', () => {
-  const run = makeRun('CANDIDATE_TO_JOBS', 'NEEDS_REVIEW');
-  run.status = 'COMPLETED';
-  run.complete = true;
-  run.top = run.results?.filter((pair) => pair.status === 'SCORED');
-  jest.mocked(useRecruitingQuery).mockReturnValue({
-    data: run,
-    loading: false,
-    error: '',
-    reload: jest.fn(),
-  });
-  render(<RecruitingMatchResults initialRunId="saved-run" />);
+      screen.getByRole('button', { name: '生成分享链接' }),
+    ).not.toBeDisabled(),
+  );
+  fireEvent.click(screen.getByRole('button', { name: '生成分享链接' }));
+  expect(screen.getByRole('dialog')).toHaveTextContent('确认分享范围');
+  expect(recruitingRequest).not.toHaveBeenCalled();
   expect(
-    screen.getByRole('button', { name: '生成沟通文案' }),
-  ).toBeInTheDocument();
-  expect(screen.queryByText(/结果覆盖不完整/)).not.toBeInTheDocument();
+    screen.getByLabelText('附带所选候选人的全部 PDF / 原始附件'),
+  ).toBeChecked();
+});
+it('defaults to all time and displays loading placeholders rather than an empty result', () => {
+  loading = true;
+  render(<RecruitingMatchResults />);
+  expect(screen.getByRole('combobox', { name: '时间范围' })).toHaveTextContent(
+    '全部时间',
+  );
+  expect(screen.getByLabelText('正在加载结果')).toBeInTheDocument();
+  expect(screen.queryByText('没有符合条件的匹配结果')).not.toBeInTheDocument();
+  expect(document.querySelector('input[type="date"]')).toBeNull();
+});
+
+it('restores the same view after detail navigation but starts a new page at the top', async () => {
+  list = { ...list, count: 100 };
+  const { container } = render(<RecruitingMatchResults />);
+  let viewport = container.querySelector('[data-radix-scroll-area-viewport]')!;
+  viewport.scrollTop = 180;
+  viewport.scrollLeft = 90;
+  fireEvent.scroll(viewport);
+  fireEvent.click(screen.getByRole('button', { name: '查看结果' }));
+  fireEvent.click(await screen.findByRole('button', { name: '返回列表' }));
+  viewport = container.querySelector('[data-radix-scroll-area-viewport]')!;
+  expect(viewport.scrollTop).toBe(180);
+  expect(viewport.scrollLeft).toBe(90);
+  fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+  await waitFor(() => expect(viewport.scrollTop).toBe(0));
+  expect(viewport.scrollLeft).toBe(0);
+});
+
+it('replaces unusable stale scores with one recovery action instead of an empty ranking table', async () => {
+  page5 = {
+    ...page5,
+    staleOnPage: 5,
+    records: pairs
+      .slice(0, 5)
+      .map((pair) => ({ ...pair, status: 'STALE', score: undefined })),
+  };
+  render(<RecruitingMatchResults initialRunId="run" />);
+  expect(await screen.findByText('评分已过期')).toBeInTheDocument();
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: '生成分享链接' }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: '按最新资料重新匹配' }));
+  await waitFor(() =>
+    expect(recruitingRequest).toHaveBeenCalledWith('match-runs/run/retry', {
+      method: 'POST',
+    }),
+  );
+});
+
+it('updates the saved row without reloading the list or resetting its scroll', async () => {
+  Element.prototype.scrollIntoView = jest.fn();
+  const { container } = render(<RecruitingMatchResults />);
+  const viewport = container.querySelector(
+    '[data-radix-scroll-area-viewport]',
+  )!;
+  viewport.scrollTop = 180;
+  fireEvent.scroll(viewport);
+  fireEvent.keyDown(screen.getByRole('combobox', { name: '跟进状态' }), {
+    key: 'ArrowDown',
+  });
+  fireEvent.click(await screen.findByRole('option', { name: '待联系' }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole('combobox', { name: '跟进状态' }),
+    ).toHaveTextContent('待联系'),
+  );
+  expect(viewport.scrollTop).toBe(180);
+  expect(screen.queryByLabelText('正在加载结果')).not.toBeInTheDocument();
+  expect(list.records).toEqual([
+    expect.objectContaining({ followUpStatus: 'TO_CONTACT' }),
+  ]);
 });

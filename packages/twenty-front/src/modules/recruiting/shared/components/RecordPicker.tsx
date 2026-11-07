@@ -1,18 +1,19 @@
-/** Searches small native record choices without loading the full material pool into the browser. */
+/** Fetches record choices only while an operator opens the paginated shadcn picker. */
 import { useEffect, useState } from 'react';
-import { t } from '@lingui/core/macro';
-import { Button, Field, Input } from 'twenty-ui/primitives/input';
+import { Button } from '@/recruiting/shadcn/ui/button';
+import { Input } from '@/recruiting/shadcn/ui/input';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/recruiting/shadcn/ui/popover';
+import { Field, FieldLabel } from '@/recruiting/shadcn/ui/field';
+import { Skeleton } from '@/recruiting/shadcn/ui/skeleton';
+import { Empty, EmptyHeader, EmptyTitle } from '@/recruiting/shadcn/ui/empty';
+import { Alert, AlertDescription } from '@/recruiting/shadcn/ui/alert';
 import { type RecruitingPage } from '@/recruiting/shared/types/Page';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
-import {
-  StyledRecruitingError,
-  StyledRecruitingMuted,
-  StyledRecruitingRow,
-  StyledRecruitingChoices,
-  StyledRecruitingStack,
-} from '@/recruiting/shared/styles';
 
-/** Keeps selection explicit, with cancellable debounced search and a clear selected-record state. */
 export const RecruitingRecordPicker = <T extends { id: string }>({
   label,
   path,
@@ -30,64 +31,123 @@ export const RecruitingRecordPicker = <T extends { id: string }>({
   onSelect: (record: T | undefined) => void;
   disabled?: boolean;
 }) => {
-  const [search, setSearch] = useState('');
-  const [debounced, setDebounced] = useState('');
+  const [open, setOpen] = useState(false),
+    [search, setSearch] = useState(''),
+    [queryText, setQueryText] = useState('');
+  const [offset, setOffset] = useState(0);
   useEffect(() => {
-    const timer = window.setTimeout(() => setDebounced(search), 250);
-    return () => window.clearTimeout(timer);
+    const timer = setTimeout(() => setQueryText(search), 250);
+    return () => clearTimeout(timer);
   }, [search]);
   const query = useRecruitingQuery<RecruitingPage<T>>(
-    !selected && !disabled
-      ? `${path}${path.includes('?') ? '&' : '?'}search=${encodeURIComponent(debounced)}&limit=8`
-      : null,
+    `${path}${path.includes('?') ? '&' : '?'}search=${encodeURIComponent(queryText)}&limit=8&offset=${offset}`,
+    0,
+    open && !disabled,
   );
   return (
-    <Field.Root>
-      <Field.Label>{label}</Field.Label>
-      {selected ? (
-        <StyledRecruitingRow>
-          <strong>{renderLabel(selected)}</strong>
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
           <Button
+            variant="outline"
             disabled={disabled}
-            size="sm"
-            onClick={() => onSelect(undefined)}
-          >{t`重新选择`}</Button>
-        </StyledRecruitingRow>
-      ) : (
-        <StyledRecruitingStack>
+            className="w-full justify-start truncate"
+          >
+            {selected ? renderLabel(selected) : `选择${label}`}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[var(--radix-popover-trigger-width)] min-w-72 p-3"
+          align="start"
+        >
           <Input
+            autoFocus
             aria-label={label}
             value={search}
-            disabled={disabled}
-            onValueChange={setSearch}
-            placeholder={t`输入名称搜索`}
+            placeholder="输入名称搜索"
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setOffset(0);
+            }}
           />
           {query.error && (
-            <StyledRecruitingError role="alert">
-              {query.error}
-            </StyledRecruitingError>
+            <Alert variant="destructive">
+              <AlertDescription>{query.error}</AlertDescription>
+            </Alert>
           )}
-          <StyledRecruitingChoices>
-            {query.data?.records.slice(0, 8).map((record) => (
+          <div
+            role="listbox"
+            aria-label={`${label}搜索结果`}
+            className="my-2 flex max-h-72 flex-col gap-1 overflow-y-auto"
+          >
+            {query.loading
+              ? Array.from({ length: 4 }, (_, i) => (
+                  <Skeleton key={i} className="h-9 w-full" />
+                ))
+              : query.data?.records.map((record) => (
+                  <Button
+                    key={record.id}
+                    role="option"
+                    aria-selected={selected?.id === record.id}
+                    variant="ghost"
+                    className="h-auto min-h-9 justify-start whitespace-normal text-left"
+                    onClick={() => {
+                      onSelect(record);
+                      setOpen(false);
+                    }}
+                  >
+                    <span>
+                      <span className="block">{renderLabel(record)}</span>
+                      {renderHint?.(record) && (
+                        <span className="block text-xs text-muted-foreground">
+                          {renderHint(record)}
+                        </span>
+                      )}
+                    </span>
+                  </Button>
+                ))}
+            {!query.loading && query.data && !query.data.records.length && (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>未找到匹配记录</EmptyTitle>
+                </EmptyHeader>
+              </Empty>
+            )}
+          </div>
+          <div className="flex items-center justify-between gap-2 border-t pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!selected}
+              onClick={() => {
+                onSelect(undefined);
+                setOpen(false);
+              }}
+            >
+              清除
+            </Button>
+            <div className="flex gap-1">
               <Button
-                key={record.id}
-                variant="ghost"
-                fullWidth
-                onClick={() => onSelect(record)}
+                variant="outline"
+                size="sm"
+                disabled={!offset || query.loading}
+                onClick={() => setOffset(Math.max(0, offset - 8))}
               >
-                {renderLabel(record)}
-                {renderHint?.(record) && ` · ${renderHint(record)}`}
+                上一页
               </Button>
-            ))}
-          </StyledRecruitingChoices>
-          {query.loading && (
-            <StyledRecruitingMuted>{t`正在查找…`}</StyledRecruitingMuted>
-          )}
-          {!query.loading && query.data && !query.data.records.length && (
-            <StyledRecruitingMuted>{t`没有找到对应记录，请修改搜索内容。`}</StyledRecruitingMuted>
-          )}
-        </StyledRecruitingStack>
-      )}
-    </Field.Root>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!query.data?.hasNextPage || query.loading}
+                onClick={() => setOffset(offset + 8)}
+              >
+                下一页
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </Field>
   );
 };

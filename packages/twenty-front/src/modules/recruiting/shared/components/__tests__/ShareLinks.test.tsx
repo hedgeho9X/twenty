@@ -25,6 +25,12 @@ jest.mock('twenty-ui/icon', () => ({
   IconCopy: () => null,
   IconEye: () => null,
   IconPlayerStop: () => null,
+  IconChevronDown: () => null,
+  IconChevronUp: () => null,
+  IconCheck: () => null,
+  IconChevronLeft: () => null,
+  IconChevronRight: () => null,
+  IconDotsVertical: () => null,
 }));
 it('shows the matching subject and serializable icon actions instead of a wall of job names', async () => {
   const reload = jest.fn();
@@ -34,18 +40,21 @@ it('shows the matching subject and serializable icon actions instead of a wall o
     value: { writeText },
   });
   jest.mocked(useRecruitingQuery).mockReturnValue({
-    data: [
-      {
-        key: 'short',
-        url: 'https://example.test/r/short',
-        subjectLabel: '测试候选人',
-        matchRunId: 'match',
-        jobIds: ['job'],
-        candidateIds: [],
-        jobs: [{ name: '长岗位描述', status: 'RECRUITING' }],
-        createdAt: new Date().toISOString(),
-      },
-    ],
+    data: {
+      records: [
+        {
+          key: 'short',
+          url: 'https://example.test/r/short',
+          subjectLabel: '测试候选人',
+          matchRunId: 'match',
+          jobIds: ['job'],
+          candidateIds: [],
+          jobs: [{ name: '长岗位描述', status: 'RECRUITING' }],
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      count: 1,
+    },
     loading: false,
     error: '',
     reload,
@@ -69,4 +78,35 @@ it('shows the matching subject and serializable icon actions instead of a wall o
   expect(recruitingRequest).toHaveBeenCalledWith('share-links/short/revoke', {
     method: 'POST',
   });
+});
+
+it('shows a loading indicator instead of an empty share result during a request', () => {
+  jest
+    .mocked(useRecruitingQuery)
+    .mockReturnValue({
+      data: undefined,
+      loading: true,
+      error: '',
+      reload: jest.fn(),
+      updateData: jest.fn(),
+    });
+  render(<ShareLinks active />);
+  expect(
+    screen.getByRole('status', { name: '正在加载分享链接' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText('暂无分享链接')).not.toBeInTheDocument();
+});
+it('does not mislabel a permission failure as an empty share list', () => {
+  jest
+    .mocked(useRecruitingQuery)
+    .mockReturnValue({
+      data: undefined,
+      loading: false,
+      error: '当前无权读取分享',
+      reload: jest.fn(),
+      updateData: jest.fn(),
+    });
+  render(<ShareLinks active />);
+  expect(screen.getByRole('alert')).toHaveTextContent('当前无权读取分享');
+  expect(screen.queryByText('暂无分享链接')).not.toBeInTheDocument();
 });

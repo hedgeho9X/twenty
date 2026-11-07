@@ -1,8 +1,15 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
 import { JobProfileDialog } from './JobProfileDialog';
 /** Opens all jobs for one company using the existing permission-aware, paginated directory. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button, Input } from 'twenty-ui/primitives/input';
+import { Button, Input } from '@/recruiting/shadcn/compat';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { type RecruitingPage } from '@/recruiting/shared/types/Page';
 import { type RecruitingJob } from '@/recruiting/companies/types/Job';
@@ -69,35 +76,35 @@ export const RecruitingCompanyJobsList = ({
         )}
         <div style={{ overflowX: 'auto' }}>
           <StyledRecruitingTable>
-            <thead>
-              <tr>
-                <th>{t`岗位名称`}</th>
-                <th>{t`状态`}</th>
-                <th>{t`解析资料`}</th>
-              </tr>
-            </thead>
-            <tbody>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t`岗位名称`}</TableHead>
+                <TableHead>{t`状态`}</TableHead>
+                <TableHead>{t`解析资料`}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {page?.records.map((job) => (
-                <tr key={job.id}>
-                  <td>
+                <TableRow key={job.id}>
+                  <TableCell>
                     <StyledRecruitingRecordLink
                       href={`/object/recruitmentJob/${job.id}`}
                     >
                       {job.name}
                     </StyledRecruitingRecordLink>
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <RecruitingJobStatus status={job.jobStatus} />
-                  </td>
-                  <td>
+                  </TableCell>
+                  <TableCell>
                     <Button
                       variant="ghost"
                       onClick={() => setSelectedJob(job.id)}
                     >{t`岗位详情`}</Button>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
+            </TableBody>
           </StyledRecruitingTable>
         </div>
         {!query.loading && page?.count === 0 && (

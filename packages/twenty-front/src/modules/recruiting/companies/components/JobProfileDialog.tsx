@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { SourceMaterialView } from '@/recruiting/shared/components/SourceMaterialView';
 /** Shows the persisted job extraction using the same renderer as intake details. */
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
-import { Dialog } from 'twenty-ui/primitives/surfaces';
+import { Button } from '@/recruiting/shadcn/compat';
+import { Dialog } from '@/recruiting/shadcn/compat';
 import { IconArrowLeft, IconX } from 'twenty-ui/icon';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { RecruitingParsedProfile } from '@/recruiting/shared/components/ParsedProfile';

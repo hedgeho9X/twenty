@@ -1,8 +1,10 @@
 /** Gives native mailbox owners explicit capture choices and a read-only single-message check. */
+import { ResultPagination } from '@/recruiting/shared/components/ResultPagination';
+import { Skeleton } from '@/recruiting/shadcn/ui/skeleton';
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { IconRefresh } from 'twenty-ui/icon';
-import { Button, Checkbox, Field } from 'twenty-ui/primitives/input';
+import { Button, Checkbox, Field } from '@/recruiting/shadcn/compat';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { recruitingRequest } from '@/recruiting/shared/api/request';
 import {
@@ -16,6 +18,8 @@ import {
 /** Connection summaries contain no passwords, tokens or mail-server parameters. */
 type Mailboxes = {
   nativeIntegrationEnabled: boolean;
+  count: number;
+  hasNextPage: boolean;
   connections: {
     connectedAccountId: string;
     handle: string;
@@ -28,7 +32,13 @@ type Mailboxes = {
 
 /** An explicit owner opt-in checks future INBOX receipts without historical synchronization or sending mail. */
 export const RecruitingMailboxSettings = ({ active }: { active: boolean }) => {
-  const query = useRecruitingQuery<Mailboxes>('mailboxes', 0, active);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const query = useRecruitingQuery<Mailboxes>(
+    `mailboxes?offset=${(page - 1) * pageSize}&limit=${pageSize}`,
+    0,
+    active,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const configure = async (
@@ -68,43 +78,67 @@ export const RecruitingMailboxSettings = ({ active }: { active: boolean }) => {
           <IconRefresh size={16} />
         </Button>
       </StyledRecruitingRow>
-      {!query.loading && !query.error && !query.data?.connections.length && (
-        <StyledRecruitingMuted>{t`请先添加邮箱账号。`}</StyledRecruitingMuted>
+      {query.loading && (
+        <div role="status" aria-label="正在加载邮箱连接">
+          <Skeleton className="h-24 w-full" />
+        </div>
       )}
+      {query.data &&
+        !query.loading &&
+        !query.error &&
+        !query.data.connections.length && (
+          <StyledRecruitingMuted>{t`请先添加邮箱账号。`}</StyledRecruitingMuted>
+        )}
       {query.data && !query.data.nativeIntegrationEnabled && (
         <StyledRecruitingMuted>{t`邮箱接入未启用。`}</StyledRecruitingMuted>
       )}
-      {query.data?.connections.map((connection) => (
-        <StyledRecruitingPanel key={connection.connectedAccountId}>
-          <strong>{connection.handle}</strong>
-          <Field.Root>
-            <Field.Item>
-              <Checkbox
-                checked={connection.enabled}
-                disabled={
-                  busy ||
-                  (!query.data?.nativeIntegrationEnabled && !connection.enabled)
-                }
-                onCheckedChange={(checked) => {
-                  void configure(connection, { enabled: checked === true });
-                }}
-              />
-              <Field.Label>{t`自动接收并解析新邮件`}</Field.Label>
-            </Field.Item>
-          </Field.Root>
-          {connection.lastPollAt && (
-            <StyledRecruitingMuted>
-              {t`最近检查：`}
-              {new Date(connection.lastPollAt).toLocaleString()}
-            </StyledRecruitingMuted>
-          )}
-          {connection.lastPollError && (
-            <StyledRecruitingError role="alert">
-              {connection.lastPollError}
-            </StyledRecruitingError>
-          )}
-        </StyledRecruitingPanel>
-      ))}
+      {!query.loading &&
+        query.data?.connections.map((connection) => (
+          <StyledRecruitingPanel key={connection.connectedAccountId}>
+            <strong>{connection.handle}</strong>
+            <Field.Root>
+              <Field.Item>
+                <Checkbox
+                  checked={connection.enabled}
+                  disabled={
+                    busy ||
+                    (!query.data?.nativeIntegrationEnabled &&
+                      !connection.enabled)
+                  }
+                  onCheckedChange={(checked) => {
+                    void configure(connection, { enabled: checked === true });
+                  }}
+                />
+                <Field.Label>{t`自动接收并解析新邮件`}</Field.Label>
+              </Field.Item>
+            </Field.Root>
+            {connection.lastPollAt && (
+              <StyledRecruitingMuted>
+                {t`最近检查：`}
+                {new Date(connection.lastPollAt).toLocaleString()}
+              </StyledRecruitingMuted>
+            )}
+            {connection.lastPollError && (
+              <StyledRecruitingError role="alert">
+                {connection.lastPollError}
+              </StyledRecruitingError>
+            )}
+          </StyledRecruitingPanel>
+        ))}
+      {query.data && query.data.count > pageSize && (
+        <ResultPagination
+          isLoading={query.loading}
+          hasCount={query.data !== undefined}
+          count={query.data.count}
+          page={page}
+          pageSize={pageSize}
+          onPage={setPage}
+          onPageSize={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+        />
+      )}
       {(error || query.error) && (
         <StyledRecruitingError role="alert">
           {error || query.error}

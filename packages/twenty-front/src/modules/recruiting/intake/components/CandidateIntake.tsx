@@ -1,9 +1,10 @@
+import { Input } from '@/recruiting/shadcn/compat';
 /** Submits up to five documents as one candidate, retaining completed uploads across retries. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button, Field, Textarea } from 'twenty-ui/primitives/input';
+import { Button, Field, Textarea } from '@/recruiting/shadcn/compat';
 import { IconFiles, IconUpload, IconX } from 'twenty-ui/icon';
-import { Select } from '@/ui/input/components/Select';
+import { Select } from '@/recruiting/shadcn/compat';
 import { type RecruitingUpload } from '@/recruiting/intake/types/Upload';
 import {
   recruitingRequest,
@@ -106,7 +107,7 @@ export const RecruitingCandidateIntake = ({
             <IconUpload size={28} />
             <strong>{t`选择简历文件`}</strong>
             <StyledRecruitingMuted>{t`同一候选人最多6份文件，单个文件最大50MB`}</StyledRecruitingMuted>
-            <input
+            <Input
               aria-label={t`选择简历文件`}
               type="file"
               multiple

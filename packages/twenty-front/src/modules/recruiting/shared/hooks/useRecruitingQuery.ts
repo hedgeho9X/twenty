@@ -65,5 +65,9 @@ export const useRecruitingQuery = <T>(
       controller.current?.abort();
     };
   }, [reload, interval, enabled]);
-  return { data, error, loading, reload };
+  /** Applies a confirmed mutation to the loaded page without replacing it with a loading screen. */
+  const updateData = useCallback((update: (current: T) => T) => {
+    setData((current) => (current === undefined ? current : update(current)));
+  }, []);
+  return { data, error, loading, reload, updateData };
 };

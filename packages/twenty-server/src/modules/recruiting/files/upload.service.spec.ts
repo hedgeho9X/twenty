@@ -31,10 +31,12 @@ const setup = () => {
     })),
   };
   const actors = {
-    capture: jest.fn((): RecruitingActor => ({
-      workspaceId: 'workspace',
-      userWorkspaceId: 'caller',
-    })),
+    capture: jest.fn(
+      (): RecruitingActor => ({
+        workspaceId: 'workspace',
+        userWorkspaceId: 'caller',
+      }),
+    ),
   };
   const permissions = {
     userHasWorkspaceSettingPermission: jest.fn(
@@ -214,4 +216,25 @@ describe('recruiting native upload boundary', () => {
     ).rejects.toThrow(ForbiddenException);
     expect(native.createFileUpload).not.toHaveBeenCalled();
   });
+});
+
+it('reauthorizes only candidate-owned resumes and excludes mail archives', async () => {
+  const { service, records } = setup();
+  records.one.mockResolvedValue({
+    id: 'candidate',
+    contactRoles: ['CANDIDATE'],
+    candidateResumes: [
+      { fileId: 'resume', label: 'resume.pdf' },
+      { fileId: 'mail', label: 'original.eml' },
+    ],
+  });
+  const files = await service.fromCandidate(context, 'candidate');
+  expect(files).toHaveLength(1);
+  expect(files[0]).toMatchObject({ fileId: 'resume', label: 'resume.pdf' });
+  expect(files[0].uploadReceipt).toBeTruthy();
+  expect(records.one).toHaveBeenCalledWith(context, 'person', 'candidate');
+  records.one.mockResolvedValue({ id: 'candidate', contactRoles: [] });
+  await expect(service.fromCandidate(context, 'candidate')).rejects.toThrow(
+    '目标记录不是候选人',
+  );
 });

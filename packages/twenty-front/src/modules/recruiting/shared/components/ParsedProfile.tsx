@@ -127,6 +127,24 @@ export const RecruitingParsedProfile = ({
               )}
             </div>
           </StyledRecruitingProfileSection>
+          <StyledRecruitingProfileSection>
+            <strong>{t`作品与个人链接`}</strong>
+            {list(data.urls)
+              .filter((url) => /^https?:\/\//i.test(url))
+              .map((url) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {url}
+                </a>
+              ))}
+            {!list(data.urls).length && (
+              <StyledRecruitingMuted>{t`未提供`}</StyledRecruitingMuted>
+            )}
+          </StyledRecruitingProfileSection>
           <History title={t`工作与项目经历`} values={list(data.experience)} />
           <History title={t`教育经历`} values={list(data.education)} />
         </>

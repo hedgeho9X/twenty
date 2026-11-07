@@ -89,3 +89,22 @@ it('waits for a slow read instead of aborting it at every polling interval', asy
   expect(recruitingRequest).toHaveBeenCalledTimes(2);
   expect(result.current.data).toEqual({ value: 'refreshed' });
 });
+
+it('patches a confirmed row without requesting or loading the full page again', async () => {
+  jest
+    .mocked(recruitingRequest)
+    .mockResolvedValue({ records: [{ status: 'TODO' }] });
+  const { result } = renderHook(() =>
+    useRecruitingQuery<{ records: { status: string }[] }>('match-results'),
+  );
+  await act(async () => {});
+  act(() =>
+    result.current.updateData((page) => ({
+      ...page,
+      records: [{ status: 'TO_CONTACT' }],
+    })),
+  );
+  expect(result.current.data?.records[0].status).toBe('TO_CONTACT');
+  expect(result.current.loading).toBe(false);
+  expect(recruitingRequest).toHaveBeenCalledTimes(1);
+});

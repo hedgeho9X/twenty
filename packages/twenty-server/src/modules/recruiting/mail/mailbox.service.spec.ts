@@ -44,6 +44,9 @@ const setup = () => {
   };
   const accounts = {
     find: jest.fn(async () => [account]),
+    findAndCount: jest.fn(
+      async () => [[account], 1] as [(typeof account)[], number],
+    ),
     findOne: jest.fn(async () => account as typeof account | null),
   };
   let setting: Record<string, unknown> | undefined;
@@ -387,5 +390,28 @@ it('does not turn historical native replay into new recruiting applications', as
   expect(mail.receive).not.toHaveBeenCalled();
   await expect(service.capture(event)).rejects.toBeInstanceOf(
     BadRequestException,
+  );
+});
+
+it('paginates only the current owner’s account summaries before loading capture settings', async () => {
+  const { service, accounts, records } = setup();
+  accounts.findAndCount.mockResolvedValueOnce([[], 85]);
+  const page = await service.list(context, 40, 20);
+  expect(page).toMatchObject({ connections: [], count: 85, hasNextPage: true });
+  expect(accounts.findAndCount).toHaveBeenCalledWith(
+    'workspace',
+    expect.objectContaining({
+      where: expect.objectContaining({ userWorkspaceId: 'owner' }),
+      skip: 40,
+      take: 20,
+      order: { id: 'ASC' },
+      select: { id: true, handle: true, userWorkspaceId: true },
+    }),
+  );
+  expect(records.one).not.toHaveBeenCalled();
+  await service.list(context, -1, 1000);
+  expect(accounts.findAndCount).toHaveBeenLastCalledWith(
+    'workspace',
+    expect.objectContaining({ skip: 0, take: 100 }),
   );
 });

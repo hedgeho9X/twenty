@@ -1,5 +1,5 @@
 /** Verifies the public page reads a scoped link without sending CRM credentials. */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RecruitingJobPage } from './RecruitingJobPage';
 
 jest.mock('@/ai/components/LazyMarkdownRenderer', () => ({
@@ -93,3 +93,76 @@ it('switches between candidates and jobs without showing every document at once'
   expect(screen.getByText('测试大学')).toBeInTheDocument();
   global.fetch = originalFetch;
 });
+
+it.each([true, false])(
+  'opens a scoped PDF window before fetching and closes failed previews (success=%s)',
+  async (success) => {
+    const originalFetch = global.fetch;
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    const viewer = { opener: {}, location: { href: '' }, close: jest.fn() };
+    const open = jest.spyOn(window, 'open').mockReturnValue(viewer as never);
+    const create = jest.fn((_blob: Blob | MediaSource) => 'blob:scoped-pdf');
+    URL.createObjectURL = create;
+    URL.revokeObjectURL = jest.fn();
+    const request = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          jobs: [],
+          candidates: [
+            {
+              id: 'candidate',
+              name: '测试候选人',
+              summary: '职业资料',
+              skills: [],
+              experience: [],
+              education: [],
+              files: [{ fileId: 'resume', label: 'resume.pdf' }],
+            },
+          ],
+        }),
+      })
+      .mockImplementationOnce(async () => {
+        expect(open).toHaveBeenCalledWith('about:blank', '_blank');
+        expect(viewer.opener).toBeNull();
+        return {
+          ok: success,
+          blob: async () =>
+            new Blob(['%PDF synthetic'], { type: 'application/octet-stream' }),
+        };
+      });
+    global.fetch = request;
+    try {
+      render(<RecruitingJobPage />);
+      fireEvent.click(await screen.findByRole('button', { name: '打开 PDF' }));
+      if (success) {
+        await waitFor(() =>
+          expect(viewer.location.href).toBe('blob:scoped-pdf'),
+        );
+        expect((create.mock.calls[0][0] as Blob).type).toBe('application/pdf');
+      } else {
+        await waitFor(() => expect(viewer.close).toHaveBeenCalled());
+        expect(create).not.toHaveBeenCalled();
+      }
+      expect(request).toHaveBeenLastCalledWith(
+        'http://localhost:23001/recruiting-job-pages/files',
+        expect.objectContaining({
+          credentials: 'omit',
+          redirect: 'error',
+          body: JSON.stringify({
+            token: 'scoped-token',
+            candidateId: 'candidate',
+            fileId: 'resume',
+          }),
+        }),
+      );
+    } finally {
+      global.fetch = originalFetch;
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+      open.mockRestore();
+    }
+  },
+);

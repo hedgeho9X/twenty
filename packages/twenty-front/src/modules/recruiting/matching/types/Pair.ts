@@ -10,6 +10,7 @@ export type RecruitingPair = {
   jobUrl: string;
   status: string;
   score?: number;
+  longContext?: boolean;
   error?: string;
   cached: boolean;
   eligibility: {

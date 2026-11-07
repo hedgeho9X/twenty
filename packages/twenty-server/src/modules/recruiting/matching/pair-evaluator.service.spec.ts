@@ -40,6 +40,12 @@ const setup = () => {
       if (!rows.has(id)) throw new NotFoundException();
       return rows.get(id)!;
     }),
+    byIds: jest.fn(
+      async (_context, _object, ids: string[]) =>
+        new Map(
+          ids.filter((id) => rows.has(id)).map((id) => [id, rows.get(id)!]),
+        ),
+    ),
     create: jest.fn(
       async (
         _context,
@@ -182,12 +188,10 @@ describe('recruiting pair evaluator', () => {
 
   it('reports an actual provider context rejection as review-needed without a zero score or leaked response', async () => {
     const { evaluator, rows } = setup();
-    jest
-      .mocked(evaluate)
-      .mockRejectedValue({
-        statusCode: 400,
-        responseBody: 'context_length_exceeded: private material and secret',
-      });
+    jest.mocked(evaluate).mockRejectedValue({
+      statusCode: 400,
+      responseBody: 'context_length_exceeded: private material and secret',
+    });
     const result = await evaluator.run(context, candidate, job, company);
     expect(result.status).toBe('NEEDS_REVIEW');
     expect(result.score).toBeUndefined();
@@ -212,4 +216,51 @@ describe('recruiting pair evaluator', () => {
     expect(record.score).toBeNull();
     expect(JSON.stringify(record)).not.toContain('secret');
   });
+});
+it('retries wrapped context rejections with the identical full input and labels the longer evaluation', async () => {
+  const { evaluator, rows } = setup();
+  const normal = jest.mocked(evaluate).getMockImplementation()!;
+  const successful = await normal({} as never);
+  jest
+    .mocked(evaluate)
+    .mockRejectedValueOnce({
+      statusCode: 400,
+      message: 'Gateway rejected the request',
+      cause: {
+        statusCode: 400,
+        responseBody: 'max_tokens_exceeded: private body',
+      },
+    })
+    .mockResolvedValueOnce(successful);
+  const result = await evaluator.run(context, candidate, job, company);
+  expect(result.status).toBe('SCORED');
+  expect(result.longContext).toBe(true);
+  const [first, second] = jest
+    .mocked(evaluate)
+    .mock.calls.map(([input]) => input);
+  expect(first.providerOptions).toBeUndefined();
+  expect(second.providerOptions).toEqual({ typesafe: { longContext: true } });
+  expect(second.state).toEqual(first.state);
+  expect(second.questions).toEqual(first.questions);
+  expect(JSON.stringify([...rows.values()])).not.toContain('private body');
+});
+
+it('batch-reuses only current unexpired scores without another paid evaluation', async () => {
+  const { evaluator, records, rows } = setup();
+  const first = await evaluator.run(context, candidate, job, company);
+  records.one.mockClear();
+  const reused = await evaluator.reusePool(context, [candidate], job, company);
+  expect(reused.get(candidate.id)).toMatchObject({
+    score: first.score,
+    cached: true,
+  });
+  expect(records.byIds).toHaveBeenCalledTimes(1);
+  expect(records.one).not.toHaveBeenCalled();
+  expect(evaluate).toHaveBeenCalledTimes(1);
+  const stored = [...rows.values()][0];
+  (stored.payload as RecruitingPairResult).evaluatedAt = '2000-01-01T00:00:00Z';
+  expect(
+    (await evaluator.reusePool(context, [candidate], job, company)).size,
+  ).toBe(0);
+  expect(evaluate).toHaveBeenCalledTimes(1);
 });

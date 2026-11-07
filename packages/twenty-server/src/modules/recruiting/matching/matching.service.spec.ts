@@ -20,7 +20,7 @@ const context = {
 } as WorkspaceAuthContext;
 
 /** Uses isolated native-like records; no production data or model endpoint participates. */
-const setup = (count = 7) => {
+const setup = (count = 7, orm?: unknown) => {
   const person = { id: 'person', contactRoles: ['CANDIDATE'] };
   const jobs = Array.from({ length: count }, (_, index) => ({
     id: `job-${index}`,
@@ -49,11 +49,17 @@ const setup = (count = 7) => {
     list: jest.fn(
       async (
         _context?: unknown,
-        _object?: string,
+        object?: string,
         _options?: { filter?: unknown },
       ) => ({
         count: jobs.length,
-        records: [] as Record<string, unknown>[],
+        records: (object === 'person'
+          ? [person]
+          : object === 'recruitmentJob'
+            ? jobs
+            : object === 'company'
+              ? [rows.get('company')!]
+              : []) as Record<string, unknown>[],
         hasNextPage: false,
       }),
     ),
@@ -95,6 +101,7 @@ const setup = (count = 7) => {
   let active = 0;
   let maximum = 0;
   const evaluator = {
+    reusePool: jest.fn(async () => new Map<string, RecruitingPairResult>()),
     prepare: jest.fn((_context, candidate, job) => ({
       cacheKey: job.id,
       cacheId: job.id,
@@ -137,6 +144,7 @@ const setup = (count = 7) => {
       actors as unknown as RecruitingActorService,
       evaluator as unknown as RecruitingPairEvaluatorService,
       queue as unknown as MessageQueueService,
+      orm as never,
     );
   return {
     service: reloadService(),
@@ -517,3 +525,235 @@ describe.each(['CANDIDATE_TO_JOBS', 'JOB_TO_CANDIDATES'])(
     });
   },
 );
+
+it('resolves explicit job targets independently of the default recruiting-only pool', async () => {
+  const { service, rows, records, evaluator } = setup(1);
+  const run = rows.get('run')!;
+  const payload = run.payload as { input: { targetIds?: string[] } };
+  payload.input.targetIds = ['paused-job'];
+  rows.set('paused-job', {
+    id: 'paused-job',
+    companyId: 'company',
+    jobStatus: 'PENDING',
+  });
+  await service.process({ runId: 'run', actor });
+  expect(records.byIds).toHaveBeenCalledWith(context, 'recruitmentJob', [
+    'paused-job',
+  ]);
+  expect(evaluator.run).toHaveBeenCalledWith(
+    context,
+    expect.anything(),
+    expect.objectContaining({ id: 'paused-job' }),
+    expect.anything(),
+  );
+});
+
+it('paginates canonical subject results after native grouping, never mixing pair receipts', async () => {
+  const descriptors = [
+    { id: 'run', subjectId: 'person', createdAt: '2026-11-05T00:00:00Z' },
+  ];
+  const builder: Record<string, jest.Mock> = {};
+  for (const method of [
+    'select',
+    'addSelect',
+    'where',
+    'andWhere',
+    'distinctOn',
+    'orderBy',
+    'addOrderBy',
+  ])
+    builder[method] = jest.fn(() => builder);
+  builder.getRawMany = jest.fn(async () => descriptors);
+  const orm = {
+    executeInWorkspaceContext: async (fn: () => unknown) => fn(),
+    getRepositoryWithContextPermissions: () => ({
+      createQueryBuilder: () => builder,
+    }),
+  };
+  const { service, records, rows } = setup(1, orm);
+  records.list.mockImplementation(async (_context, object) => ({
+    records:
+      object === 'person'
+        ? [
+            {
+              id: 'person',
+              name: { firstName: 'A', lastName: '' },
+              contactRoles: ['CANDIDATE'],
+            },
+          ]
+        : [rows.get('run')!],
+    count: 1,
+    hasNextPage: false,
+  }));
+  const result = await service.listGrouped(
+    context,
+    'CANDIDATE_TO_JOBS',
+    0,
+    50,
+    'A',
+  );
+  expect(builder.distinctOn).toHaveBeenCalledWith(['run.subjectId']);
+  expect(builder.where).toHaveBeenCalledWith('"run"."direction" = :direction', {
+    direction: 'CANDIDATE_TO_JOBS',
+  });
+  expect(
+    (
+      await service.listGrouped(context, 'CANDIDATE_TO_JOBS', 0, 50, '', {
+        from: '2026-11-06',
+      })
+    ).count,
+  ).toBe(0);
+  expect(
+    (
+      await service.listGrouped(context, 'CANDIDATE_TO_JOBS', 0, 50, '', {
+        to: '2026-11-04',
+      })
+    ).count,
+  ).toBe(0);
+  expect(result.count).toBe(1);
+  expect(result.records).toHaveLength(1);
+  expect(
+    (await service.listGrouped(context, 'CANDIDATE_TO_JOBS', 50, 50)).records,
+  ).toEqual([]);
+});
+
+it('stores workflow separately from scoring and rejects unknown workflow states', async () => {
+  const { service, records, evaluator, queue } = setup(1);
+  records.list.mockResolvedValue({
+    records: [
+      {
+        id: 'person',
+        name: { firstName: 'Person' },
+        contactRoles: ['CANDIDATE'],
+      },
+    ],
+    count: 1,
+    hasNextPage: false,
+  });
+  await service.workflow(context, 'run', 'TO_CONTACT');
+  expect(records.update).toHaveBeenCalledWith(
+    context,
+    'recruitingMatchRun',
+    'run',
+    expect.objectContaining({
+      payload: expect.objectContaining({ followUpStatus: 'TO_CONTACT' }),
+    }),
+  );
+  expect(evaluator.run).not.toHaveBeenCalled();
+  expect(queue.add).not.toHaveBeenCalled();
+  await expect(
+    service.workflow(context, 'run', 'AUTOMATICALLY_HIRED'),
+  ).rejects.toThrow('跟进状态无效');
+});
+
+it('hydrates only the requested 20 of 250 results and keeps the header cheap', async () => {
+  const { service, records, rows, jobs, evaluator } = setup(250);
+  await service.process({ runId: 'run', actor });
+  records.list.mockImplementation(async (_ctx, object, options) => {
+    const ids = (options?.filter as { id?: { in?: string[] } })?.id?.in ?? [];
+    const records = ids.map((id) => rows.get(id)).filter(Boolean) as Record<
+      string,
+      unknown
+    >[];
+    return { records, count: records.length, hasNextPage: false };
+  });
+  records.byIds.mockClear();
+  evaluator.prepare.mockClear();
+  const header = await service.summary(context, 'run');
+  expect(header.counts.total).toBe(250);
+  expect(records.byIds).not.toHaveBeenCalled();
+  const page = await service.resultPage(context, 'run', 20, 20);
+  expect(page.count).toBe(250);
+  expect(page.records).toHaveLength(20);
+  expect(evaluator.prepare).toHaveBeenCalledTimes(20);
+  expect(records.byIds.mock.calls.every((call) => call[2].length <= 20)).toBe(
+    true,
+  );
+  expect(page.hasNextPage).toBe(true);
+});
+
+it('permits a fresh scored selection from a partial run, but rejects stale selections', async () => {
+  const { service, records, rows, evaluator } = setup(1);
+  await service.process({ runId: 'run', actor });
+  rows.get('run')!.status = 'PARTIAL';
+  records.list.mockImplementation(async (_ctx, _object, options) => {
+    const ids = (options?.filter as { id?: { in?: string[] } })?.id?.in ?? [];
+    return {
+      records: ids.map((id) => rows.get(id)).filter(Boolean) as Record<
+        string,
+        unknown
+      >[],
+      count: ids.length,
+      hasNextPage: false,
+    };
+  });
+  expect(
+    (await service.selection(context, 'run', ['job-0'])).results,
+  ).toHaveLength(1);
+  evaluator.prepare.mockImplementationOnce(() => ({
+    cacheKey: 'changed',
+    cacheId: 'changed',
+    modelId: 'model',
+    candidate: { label: 'person', context: { expectedRoles: [] } },
+    job: { label: 'job', duplicateKey: 'job' },
+  }));
+  await expect(service.selection(context, 'run', ['job-0'])).rejects.toThrow(
+    '已变化',
+  );
+});
+
+it('builds a reverse shortlist from a fully authorized cache snapshot without per-pair evaluation', async () => {
+  const { service, rows, evaluator, records } = setup();
+  const run = rows.get('run') as any;
+  run.payload.input = {
+    direction: 'JOB_TO_CANDIDATES',
+    subjectId: 'job-0',
+    targetIds: ['person'],
+  };
+  const cached = await evaluator.run(
+    context,
+    rows.get('person'),
+    rows.get('job-0'),
+  );
+  evaluator.run.mockClear();
+  evaluator.reusePool.mockResolvedValueOnce(
+    new Map([['person', { ...cached, cached: true }]]),
+  );
+  await service.process({ runId: 'run', actor });
+  expect(rows.get('run')?.status).toBe('COMPLETED');
+  expect(evaluator.run).not.toHaveBeenCalled();
+  expect(records.update).toHaveBeenCalledTimes(1);
+});
+
+it('rejects publication when source material changes during the final scoring chunk', async () => {
+  const { service, rows, evaluator } = setup(1);
+  const original = evaluator.run.getMockImplementation()!;
+  evaluator.run.mockImplementation(async (...args) => {
+    const result = await original(...args);
+    rows.set('person', {
+      ...rows.get('person'),
+      id: 'person',
+      jobTitle: 'new material',
+    });
+    return result;
+  });
+  await service.process({ runId: 'run', actor });
+  expect(rows.get('run')!.status).toBe('SUPERSEDED');
+});
+
+it('marks a completed receipt stale after a later professional profile update without rereading the target pool', async () => {
+  const { service, rows, records } = setup(1);
+  await service.process({ runId: 'run', actor });
+  expect((await service.summary(context, 'run')).complete).toBe(true);
+  records.all.mockClear();
+  rows.set('person', {
+    ...rows.get('person'),
+    id: 'person',
+    jobTitle: 'updated material',
+  });
+  expect(await service.summary(context, 'run')).toMatchObject({
+    sourceChanged: true,
+    complete: false,
+  });
+  expect(records.all).not.toHaveBeenCalled();
+});

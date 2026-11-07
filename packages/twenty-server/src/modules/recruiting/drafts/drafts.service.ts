@@ -327,37 +327,24 @@ export class RecruitingDraftsService {
           if (source.version !== payload.sourceVersion)
             throw new ConflictException();
           const savedUrl = payload.jobPageUrl;
-          if (payload.input.matchRunId) {
-            if (!this.jobPages)
-              throw new BadRequestException('岗位介绍服务未就绪');
-            const activeUrl = savedUrl
-              ? await this.jobPages.activeDraftUrl(context, savedUrl)
-              : undefined;
-            const jobPageUrl =
-              activeUrl ??
-              (await this.jobPages.create(
-                context,
-                'jobIds' in source ? source.jobIds : [],
-                'candidateIds' in source &&
-                  source.context.direction === 'JOB_TO_CANDIDATES'
-                  ? source.candidateIds
-                  : [],
-                payload.input.matchRunId,
-              ));
+          if (savedUrl) {
+            const jobPageUrl = await this.jobPages?.activeDraftUrl(
+              context,
+              savedUrl,
+            );
             if (jobPageUrl !== savedUrl) {
               const generation = payload.generation;
               payload = { ...payload, jobPageUrl };
-              if (savedUrl && generation) {
+              if (generation)
                 payload.generation = {
                   ...generation,
                   profile: {
                     ...generation.profile,
                     body: generation.profile.body
                       .split(savedUrl)
-                      .join(jobPageUrl),
+                      .join(jobPageUrl ?? ''),
                   },
                 };
-              }
               await update({ payload });
             }
           }
@@ -442,17 +429,12 @@ export class RecruitingDraftsService {
     input: z.infer<typeof recruitingDraftInputSchema>,
   ) {
     if (!this.matching) throw new BadRequestException('匹配服务未就绪');
-    const run = await this.matching.one(context, input.matchRunId!);
-    if (!run.complete)
-      throw new ConflictException('匹配结果已变化，请重新匹配后生成');
-    const wanted = new Set(input.selectedIds);
-    const selected = run.top.filter((pair) =>
-      wanted.has(
-        run.direction === 'JOB_TO_CANDIDATES' ? pair.candidateId : pair.jobId,
-      ),
+    const run = await this.matching.selection(
+      context,
+      input.matchRunId!,
+      input.selectedIds ?? [],
     );
-    if (!selected.length || selected.length !== wanted.size)
-      throw new BadRequestException('请选择当前匹配结果中的记录');
+    const selected = run.results;
     const brief = await buildMatchBrief(
       String(run.direction),
       selected,

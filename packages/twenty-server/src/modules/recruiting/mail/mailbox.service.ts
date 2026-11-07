@@ -76,16 +76,24 @@ export class RecruitingMailboxService {
   ) {}
 
   /** Lists only the caller's non-archived native IMAP connections, without passwords, OAuth tokens or server connection parameters. */
-  async list(context: WorkspaceAuthContext) {
+  async list(context: WorkspaceAuthContext, offset = 0, limit = 20) {
     const owner = this.owner(context);
-    const accounts = await this.accounts.find(owner.workspace.id, {
-      where: {
-        userWorkspaceId: owner.userWorkspaceId,
-        provider: ConnectedAccountProvider.IMAP_SMTP_CALDAV,
-        archivedAt: IsNull(),
+    offset = Math.max(0, Math.floor(offset));
+    limit = Math.min(100, Math.max(1, Math.floor(limit)));
+    const [accounts, count] = await this.accounts.findAndCount(
+      owner.workspace.id,
+      {
+        where: {
+          userWorkspaceId: owner.userWorkspaceId,
+          provider: ConnectedAccountProvider.IMAP_SMTP_CALDAV,
+          archivedAt: IsNull(),
+        },
+        select: { id: true, handle: true, userWorkspaceId: true },
+        skip: offset,
+        take: limit,
+        order: { id: 'ASC' },
       },
-      select: { id: true, handle: true, userWorkspaceId: true },
-    });
+    );
     const connections = [];
     for (const account of accounts) {
       const setting = await this.setting(owner, account.id);
@@ -108,6 +116,8 @@ export class RecruitingMailboxService {
     }
     return {
       connections,
+      count,
+      hasNextPage: offset + accounts.length < count,
       nativeIntegrationEnabled: this.config.get('IS_IMAP_SMTP_CALDAV_ENABLED'),
       notice:
         '开启后约每分钟只读检查INBOX的新邮件；初次建立当前UID基线，不拉取历史、不改已读或原生同步游标，不发送邮件。',

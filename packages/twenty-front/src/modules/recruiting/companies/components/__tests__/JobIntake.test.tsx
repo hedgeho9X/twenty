@@ -1,3 +1,7 @@
+/** Supplies the DOM scrolling primitive used by Radix option focus in jsdom. */
+beforeAll(() => {
+  Element.prototype.scrollIntoView = jest.fn();
+});
 /** Checks original batch materials, live operator name edits and advisory duplicate links without model requests. */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RecruitingCompanyJobs } from '@/recruiting/companies/components/CompanyJobIntake';
@@ -24,6 +28,7 @@ jest.mock('@/recruiting/shared/styles', () => ({
 }));
 jest.mock('twenty-ui/primitives/data-display', () => ({ Badge: 'span' }));
 jest.mock('twenty-ui/icon', () => ({
+  ...jest.requireActual('twenty-ui/icon'),
   IconBuildingSkyscraper: () => null,
   IconPlus: () => null,
   IconUpload: () => null,
@@ -125,6 +130,7 @@ beforeEach(() => {
     loading: false,
     error: '',
     reload: jest.fn(),
+    updateData: jest.fn(),
   }));
 });
 
@@ -154,8 +160,10 @@ it('uses two text-only steps, queues every JD independently, and retries only th
   screen
     .getAllByRole('combobox', { name: '招聘类型（必选）' })
     .forEach((select) => {
-      if (!(select as HTMLSelectElement).disabled)
-        fireEvent.change(select, { target: { value: 'full_time' } });
+      if (!(select as HTMLButtonElement).disabled) {
+        fireEvent.click(select);
+        fireEvent.click(screen.getByRole('option', { name: '正式' }));
+      }
     });
   fireEvent.click(screen.getByRole('button', { name: '提交到队列' }));
   await screen.findByText('temporary failure');
@@ -178,8 +186,10 @@ it('uses two text-only steps, queues every JD independently, and retries only th
   screen
     .getAllByRole('combobox', { name: '招聘类型（必选）' })
     .forEach((select) => {
-      if (!(select as HTMLSelectElement).disabled)
-        fireEvent.change(select, { target: { value: 'full_time' } });
+      if (!(select as HTMLButtonElement).disabled) {
+        fireEvent.click(select);
+        fireEvent.click(screen.getByRole('option', { name: '正式' }));
+      }
     });
   fireEvent.click(screen.getByRole('button', { name: '提交到队列' }));
   await waitFor(() => expect(onSubmitted).toHaveBeenCalledTimes(2));

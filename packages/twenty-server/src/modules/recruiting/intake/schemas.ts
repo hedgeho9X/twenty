@@ -25,6 +25,15 @@ export const candidateProfileSchema = z.object({
   summary: z.string(),
   email: z.string().nullable(),
   phone: z.string().nullable(),
+  urls: z
+    .array(
+      z
+        .string()
+        .url()
+        .refine((value) => /^https?:\/\//i.test(value)),
+    )
+    .nullable()
+    .optional(),
   skills: z.array(z.string()),
   experience: z.array(z.string()),
   education: z.array(z.string()),
@@ -69,7 +78,7 @@ export const intakeInputSchema = z
     files: z.array(intakeFileSchema).max(30).default([]),
     text: z.string().max(500_000).optional(),
     note: z.string().max(100_000).nullish(),
-    source: z.enum(['manual', 'api', 'email']).default('api'),
+    source: z.enum(['manual', 'api', 'email', 'reparse']).default('api'),
     sourceId: z.string().max(2048).optional(),
     companyId: z.string().uuid().optional(),
     candidateId: z.string().uuid().optional(),
@@ -79,7 +88,7 @@ export const intakeInputSchema = z
   })
   .strict()
   .superRefine((value, context) => {
-    if (value.source !== 'email' && !value.employmentType) {
+    if (!['email', 'reparse'].includes(value.source) && !value.employmentType) {
       context.addIssue({
         code: 'custom',
         path: ['employmentType'],

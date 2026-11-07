@@ -1,8 +1,15 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
 /** Provides normal-page drafting, generation progress and explicit operator review using native UI. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button, Field, Textarea } from 'twenty-ui/primitives/input';
-import { Select } from '@/ui/input/components/Select';
+import { Button, Field, Textarea } from '@/recruiting/shadcn/compat';
+import { Select } from '@/recruiting/shadcn/compat';
 import { type RecruitingDraft } from '@/recruiting/drafts/types/Draft';
 import { type RecruitingPage } from '@/recruiting/shared/types/Page';
 import { type RecruitingCandidate } from '@/recruiting/intake/types/Candidate';
@@ -304,27 +311,27 @@ export const RecruitingDrafts = ({
       <StyledRecruitingPanel>
         <StyledRecruitingTitle>{t`草稿记录`}</StyledRecruitingTitle>
         <StyledRecruitingTable>
-          <thead>
-            <tr>
-              <th>{t`草稿`}</th>
-              <th>{t`状态`}</th>
-              <th>{t`操作`}</th>
-            </tr>
-          </thead>
-          <tbody>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t`草稿`}</TableHead>
+              <TableHead>{t`状态`}</TableHead>
+              <TableHead>{t`操作`}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {list.data?.records.map((draft) => (
-              <tr key={draft.draftId}>
-                <td>{draft.name}</td>
-                <td>{draftLabel(draft.status)}</td>
-                <td>
+              <TableRow key={draft.draftId}>
+                <TableCell>{draft.name}</TableCell>
+                <TableCell>{draftLabel(draft.status)}</TableCell>
+                <TableCell>
                   <Button
                     disabled={busy}
                     onClick={() => setDraftId(draft.draftId)}
                   >{t`打开`}</Button>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
+          </TableBody>
         </StyledRecruitingTable>
         <StyledRecruitingRow>
           <Button

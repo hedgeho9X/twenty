@@ -1,7 +1,7 @@
 /** Expands current company context from the existing permission-aware directory without another model request. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
+import { Button } from '@/recruiting/shadcn/compat';
 import { getRichTextFieldTextLines } from '@/object-record/record-field/ui/utils/getRichTextFieldTextLines';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { type RecruitingCompany } from '@/recruiting/companies/types/Company';

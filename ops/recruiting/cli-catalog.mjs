@@ -25,6 +25,8 @@ export const COMMANDS = {
   candidates: {
     list: '[--query 关键词]',
     get: '--id ID；读取解析资料',
+    reparse:
+      '--id ID --batch-id 标识 [--text-file 本地原件提取.txt] [--wait]；重新解析已有原件，保留候选人身份',
     files: '--id ID；列出当前有权读取的候选人原件引用',
     download: '--id ID --file-id FILE_ID --out 路径；下载原件，不覆盖已有文件',
     upload:
@@ -37,6 +39,13 @@ export const COMMANDS = {
     retry: '--id ID [--kind intake|match|draft|mail] [--wait]',
   },
   match: {
+    results:
+      '[--direction CANDIDATE_TO_JOBS|JOB_TO_CANDIDATES] [--query 关键词] [--offset N] [--limit N] [--read read|unread] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--status TODO|TO_CONTACT|CONTACTED|DISMISSED]',
+    get: '--id 结果ID [--offset N] [--limit N]；逐页读取匹配结果',
+    summary: '--id 结果ID；只读取轻量进度摘要',
+    reviewed: '--id 结果ID；标记当前身份已读',
+    workflow:
+      '--id 结果ID --status TODO|TO_CONTACT|CONTACTED|DISMISSED；更新跟进状态',
     candidate: '--id 候选人ID [--targets 岗位ID,ID] [--key 请求标识] [--wait]',
     job: '--id 岗位ID [--targets 候选人ID,ID] [--key 请求标识] [--wait]',
     pair: '--candidate-id ID --job-id ID [--key 请求标识] [--wait]',
@@ -48,8 +57,8 @@ export const COMMANDS = {
     edit: '--id ID --data-file draft.json；保存 title/body',
   },
   share: {
-    create: '[--job-ids ID,ID] [--candidate-ids ID,ID]；至少一类非空',
-    list: '列出当前身份创建的分享',
+    create: '[--job-ids ID,ID] [--candidate-ids ID,ID] [--include-files|--no-files]；默认附带原件，至少一类非空',
+    list: '[--query 关键词] [--offset N] [--limit N]；查询分享资料',
     revoke: '--id 短链接末尾标识；立即失效',
   },
 };

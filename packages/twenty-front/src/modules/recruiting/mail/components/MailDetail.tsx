@@ -1,7 +1,7 @@
 /** Displays archived mail content and previewable attachments without a material selection step. */
 import { useEffect, useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
+import { Button } from '@/recruiting/shadcn/compat';
 import { IconFile, IconPhoto } from 'twenty-ui/icon';
 import { type RecruitingMailArchive } from '@/recruiting/mail/types/MailArchive';
 import { recruitingBlob } from '@/recruiting/shared/api/request';

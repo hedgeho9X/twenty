@@ -90,8 +90,33 @@ export class RecruitingController {
   @Post('brief-test') testBrief(@Body() input: unknown) {
     return this.drafts.testTemplate(input);
   }
-  @Get('share-links') listShares(@Req() request: Request) {
-    return this.shareLinks.list(buildWorkspaceAuthContextFromRequest(request));
+  @Get('share-results')
+  shareResults(
+    @Req() request: Request,
+    @Query('search') search = '',
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '50',
+  ) {
+    return this.shareLinks.listPage(
+      buildWorkspaceAuthContextFromRequest(request),
+      search.slice(0, 100),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 50)),
+    );
+  }
+  @Get('share-links')
+  listShares(
+    @Req() request: Request,
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '50',
+    @Query('search') search = '',
+  ) {
+    return this.shareLinks.listPage(
+      buildWorkspaceAuthContextFromRequest(request),
+      search.slice(0, 100),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 50)),
+    );
   }
   @Post('share-links/:key/revoke') revokeShare(
     @Req() request: Request,
@@ -111,6 +136,7 @@ export class RecruitingController {
         jobIds: z.array(z.string().uuid()).max(10).default([]),
         candidateIds: z.array(z.string().uuid()).max(10).default([]),
         matchRunId: z.string().uuid().optional(),
+        includeFiles: z.boolean().default(true),
       })
       .parse(body);
     return this.shareLinks
@@ -119,6 +145,7 @@ export class RecruitingController {
         value.jobIds,
         value.candidateIds,
         value.matchRunId,
+        value.includeFiles,
       )
       .then((url) => ({ url }));
   }
@@ -209,8 +236,16 @@ export class RecruitingController {
   }
   /** Exposes only the current mailbox owner's native connections and capture choices. */
   @Get('mailboxes')
-  mailboxList(@Req() request: Request) {
-    return this.mailboxes.list(this.mailboxOwner(request));
+  mailboxList(
+    @Req() request: Request,
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '20',
+  ) {
+    return this.mailboxes.list(
+      this.mailboxOwner(request),
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 20)),
+    );
   }
   /** Enables recruiting capture without turning on native historical synchronization. */
   @Post('mailboxes/configure')
@@ -623,10 +658,63 @@ export class RecruitingController {
     );
   }
 
+  /** Lightweight header and bounded result pages avoid hydrating an entire matching pool. */
+  @Get('match-runs/:id/summary')
+  matchSummary(@Req() request: Request, @Param('id') id: string) {
+    return this.matching.summary(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+    );
+  }
+  @Get('match-runs/:id/results')
+  matchResultPage(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '20',
+    @Query('search') search = '',
+    @Query('status') status = 'ALL',
+  ) {
+    return this.matching.resultPage(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 20)),
+      search.slice(0, 100),
+      status,
+    );
+  }
+
   /** Returns current, authorized results with coverage and source links. */
   @Get('match-runs/:id')
-  matchResult(@Req() request: Request, @Param('id') id: string) {
-    return this.matching.one(buildWorkspaceAuthContextFromRequest(request), id);
+  async matchResult(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '20',
+  ) {
+    const context = buildWorkspaceAuthContextFromRequest(request);
+    const pageOffset = Math.max(0, Number.parseInt(offset, 10) || 0);
+    const pageLimit = Math.min(
+      100,
+      Math.max(1, Number.parseInt(limit, 10) || 20),
+    );
+    const [summary, page] = await Promise.all([
+      this.matching.summary(context, id),
+      this.matching.resultPage(context, id, pageOffset, pageLimit),
+    ]);
+    return {
+      ...summary,
+      results: page.records,
+      top: page.records.filter((row) => row.status === 'SCORED').slice(0, 10),
+      resultCount: page.count,
+      hasNextPage: page.hasNextPage,
+      offset: pageOffset,
+      limit: pageLimit,
+      stale: page.staleOnPage,
+      complete: summary.complete && !page.staleOnPage,
+      validationScope: 'page',
+    };
   }
 
   /** Reuses valid pair caches and retries only the necessary scoring work. */
@@ -645,6 +733,47 @@ export class RecruitingController {
     );
   }
 
+  @Get('match-results')
+  groupedMatches(
+    @Req() request: Request,
+    @Query('direction') direction = 'CANDIDATE_TO_JOBS',
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '50',
+    @Query('search') search = '',
+    @Query('read') read?: string,
+    @Query('followUp') followUp?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.matching.listGrouped(
+      buildWorkspaceAuthContextFromRequest(request),
+      direction,
+      Math.max(0, Number.parseInt(offset, 10) || 0),
+      Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 50)),
+      search.slice(0, 100),
+      { read, followUp, from, to },
+    );
+  }
+
+  @Post('match-runs/:id/workflow')
+  matchWorkflow(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const input = z
+      .object({
+        status: z.enum(['TODO', 'TO_CONTACT', 'CONTACTED', 'DISMISSED']),
+      })
+      .strict()
+      .parse(body);
+    return this.matching.workflow(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      input.status,
+    );
+  }
+
   @Post('match-runs/:id/retry')
   @HttpCode(202)
   retryMatch(@Req() request: Request, @Param('id') id: string) {
@@ -660,6 +789,29 @@ export class RecruitingController {
     return this.matching.reviewed(
       buildWorkspaceAuthContextFromRequest(request),
       id,
+    );
+  }
+
+  /** Re-extracts only originals already owned by this readable candidate. */
+  @Post('candidates/:id/reparse')
+  @HttpCode(202)
+  async reparseCandidate(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = z
+      .object({
+        batchKey: z.string().min(1).max(128),
+        text: z.string().min(30).max(500000).optional(),
+      })
+      .strict()
+      .parse(body);
+    return this.intakes.reparse(
+      buildWorkspaceAuthContextFromRequest(request),
+      id,
+      parsed.batchKey,
+      parsed.text,
     );
   }
 

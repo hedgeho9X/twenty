@@ -1,10 +1,17 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
 import { RecruitingFilePreview } from '@/recruiting/shared/components/FilePreview';
 import { useState } from 'react';
 import { SourceMaterialView } from '@/recruiting/shared/components/SourceMaterialView';
 /** Reads a task's persisted extraction and originals in a dedicated detail dialog, without rerunning the task. */
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
-import { Dialog } from 'twenty-ui/primitives/surfaces';
+import { Button } from '@/recruiting/shadcn/compat';
+import { Dialog } from '@/recruiting/shadcn/compat';
 import { IconArrowLeft, IconX } from 'twenty-ui/icon';
 import { useRecruitingQuery } from '@/recruiting/shared/hooks/useRecruitingQuery';
 import { type RecruitingIntake } from '@/recruiting/intake/types/Intake';
@@ -38,6 +45,8 @@ type RecruitingTaskDetailProps = {
   onClose: () => void;
   embedded?: boolean;
   onBack?: () => void;
+  matchingRunIds?: string[];
+  workflowStage?: string;
 };
 /** Opens only the selected task; linked matching state is read independently from the intake stage. */
 export const RecruitingTaskDetail = ({
@@ -46,6 +55,8 @@ export const RecruitingTaskDetail = ({
   onClose,
   embedded = false,
   onBack,
+  matchingRunIds,
+  workflowStage,
 }: RecruitingTaskDetailProps) => {
   const [preview, setPreview] =
     useState<NonNullable<RecruitingIntake['files']>[number]>();
@@ -55,7 +66,9 @@ export const RecruitingTaskDetail = ({
     5000,
   );
   const task = query.error ? undefined : query.data;
-  const stage = kind === 'intake' ? task?.stage : task?.status;
+  const stage =
+    kind === 'intake' ? (workflowStage ?? task?.stage) : task?.status;
+  const matches = matchingRunIds ?? task?.matchingRunIds;
   const content = preview ? (
     <RecruitingFilePreview
       embedded
@@ -149,8 +162,8 @@ export const RecruitingTaskDetail = ({
                       variant="ghost"
                       onClick={() => setShowSource(true)}
                     >{t`原始材料`}</Button>
-                    {task.matchingRunIds?.length ? (
-                      <IntakeMatchingState ids={task.matchingRunIds} />
+                    {matches?.length ? (
+                      <IntakeMatchingState ids={matches} />
                     ) : (
                       <StyledRecruitingMuted>{t`尚未创建匹配任务`}</StyledRecruitingMuted>
                     )}
@@ -163,25 +176,25 @@ export const RecruitingTaskDetail = ({
                       · {t`失败`} {task.counts?.failed}
                     </StyledRecruitingMuted>
                     <StyledRecruitingTable>
-                      <thead>
-                        <tr>
-                          <th>{t`候选人`}</th>
-                          <th>{t`岗位`}</th>
-                          <th>{t`状态`}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t`候选人`}</TableHead>
+                          <TableHead>{t`岗位`}</TableHead>
+                          <TableHead>{t`状态`}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {task.results?.map((pair) => (
-                          <tr key={`${pair.candidateId}:${pair.jobId}`}>
-                            <td>{pair.candidateLabel}</td>
-                            <td>{pair.jobLabel}</td>
-                            <td>
+                          <TableRow key={`${pair.candidateId}:${pair.jobId}`}>
+                            <TableCell>{pair.candidateLabel}</TableCell>
+                            <TableCell>{pair.jobLabel}</TableCell>
+                            <TableCell>
                               {recruitingTaskLabel(pair.status)}
                               {pair.error && <p>{pair.error}</p>}
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
+                      </TableBody>
                     </StyledRecruitingTable>
                     {task.complete && (
                       <a

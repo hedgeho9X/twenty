@@ -1,11 +1,18 @@
+import {
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/recruiting/shadcn/ui/table';
 import { QueueSettings } from './QueueSettings';
 /** Displays one task per submission from material processing through matching completion. */
 import { useState } from 'react';
 import { t } from '@lingui/core/macro';
-import { Button } from 'twenty-ui/primitives/input';
-import { Dialog } from 'twenty-ui/primitives/surfaces';
+import { Button } from '@/recruiting/shadcn/compat';
+import { Dialog } from '@/recruiting/shadcn/compat';
 import { IconRefresh, IconX } from 'twenty-ui/icon';
-import { Select } from '@/ui/input/components/Select';
+import { Select } from '@/recruiting/shadcn/compat';
 import { type RecruitingIntake } from '@/recruiting/intake/types/Intake';
 import { type RecruitingPage } from '@/recruiting/shared/types/Page';
 import { recruitingRequest } from '@/recruiting/shared/api/request';
@@ -42,7 +49,7 @@ export const RecruitingQueueDialog = ({
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState('');
   const [retryingId, setRetryingId] = useState<string>();
-  const [selected, setSelected] = useState<string>();
+  const [selected, setSelected] = useState<ProcessingTask>();
   const query = useRecruitingQuery<RecruitingPage<ProcessingTask>>(
     open ? `processing-tasks?offset=${offset}&direction=${direction}` : null,
     open ? 5000 : 0,
@@ -80,7 +87,9 @@ export const RecruitingQueueDialog = ({
                 <RecruitingTaskDetail
                   embedded
                   kind="intake"
-                  id={selected}
+                  id={selected.intakeId}
+                  matchingRunIds={selected.matchingRunIds}
+                  workflowStage={selected.stage}
                   onBack={() => setSelected(undefined)}
                   onClose={() => {
                     setSelected(undefined);
@@ -140,30 +149,32 @@ export const RecruitingQueueDialog = ({
                     )}
                     <StyledRecruitingDenseQueue>
                       <StyledRecruitingTable>
-                        <thead>
-                          <tr>
-                            <th>{t`名称`}</th>
-                            <th>{t`类型`}</th>
-                            <th>{t`渠道`}</th>
-                            <th>{t`时间`}</th>
-                            <th>{t`状态`}</th>
-                            <th>{t`详情`}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{t`名称`}</TableHead>
+                            <TableHead>{t`类型`}</TableHead>
+                            <TableHead>{t`渠道`}</TableHead>
+                            <TableHead>{t`时间`}</TableHead>
+                            <TableHead>{t`状态`}</TableHead>
+                            <TableHead>{t`详情`}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {page?.records.map((row) => (
-                            <tr key={row.intakeId}>
-                              <td title={row.name}>
+                            <TableRow key={row.intakeId}>
+                              <TableCell title={row.name}>
                                 {row.name?.replace('[recruiting-v2] ', '')}
-                              </td>
-                              <td>
+                              </TableCell>
+                              <TableCell>
                                 {row.kind === 'JOB' ? t`岗找人` : t`人找岗`}
-                              </td>
-                              <td>{recruitingChannelLabel(row.source)}</td>
-                              <td>
+                              </TableCell>
+                              <TableCell>
+                                {recruitingChannelLabel(row.source)}
+                              </TableCell>
+                              <TableCell>
                                 {new Date(row.createdAt).toLocaleString()}
-                              </td>
-                              <td>
+                              </TableCell>
+                              <TableCell>
                                 <StyledRecruitingStatus
                                   data-tone={recruitingTaskTone(row.stage)}
                                 >
@@ -177,13 +188,13 @@ export const RecruitingQueueDialog = ({
                                       {row.progress.total}
                                     </span>
                                   )}
-                              </td>
-                              <td>
+                              </TableCell>
+                              <TableCell>
                                 <StyledRecruitingRow>
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => setSelected(row.intakeId)}
+                                    onClick={() => setSelected(row)}
                                   >{t`详情`}</Button>
                                   {row.stage === 'MATCH_DISABLED' && (
                                     <Button
@@ -232,10 +243,10 @@ export const RecruitingQueueDialog = ({
                                     </Button>
                                   )}
                                 </StyledRecruitingRow>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
+                        </TableBody>
                       </StyledRecruitingTable>
                     </StyledRecruitingDenseQueue>
                     {!query.loading && !page?.records.length && (

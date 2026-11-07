@@ -1,0 +1,77 @@
+/** Verifies bounded page navigation and explicit jumps. */
+import { fireEvent, render, screen } from '@testing-library/react';
+import { ResultPagination, resultPages } from '../ResultPagination';
+jest.mock('twenty-ui/primitives/input', () => ({
+  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props} />
+  ),
+}));
+it('keeps a bounded window for large result sets', () => {
+  expect(resultPages(50, 100)).toEqual([1, 49, 50, 51, 100]);
+  expect(resultPages(1, 1)).toEqual([1]);
+});
+it('navigates to valid pages and rejects out of range jumps', () => {
+  const onPage = jest.fn();
+  render(
+    <ResultPagination
+      count={3080}
+      page={7}
+      pageSize={50}
+      onPage={onPage}
+      onPageSize={jest.fn()}
+    />,
+  );
+  fireEvent.change(screen.getByRole('textbox', { name: '跳转页码' }), {
+    target: { value: '62' },
+  });
+  fireEvent.submit(
+    screen.getByRole('button', { name: '跳转' }).closest('form')!,
+  );
+  expect(onPage).toHaveBeenLastCalledWith(62);
+  onPage.mockClear();
+  fireEvent.change(screen.getByRole('textbox', { name: '跳转页码' }), {
+    target: { value: '63' },
+  });
+  fireEvent.submit(
+    screen.getByRole('button', { name: '跳转' }).closest('form')!,
+  );
+  expect(onPage).not.toHaveBeenCalled();
+});
+
+it('keeps the requested page while its count is unavailable and clamps only after loading completes', () => {
+  const onPage = jest.fn();
+  const { rerender } = render(
+    <ResultPagination
+      count={0}
+      page={3}
+      pageSize={50}
+      onPage={onPage}
+      onPageSize={jest.fn()}
+      isLoading
+    />,
+  );
+  expect(screen.getByText('正在加载…')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '下一页' })).toBeDisabled();
+  expect(onPage).not.toHaveBeenCalled();
+  rerender(
+    <ResultPagination
+      count={0}
+      page={3}
+      pageSize={50}
+      onPage={onPage}
+      onPageSize={jest.fn()}
+      hasCount={false}
+    />,
+  );
+  expect(onPage).not.toHaveBeenCalled();
+  rerender(
+    <ResultPagination
+      count={100}
+      page={3}
+      pageSize={50}
+      onPage={onPage}
+      onPageSize={jest.fn()}
+    />,
+  );
+  expect(onPage).toHaveBeenCalledWith(2);
+});

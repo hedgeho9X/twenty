@@ -37,6 +37,7 @@ beforeEach(() => {
     loading: false,
     error: '',
     reload: jest.fn(),
+    updateData: jest.fn(),
   });
 });
 
@@ -50,6 +51,7 @@ it('distinguishes same-name company choices using their actual domains', () => {
     loading: false,
     error: '',
     reload: jest.fn(),
+    updateData: jest.fn(),
   });
   render(
     <RecruitingRecordPicker
@@ -60,11 +62,12 @@ it('distinguishes same-name company choices using their actual domains', () => {
       onSelect={jest.fn()}
     />,
   );
+  fireEvent.click(screen.getByRole('button', { name: '选择公司' }));
   expect(
-    screen.getByRole('button', { name: /a\.example\.invalid/ }),
+    screen.getByRole('option', { name: /a\.example\.invalid/ }),
   ).toBeTruthy();
   expect(
-    screen.getByRole('button', { name: /b\.example\.invalid/ }),
+    screen.getByRole('option', { name: /b\.example\.invalid/ }),
   ).toBeTruthy();
 });
 
@@ -79,6 +82,7 @@ it('shows active and closed jobs with native record links and a bounded preview'
     loading: false,
     error: '',
     reload: jest.fn(),
+    updateData: jest.fn(),
   });
   const onViewAll = jest.fn();
   render(
@@ -119,6 +123,7 @@ it('keeps a directory permission failure distinct from an empty company', () => 
     loading: false,
     error: '当前无权读取岗位',
     reload: jest.fn(),
+    updateData: jest.fn(),
   });
   render(<RecruitingCompanyExistingJobs companyId="company-a" />);
   expect(screen.getByRole('alert').textContent).toBe('当前无权读取岗位');
@@ -132,6 +137,7 @@ it('reports zero only after the permitted directory returns an empty page', () =
     loading: false,
     error: '',
     reload: jest.fn(),
+    updateData: jest.fn(),
   });
   render(<RecruitingCompanyExistingJobs companyId="company-b" />);
   expect(screen.getByText('已有岗位（0）')).toBeTruthy();

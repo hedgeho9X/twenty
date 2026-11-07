@@ -2,7 +2,7 @@
 
 面向招聘 Agent 的入口是 `fanhan`：使用 Node.js 22+，通过 `FANHAN_BASE_URL` 与 `FANHAN_API_KEY` 连接实例。`fanhan --help` 列出七组业务动作；`fanhan candidates --help --json` 只列出候选人相关命令。无需加载 Twenty 的 MCP 工具目录。
 
-`fanhan candidates upload --employment-type full_time --file 简历.txt --key 本次提交标识 --wait` 会等待入库及关联匹配；`fanhan draft generate --match-run-id ID --top 5 --key 文案标识 --wait` 返回文案和分享链接。完整 Agent 工作说明在 `.agents/skills/fanhan-recruiting/SKILL.md`（仓库根目录）。
+`fanhan candidates upload --employment-type full_time --file 简历.txt --key 本次提交标识 --wait` 会等待入库及关联匹配；`fanhan draft generate --match-run-id ID --top 5 --key 文案标识 --wait` 只返回文案，不自动创建分享；先展示并确认岗位/候选人及PDF范围，再单独执行 `fanhan share create`。完整 Agent 工作说明在 `.agents/skills/fanhan-recruiting/SKILL.md`（仓库根目录）。
 
 命令行仅依赖 Node 内置模块。npm 包入口为 `fanhan.mjs`；`schema --json` 与分组帮助不要求凭据。生产入口使用 HTTPS，地址由 FANHAN_BASE_URL 指定；仅明确连接 HTTP 测试或自建实例时设置 FANHAN_ALLOW_HTTP=1。可通过 auth login 保存本机 Keychain，或使用环境变量注入凭据。同人最多6份文件，重复 --file；候选人和每条JD都必须指定 --employment-type full_time|internship。
 

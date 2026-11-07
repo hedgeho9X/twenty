@@ -1,3 +1,7 @@
+/** Supplies the DOM scrolling primitive used by Radix option focus in jsdom. */
+beforeAll(() => {
+  Element.prototype.scrollIntoView = jest.fn();
+});
 /** A successful upload releases the form for the next candidate without retaining submitted files. */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { RecruitingCandidateIntake } from './CandidateIntake';
@@ -86,9 +90,8 @@ it('clears accepted files and notes instead of requiring continue-upload', async
   fireEvent.change(screen.getByRole('textbox'), {
     target: { value: 'test note' },
   });
-  fireEvent.change(screen.getByRole('combobox'), {
-    target: { value: 'full_time' },
-  });
+  fireEvent.click(screen.getByRole('combobox'));
+  fireEvent.click(screen.getByRole('option', { name: '正式' }));
   fireEvent.click(screen.getByRole('button', { name: '上传并开始整理' }));
   await waitFor(() => expect(submitted).toHaveBeenCalledTimes(1));
   expect(screen.queryByText('test.txt')).not.toBeInTheDocument();
@@ -113,9 +116,8 @@ it('requires employment and submits six files as one candidate task', async () =
     },
   });
   expect(screen.getByRole('button', { name: '上传并开始整理' })).toBeDisabled();
-  fireEvent.change(screen.getByRole('combobox'), {
-    target: { value: 'internship' },
-  });
+  fireEvent.click(screen.getByRole('combobox'));
+  fireEvent.click(screen.getByRole('option', { name: '实习' }));
   fireEvent.click(screen.getByRole('button', { name: '上传并开始整理' }));
   await waitFor(() => expect(recruitingRequest).toHaveBeenCalledTimes(1));
   expect(uploadRecruitingFile).toHaveBeenCalledTimes(6);

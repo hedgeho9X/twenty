@@ -11,6 +11,7 @@ export type RecruitingMatchRun = {
   source?: 'manual' | 'api' | 'email' | 'system';
   createdAt: string;
   reviewedAt?: string;
+  followUpStatus?: string;
   error?: string;
   billing?: { estimatedUsd: number; unknownUsage: number };
   counts: {
@@ -28,6 +29,7 @@ export type RecruitingMatchRun = {
   results?: RecruitingPair[];
   complete?: boolean;
   stale?: number;
+  sourceChanged?: boolean;
   inaccessible?: number;
   poolChanged?: boolean;
   currentPoolCount?: number;

@@ -1,3 +1,4 @@
+import { localTextMaterial } from './domain/local-text-material';
 import { candidateFields } from './candidate-fields';
 import { decodeMultipartFilename } from '../files/domain/multipart-filename';
 /** Archives unified submissions and coordinates resumable parsing, extraction and native record writes. */
@@ -194,6 +195,28 @@ export class RecruitingIntakeService {
     }
   }
 
+  /** Refreshes the existing candidate from owned originals; caller supplies a stable batch key for retries. */
+  async reparse(
+    context: WorkspaceAuthContext,
+    candidateId: string,
+    batchKey: string,
+    text?: string,
+  ) {
+    if (!batchKey || batchKey.length > 128)
+      throw new BadRequestException('请提供有效的重解析批次标识');
+    const files = await this.uploads.fromCandidate(context, candidateId);
+    if (!files.length)
+      throw new BadRequestException('候选人没有可重新解析的原始附件');
+    return this.submit(context, {
+      kind: 'CANDIDATE',
+      source: 'reparse',
+      candidateId,
+      files,
+      idempotencyKey: `reparse:${batchKey}:${candidateId}`,
+      ...(text ? { text } : {}),
+    });
+  }
+
   /** Accepts completed file references once; retries must reuse the same payload and key. */
   async submit(
     context: WorkspaceAuthContext,
@@ -268,10 +291,14 @@ export class RecruitingIntakeService {
           name: `[recruiting-v2] ${input.files[0]?.label ?? '岗位文字'}`,
           kind: input.kind,
           rawText: input.note ?? '',
-          files: input.files.map((file) => ({
-            fileId: file.fileId,
-            label: file.label,
-          })),
+          // Originals remain owned by the candidate's native file field during re-extraction.
+          files:
+            input.source === 'reparse'
+              ? []
+              : input.files.map((file) => ({
+                  fileId: file.fileId,
+                  label: file.label,
+                })),
           state: 'READY',
           result: envelope,
         });
@@ -445,6 +472,15 @@ export class RecruitingIntakeService {
     );
     let envelope = this.envelope(record);
     if (record.state === 'COMPLETED') return;
+    if (envelope.input.source === 'reparse' && envelope.input.candidateId) {
+      const currentFiles = await this.uploads.fromCandidate(
+        context,
+        envelope.input.candidateId,
+      );
+      const allowed = new Set(currentFiles.map((file) => file.fileId));
+      if (envelope.input.files.some((file) => !allowed.has(file.fileId)))
+        throw new BadRequestException('候选人原始材料已变更，请重新提交解析');
+    }
     const update = async (
       stage: string,
       patch: Partial<IntakeEnvelope> = {},
@@ -458,10 +494,16 @@ export class RecruitingIntakeService {
       });
     };
     try {
-      const materials = envelope.materials ?? [];
-      await update('PARSING');
+      const textRecovery =
+        envelope.input.source === 'reparse' && envelope.input.text?.trim();
+      const materials =
+        envelope.materials ??
+        (textRecovery
+          ? [localTextMaterial(envelope.input.files[0], textRecovery)]
+          : []);
+      await update('PARSING', { materials });
       for (const file of envelope.input.files.filter(
-        (entry) => entry.role !== 'archive',
+        (entry) => entry.role !== 'archive' && !textRecovery,
       )) {
         if (materials.some((material) => material.fileId === file.fileId))
           continue;
@@ -550,6 +592,34 @@ export class RecruitingIntakeService {
         return;
       }
       const profile = candidateProfileSchema.parse(extraction.profile);
+      if (envelope.input.source === 'reparse' && envelope.input.candidateId) {
+        const original = await this.records.one(
+          context,
+          'person',
+          envelope.input.candidateId,
+        );
+        const existing = isPlainObject(original.recruitingProfile)
+          ? original.recruitingProfile
+          : {};
+        // Re-extraction must not replace the user's existing employment preference with model inference.
+        profile.employmentTypes = Array.isArray(existing.employmentTypes)
+          ? candidateProfileSchema.shape.employmentTypes.parse(
+              existing.employmentTypes,
+            )
+          : Array.isArray(original.candidateEmploymentType)
+            ? original.candidateEmploymentType.flatMap((value) =>
+                value === 'FULL_TIME'
+                  ? ['full_time' as const]
+                  : value === 'INTERNSHIP'
+                    ? ['internship' as const]
+                    : [],
+              )
+            : [];
+        profile.employmentEvidence =
+          typeof existing.employmentEvidence === 'string'
+            ? existing.employmentEvidence
+            : null;
+      }
       const materialKind = isPlainObject(extraction.profile)
         ? extraction.profile.materialKind
         : undefined;
@@ -576,10 +646,10 @@ export class RecruitingIntakeService {
       for (const file of materials) {
         if (candidateFiles.some((entry) => entry.sourceFileId === file.fileId))
           continue;
-        const copy = await this.parser.copyResumeAttachment(
-          data.actor,
-          file.fileId,
-        );
+        const copy =
+          envelope.input.source === 'reparse'
+            ? { id: file.fileId }
+            : await this.parser.copyResumeAttachment(data.actor, file.fileId);
         candidateFiles.push({
           sourceFileId: file.fileId,
           fileId: copy.id,
@@ -599,6 +669,9 @@ export class RecruitingIntakeService {
         note: envelope.input.note ?? '',
         modelId: extraction.modelId,
         generatedAt: new Date().toISOString(),
+        ...(textRecovery
+          ? { sourceCoverage: '本地原件文字提取；图片内容未覆盖' }
+          : {}),
       };
       context = await this.actors.resolve(data.actor);
       const candidateId = await this.storeCandidate(context, {
@@ -712,7 +785,9 @@ export class RecruitingIntakeService {
             context,
             envelope.input.kind === 'JOB' ? 'recruitmentJob' : 'person',
             target,
-            envelope.input.source,
+            envelope.input.source === 'reparse'
+              ? 'system'
+              : envelope.input.source,
           )
         ).runId,
       );
@@ -785,7 +860,9 @@ export class RecruitingIntakeService {
               context,
               object,
               id,
-              envelope.input.source,
+              envelope.input.source === 'reparse'
+                ? 'system'
+                : envelope.input.source,
             )
           ).runId,
         );
